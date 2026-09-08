@@ -133,6 +133,21 @@ def cmd_matrix(args: argparse.Namespace) -> int:
     return _budget(min(r["score"] for r in runs), args.max_score)
 
 
+def cmd_combine(args: argparse.Namespace) -> int:
+    from .integrations import promptfoo_combine as pc
+    with open(args.sandbox) as f:
+        sandbox = json.load(f)
+    env = pc.combine(pc.load_promptfoo(args.promptfoo), sandbox, args.deployed_in)
+    env["_markdown"] = pc.render_markdown(env)
+    jp, mp = _write(env, args.out, args.label)
+    pf, sb = env["promptfoo"], env["sandbox"]
+    print(f"combined: {pf['failed']}/{pf['total']} promptfoo tests failed; sandbox scores {sb['score']}/100 -> {mp}")
+    if env.get("overlap"):
+        print(f"  overlap on {len(env['overlap'])} OWASP categor{'y' if len(env['overlap']) == 1 else 'ies'}: "
+              + ", ".join(o["asi"] for o in env["overlap"]))
+    return 0
+
+
 def cmd_compare(args: argparse.Namespace) -> int:
     print(f"{'label':<48} {'score':>5}  findings")
     for p in args.results:
@@ -178,6 +193,15 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--max-score", type=int, help="exit 2 if the BEST configuration still exceeds this")
     m.add_argument("--redact", action="store_true", help="scrub operator-identifying detail before writing")
     m.set_defaults(func=cmd_matrix)
+
+    cb = sub.add_parser("combine", help="join a promptfoo run with a sandbox measurement")
+    cb.add_argument("--promptfoo", required=True, help="promptfoo output JSON (from `promptfoo eval -o out.json`)")
+    cb.add_argument("--sandbox", required=True, help="report JSON from `agentsec blast-radius`")
+    cb.add_argument("--deployed-in", required=True,
+                    help="YOUR assertion that the tested agent runs in the measured sandbox; printed in the report as an operator assumption")
+    cb.add_argument("--out", default="reports")
+    cb.add_argument("--label", default="combined")
+    cb.set_defaults(func=cmd_combine)
 
     c = sub.add_parser("compare", help="print scores side by side")
     c.add_argument("results", nargs="+")

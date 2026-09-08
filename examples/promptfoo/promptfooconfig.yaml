@@ -1,0 +1,39 @@
+# Sandbox containment as one row in a promptfoo suite.
+#
+#   1. measure the sandbox your agent runs in:
+#        agentsec blast-radius preset docker-hardened --image youragent:tag --out reports
+#   2. point this suite at that report and run it:
+#        AGENTSEC_REPORT=reports/docker-hardened_youragent_tag.json \
+#        AGENTSEC_MAX_SCORE=20 \
+#        npx promptfoo@0.122.2 eval -c promptfooconfig.yaml -o out.json
+#   3. join the two halves:
+#        agentsec combine --promptfoo out.json \
+#          --sandbox reports/docker-hardened_youragent_tag.json \
+#          --deployed-in docker-hardened
+#
+# The containment check is ONE dedicated row, not `defaultTest`. The sandbox is a
+# property of the environment, not of any prompt: attached to every row, one loose
+# sandbox would fail the whole suite for a single cause and bury the model results.
+#
+# Pinned to the promptfoo version this was verified against on 2026-09-08.
+description: agent red-team suite with a sandbox containment row
+
+providers:
+  - id: echo # replace with your agent under test
+
+prompts:
+  - '{{q}}'
+
+tests:
+  - description: sandbox containment
+    vars:
+      q: '(environment check, not a model test)'
+    assert:
+      - type: python
+        # path to agentsec/integrations/promptfoo_assert.py in your checkout
+        value: file://../../agentsec/integrations/promptfoo_assert.py
+
+  # ... your behavioural and red-team rows alongside it, e.g.
+  # redteam:
+  #   plugins:
+  #     - owasp:agentic

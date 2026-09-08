@@ -53,6 +53,27 @@ The result worth arguing about is the top row. The lightweight "read-only host r
 
 Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`.
 
+## Alongside a red-team run
+
+Promptfoo measures what the agent does. This measures what the agent's sandbox would let a successful attack reach. Run both and join them:
+
+```bash
+# 1. measure the sandbox
+agentsec blast-radius preset docker-default --image youragent:tag --out reports
+# 2. run your promptfoo suite with the containment row (examples/promptfoo/promptfooconfig.yaml)
+AGENTSEC_REPORT=reports/docker-default_youragent_tag.json   npx promptfoo@0.122.2 eval -c promptfooconfig.yaml -o out.json
+# 3. join them
+agentsec combine --promptfoo out.json --sandbox reports/docker-default_youragent_tag.json   --deployed-in docker-default
+```
+
+The assertion adds `blast_radius` to promptfoo's `namedScores` and never runs the probe itself; it reads a report you generated earlier, because promptfoo calls assertions once per test row. Attach it to one dedicated row rather than `defaultTest`, or a single loose sandbox fails your whole suite for one environmental cause.
+
+`combine` reports the overlap: an OWASP agentic category where a test failed *and* the sandbox has a matching finding. The plugin-to-category table is promptfoo's own published mapping, cached in `agentsec/data/promptfoo_plugin_asi.json` with its URL and fetch date; plugin ids of the form `owasp:agentic:asi05` are parsed directly.
+
+**`--deployed-in` is required and is your claim, not a derived fact.** Neither file knows whether the agent promptfoo tested runs in the sandbox that was measured. The report prints that assumption at the top and conditions every conclusion on it. Example output: `examples/promptfoo/combined_example.md`.
+
+**Tested against:** a real `promptfoo eval` run (fixture captured 2026-09-08, and an end-to-end test that shells out to `npx promptfoo@0.122.2`). The plugin-id join is exercised against a hand-written fixture in promptfoo's schema, **not** against a live red-team run, because that needs a target and credentials this repo does not have. In red-team output, `success: false` means the attack landed.
+
 ## How it works
 
 `agentsec/probe/blast_probe.py` is a single stdlib-only file. The runner bind-mounts it read-only into the target (or launches it through any command template that can run `python3`) and reads one JSON line back. `agentsec/scoring.py` turns the JSON into findings with fixed severities and a 0–100 score: 0 means the probe could reach nothing; higher means a larger blast radius. Findings map to the OWASP Top 10 for Agentic Applications (2026); the mapping lives in `agentsec/data/owasp_asi_2026.json` with its source.
@@ -65,8 +86,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 
 - [x] blast-radius probe, runner (docker / podman / local / command template), scorer, JSON + Markdown reports
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
+- [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
 - [ ] presets that reproduce named agents' own sandboxes (only after reading each one's source)
-- [ ] Promptfoo plugin / reporter
 - [ ] verifier-integrity test class
 - [ ] hosted history and CI gate
 

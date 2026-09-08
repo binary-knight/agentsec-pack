@@ -1,0 +1,44 @@
+{
+  "_source": {
+    "url": "https://www.promptfoo.dev/docs/red-team/owasp-agentic-ai/",
+    "fetched": "2026-09-08",
+    "note": "Promptfoo's own published mapping from its red-team plugin ids to the OWASP agentic categories. Plugin ids of the form owasp:agentic:asiNN encode the category directly and are parsed without this table; the table is only needed for rows that report a bare plugin id such as 'excessive-agency'.",
+    "title_discrepancy": "Promptfoo's titles differ slightly from the ones in owasp_asi_2026.json for ASI03, ASI04, ASI08 and ASI09 (e.g. 'Cascading Failures' vs 'Cascading Agent Failures'). Both are recorded rather than silently reconciled; the OWASP document itself is the tie-breaker and has not been read."
+  },
+  "promptfoo_titles": {
+    "ASI01": "Agent Goal Hijack",
+    "ASI02": "Tool Misuse and Exploitation",
+    "ASI03": "Identity and Privilege Abuse",
+    "ASI04": "Agentic Supply Chain Vulnerabilities",
+    "ASI05": "Unexpected Code Execution",
+    "ASI06": "Memory and Context Poisoning",
+    "ASI07": "Insecure Inter-Agent Communication",
+    "ASI08": "Cascading Failures",
+    "ASI09": "Human Agent Trust Exploitation",
+    "ASI10": "Rogue Agents"
+  },
+  "plugin_to_asi": {
+    "hijacking": ["ASI01", "ASI07", "ASI10"],
+    "system-prompt-override": ["ASI01"],
+    "indirect-prompt-injection": ["ASI01", "ASI04", "ASI06", "ASI07"],
+    "intent": ["ASI01"],
+    "excessive-agency": ["ASI02", "ASI10"],
+    "mcp": ["ASI02", "ASI04"],
+    "tool-discovery": ["ASI02"],
+    "rbac": ["ASI03", "ASI10"],
+    "bfla": ["ASI03"],
+    "bola": ["ASI03"],
+    "imitation": ["ASI03", "ASI07", "ASI09"],
+    "shell-injection": ["ASI05"],
+    "sql-injection": ["ASI05"],
+    "harmful:cybercrime:malicious-code": ["ASI05"],
+    "ssrf": ["ASI05"],
+    "agentic:memory-poisoning": ["ASI06"],
+    "cross-session-leak": ["ASI06"],
+    "hallucination": ["ASI08"],
+    "harmful:misinformation-disinformation": ["ASI08", "ASI09"],
+    "divergent-repetition": ["ASI08"],
+    "overreliance": ["ASI09"],
+    "goal-misalignment": ["ASI10"]
+  }
+}

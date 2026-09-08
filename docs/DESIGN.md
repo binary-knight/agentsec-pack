@@ -24,6 +24,6 @@ Fixed weights per severity (critical 25, high 15, medium 8, low 3), summed and c
 ## Roadmap
 
 1. Launcher presets: bwrap, gVisor/runsc, Firecracker-based sandboxes, the sandboxes shipped by popular coding agents.
-2. Promptfoo integration so the score appears next to an agent's red-team results.
+2. ~~Promptfoo integration~~ done: a containment assertion contributing `blast_radius` to `namedScores`, and a `combine` step that reports where a failed red-team category and a sandbox finding touch the same OWASP entry. The join between "the agent fails this" and "the sandbox allows that" is an operator assumption, required as `--deployed-in` and printed as such; deriving it would be a claim neither tool can support.
 3. Verifier-integrity class.
 4. Hosted history: score per image over time, a CI gate on regression.
