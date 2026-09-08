@@ -1,0 +1,15 @@
+{
+  "_source": "OWASP Top 10 for Agentic Applications for 2026, OWASP GenAI Security Project, announced 2025-12-09. Landing page: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/ (the list itself is in the downloadable document; titles below were cross-checked on 2026-09-08 against three secondary summaries: https://cycode.com/blog/owasp-top-10-agentic-applications/ , https://www.aikido.dev/blog/owasp-top-10-agentic-applications , https://www.practical-devsecops.com/owasp-top-10-agentic-applications/ ). TODO before publishing: verify titles against the PDF.",
+  "entries": {
+    "ASI01": "Agent Goal Hijack",
+    "ASI02": "Tool Misuse & Exploitation",
+    "ASI03": "Agent Identity & Privilege Abuse",
+    "ASI04": "Agentic Supply Chain Compromise",
+    "ASI05": "Unexpected Code Execution",
+    "ASI06": "Memory & Context Poisoning",
+    "ASI07": "Insecure Inter-Agent Communication",
+    "ASI08": "Cascading Agent Failures",
+    "ASI09": "Human-Agent Trust Exploitation",
+    "ASI10": "Rogue Agents"
+  }
+}

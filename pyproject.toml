@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentsec-pack"
+version = "0.0.1"
+description = "Adversarial tests for AI agents: does the agent's sandbox contain it, and did the agent do the task without cheating? (working name)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+agentsec = "agentsec.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["agentsec*"]
+
+[tool.setuptools.package-data]
+agentsec = ["data/*.json", "probe/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
