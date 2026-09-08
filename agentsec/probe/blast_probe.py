@@ -59,6 +59,9 @@ CREDENTIAL_PATHS = [
 ]
 SOCKET_PATHS = ["/var/run/docker.sock", "/run/docker.sock", "/run/containerd/containerd.sock", "/run/podman/podman.sock"]
 WRITE_PROBE_DIRS = ["/", "/etc", "/usr/bin", "/usr/local/bin", "/root", "/home", "/var", "/opt", "/tmp", "/dev/shm"]
+# The working directory is probed separately: sandboxes that grant a single
+# writable workspace (an agent's "workspace-write" mode) differ from fully
+# read-only ones only here, and a fixed list would miss it.
 
 # Linux capability bit names (from linux/capability.h). Index = bit number.
 CAP_NAMES = [
@@ -126,6 +129,7 @@ def _in_user_namespace():
 
 def probe_network():
     results = []
+    blocked = 0
     for t in EGRESS_TARGETS + METADATA_TARGETS:
         r = {"name": t["name"], "host": t["host"], "port": t["port"], "resolved": None, "connect": False, "ms": None}
         start = time.time()
@@ -134,9 +138,19 @@ def probe_network():
             r["resolved"] = addr[0]
         except Exception as e:
             r["resolve_error"] = type(e).__name__
+            if type(e).__name__ in ("PermissionError", "OSError") and "Operation not permitted" in str(e):
+                blocked += 1
             results.append(r)
             continue
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        except Exception as e:
+            # A seccomp filter or LSM can refuse socket() itself. That is a
+            # containment result, not a probe failure.
+            r["socket_error"] = type(e).__name__
+            blocked += 1
+            results.append(r)
+            continue
         s.settimeout(CONNECT_TIMEOUT)
         try:
             s.connect(addr)
@@ -157,6 +171,7 @@ def probe_network():
     except Exception:
         pass
     return {"targets": results, "interfaces": sorted(ifaces),
+            "socket_syscall_blocked": blocked == len(results) and blocked > 0,
             "any_egress": any(x["connect"] for x in results if not x["name"].startswith(("cloud-metadata", "gcp-metadata"))),
             "metadata_reachable": any(x["connect"] for x in results if x["name"].startswith(("cloud-metadata", "gcp-metadata")))}
 
@@ -188,7 +203,12 @@ def probe_secrets():
             continue
         entry = {"path": sp, "writable": os.access(sp, os.W_OK), "connected": False}
         # Prove reachability rather than inferring it from permissions: connect, send nothing, close.
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        except Exception as e:
+            entry["socket_error"] = type(e).__name__
+            sockets.append(entry)
+            continue
         s.settimeout(CONNECT_TIMEOUT)
         try:
             s.connect(sp)
@@ -208,6 +228,14 @@ def probe_secrets():
 
 def probe_filesystem():
     writable = []
+    cwd_writable = None
+    try:
+        fd, path = tempfile.mkstemp(prefix=".agentsec_probe_", dir=os.getcwd())
+        os.close(fd)
+        os.unlink(path)
+        cwd_writable = True
+    except Exception:
+        cwd_writable = False
     for d in WRITE_PROBE_DIRS:
         if not os.path.isdir(d):
             continue
@@ -241,7 +269,7 @@ def probe_filesystem():
                     setuid.append(p)
         except Exception:
             pass
-    return {"writable_dirs": writable, "root_rw": root_rw, "bind_mounts": mounts[:50], "setuid_binaries": sorted(set(setuid))[:50],
+    return {"writable_dirs": writable, "cwd_writable": cwd_writable, "root_rw": root_rw, "bind_mounts": mounts[:50], "setuid_binaries": sorted(set(setuid))[:50],
             "proc_sysrq_writable": os.access("/proc/sysrq-trigger", os.W_OK),
             "host_root_visible": os.path.exists("/host") or os.path.exists("/hostfs")}
 

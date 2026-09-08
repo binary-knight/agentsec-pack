@@ -53,6 +53,21 @@ The result worth arguing about is the top row. The lightweight "read-only host r
 
 Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`.
 
+## Measuring an agent's own sandbox
+
+A container you can wrap from outside. An agent's sandbox you cannot: it is entered by the agent. So you ask the agent to run the probe inside it and score what comes back (`docs/CAPTURING.md`, `agentsec score`).
+
+Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8 September 2026:
+
+| Sandbox | Score | Contained | Still reachable |
+|---|---:|---|---|
+| Codex CLI 0.153.4 `--sandbox read-only` | 41 | root filesystem read-only, working directory not writable, DNS fails, direct-IP connects refused, container sockets refused | the invoking user's home directory: `~/.ssh/config`, `~/.gitconfig`, `~/.config/gh/hosts.yml`, secret-looking environment variables, PID 1's environment |
+| Codex CLI 0.153.4 `--sandbox workspace-write` | 49 | as above | as above, plus a writable working directory (expected, scored informational) and read-write bind mounts from the host |
+
+**This is a design boundary, not a vulnerability, and the report says so.** The vendor documents read-only mode as "the agent can inspect files", so an agent reading your `gh` credentials file is the boundary working as written. The number is useful anyway: it says that on the write and network axes this sandbox is genuinely strong, and that what remains inside the blast radius is *read* access to whatever secrets live in the home directory of the user who launched it. A sandbox that blocks the network does not stop a credential leaving through the agent's own reply to its model provider.
+
+Full reports with provenance: `examples/agents/`. Entries in `agentsec/data/measured_profiles.json` may only be added from an actual measurement, never from documentation, and each cites the vendor's own docs. Before publishing anything that contradicts a vendor's documentation, tell the vendor first.
+
 ## Alongside a red-team run
 
 Promptfoo measures what the agent does. This measures what the agent's sandbox would let a successful attack reach. Run both and join them:
@@ -87,7 +102,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [x] blast-radius probe, runner (docker / podman / local / command template), scorer, JSON + Markdown reports
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
 - [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
-- [ ] presets that reproduce named agents' own sandboxes (only after reading each one's source)
+- [x] measured profiles of named agents' sandboxes, captured by running the probe inside them
+- [ ] more agents; a launcher preset per agent where the sandbox can be reproduced standalone
 - [ ] verifier-integrity test class
 - [ ] hosted history and CI gate
 

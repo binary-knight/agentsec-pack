@@ -1,9 +1,13 @@
 import json
+import os
 import shutil
 
 import pytest
 
 from agentsec import presets, runner
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
 from agentsec.cli import main
 from agentsec.scoring import summarize, recommended_flags, analyze
 
@@ -103,3 +107,38 @@ def test_redaction_removes_identifying_detail_but_keeps_scores():
     assert out["probe"]["secrets"]["env_secret_names"][0]["length"] == 40
     assert out["summary"]["findings"][0]["evidence"]["names"][0]["name"] == "<redacted>"
     assert "OPENAI_API_KEY" not in json.dumps(out)
+
+
+def test_measured_profiles_carry_full_provenance():
+    """A named agent's sandbox may only be recorded if it was actually measured."""
+    import json as _json
+    from importlib import resources
+    with resources.files("agentsec.data").joinpath("measured_profiles.json").open() as f:
+        data = _json.load(f)
+    for name, p in data["profiles"].items():
+        for key in ("agent", "version", "mode", "measured", "host", "score", "how", "vendor_docs", "result", "report"):
+            assert p.get(key), f"{name} is missing {key}"
+        assert "http" in p["vendor_docs"], f"{name} must cite the vendor's own documentation"
+        assert os.path.exists(os.path.join(REPO, p["report"])), p["report"]
+
+
+def test_measured_profile_reports_match_their_recorded_score():
+    import json as _json
+    from importlib import resources
+    with resources.files("agentsec.data").joinpath("measured_profiles.json").open() as f:
+        data = _json.load(f)
+    for name, p in data["profiles"].items():
+        report = _json.load(open(os.path.join(REPO, p["report"].replace(".md", ".json"))))
+        assert report["summary"]["score"] == p["score"], f"{name}: table says {p['score']}, report says {report['summary']['score']}"
+
+
+def test_socket_finding_is_critical_only_when_a_connection_succeeded():
+    from agentsec.scoring import analyze
+    base = json.load(open(os.path.join(HERE, "fixtures", "probe_open.json")))
+    ids = {f.id: f for f in analyze(base)}
+    assert "SEC-001" in ids and ids["SEC-001"].severity == "critical"
+    base["secrets"]["container_sockets"] = [{"path": "/var/run/docker.sock", "writable": True,
+                                             "connected": False, "connect_error": "PermissionError"}]
+    ids2 = {f.id: f for f in analyze(base)}
+    assert "SEC-001" not in ids2, "a refused socket must not be scored as reachable"
+    assert ids2["SEC-006"].severity == "low"

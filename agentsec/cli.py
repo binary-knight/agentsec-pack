@@ -133,6 +133,40 @@ def cmd_matrix(args: argparse.Namespace) -> int:
     return _budget(min(r["score"] for r in runs), args.max_score)
 
 
+def cmd_score(args: argparse.Namespace) -> int:
+    """Score a probe result the tool did not launch itself.
+
+    Some sandboxes cannot be driven from outside: an agent's own sandbox mode is
+    entered by the agent, not by us. Capture the probe's JSON however you can and
+    score it here; `--how` is recorded verbatim so the measurement stays checkable.
+    """
+    with open(args.probe_json) as f:
+        raw = f.read().strip()
+    try:
+        probe = json.loads(raw)
+    except json.JSONDecodeError:
+        # Agent transcripts sometimes clip the trailing brace off a pasted blob.
+        repaired, added = raw, 0
+        while repaired.count("{") > repaired.count("}") and added < 8:
+            repaired += "}"
+            added += 1
+        probe = json.loads(repaired)
+        print(f"note: input was missing {added} closing brace(s); repaired before scoring", file=sys.stderr)
+    summary = summarize(probe)
+    env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "label": args.label,
+           "generated_at": int(time.time()),
+           "target": {"kind": "captured", "label": args.label, "how": args.how,
+                      "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."},
+           "rc": 0, "summary": summary, "probe": probe, "probe_stderr": ""}
+    if args.redact:
+        env = redact(env)
+    jp, mp = _write(env, args.out, args.label.replace(" ", "_").replace("/", "_"))
+    print(f"{args.label}: score {summary['score']}/100, {summary['finding_count']} findings -> {mp}")
+    for f in summary["findings"]:
+        print(f"  [{f['severity']:<8}] {f['id']} {f['title']}")
+    return _budget(summary["score"], args.max_score)
+
+
 def cmd_combine(args: argparse.Namespace) -> int:
     from .integrations import promptfoo_combine as pc
     with open(args.sandbox) as f:
@@ -193,6 +227,15 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--max-score", type=int, help="exit 2 if the BEST configuration still exceeds this")
     m.add_argument("--redact", action="store_true", help="scrub operator-identifying detail before writing")
     m.set_defaults(func=cmd_matrix)
+
+    sc = sub.add_parser("score", help="score a probe result captured by any means (see docs/CAPTURING.md)")
+    sc.add_argument("probe_json", help="JSON written by blast_probe.py, however you ran it")
+    sc.add_argument("--label", required=True, help="what was measured, e.g. 'vendor-agent 1.2.3 read-only mode'")
+    sc.add_argument("--how", required=True, help="exactly how the probe was run, recorded in the report so a reader can repeat it")
+    sc.add_argument("--out", default="reports")
+    sc.add_argument("--max-score", type=int)
+    sc.add_argument("--redact", action="store_true")
+    sc.set_defaults(func=cmd_score)
 
     cb = sub.add_parser("combine", help="join a promptfoo run with a sandbox measurement")
     cb.add_argument("--promptfoo", required=True, help="promptfoo output JSON (from `promptfoo eval -o out.json`)")

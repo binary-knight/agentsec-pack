@@ -1,12 +1,117 @@
-{"probe_version": "0.1.0", "timestamp": 0, "python": "3.12.3", "platform": "linux",
- "identity": {"uid": 0, "gid": 0, "euid": 0, "pid": 1, "hostname": "x", "cwd": "/", "seccomp_mode": 0, "no_new_privs": 0,
-   "capabilities": {"CapEff": ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_SYS_ADMIN", "CAP_NET_RAW"]}, "ptrace_scope": "1", "in_user_namespace": false, "cgroup": "", "container_markers": {"dockerenv": true, "containerenv": false}},
- "network": {"targets": [{"name": "pypi", "host": "pypi.org", "port": 443, "resolved": "1.2.3.4", "connect": true, "ms": 40},
-                         {"name": "cloud-metadata-169.254.169.254", "host": "169.254.169.254", "port": 80, "resolved": "169.254.169.254", "connect": true, "ms": 5}],
-             "interfaces": ["eth0", "lo"], "any_egress": true, "metadata_reachable": true},
- "secrets": {"env_secret_names": [{"name": "OPENAI_API_KEY", "length": 51}], "credential_files": [{"path": "/root/.aws/credentials", "readable": true, "is_dir": false}],
-             "container_sockets": [{"path": "/var/run/docker.sock", "writable": true}], "pid1_environ_readable": true, "env_var_count": 12},
- "filesystem": {"writable_dirs": ["/", "/etc", "/tmp"], "root_rw": true, "bind_mounts": [{"source": "/dev/sda1", "target": "/host", "fstype": "ext4", "rw": true}],
-                "setuid_binaries": ["/usr/bin/sudo"], "proc_sysrq_writable": false, "host_root_visible": true},
- "process": {"visible_pid_count": 400, "visible_uids": [0, 1000], "pid1_is_self": false, "pid1_cmdline": "/sbin/init"},
- "resources": {"memory_max": "max", "pids_max": "max"}, "duration_ms": 100}
+{
+ "probe_version": "0.1.0",
+ "timestamp": 0,
+ "python": "3.12.3",
+ "platform": "linux",
+ "identity": {
+  "uid": 0,
+  "gid": 0,
+  "euid": 0,
+  "pid": 1,
+  "hostname": "x",
+  "cwd": "/",
+  "seccomp_mode": 0,
+  "no_new_privs": 0,
+  "capabilities": {
+   "CapEff": [
+    "CAP_CHOWN",
+    "CAP_DAC_OVERRIDE",
+    "CAP_SYS_ADMIN",
+    "CAP_NET_RAW"
+   ]
+  },
+  "ptrace_scope": "1",
+  "in_user_namespace": false,
+  "cgroup": "",
+  "container_markers": {
+   "dockerenv": true,
+   "containerenv": false
+  }
+ },
+ "network": {
+  "targets": [
+   {
+    "name": "pypi",
+    "host": "pypi.org",
+    "port": 443,
+    "resolved": "1.2.3.4",
+    "connect": true,
+    "ms": 40
+   },
+   {
+    "name": "cloud-metadata-169.254.169.254",
+    "host": "169.254.169.254",
+    "port": 80,
+    "resolved": "169.254.169.254",
+    "connect": true,
+    "ms": 5
+   }
+  ],
+  "interfaces": [
+   "eth0",
+   "lo"
+  ],
+  "any_egress": true,
+  "metadata_reachable": true,
+  "socket_syscall_blocked": false
+ },
+ "secrets": {
+  "env_secret_names": [
+   {
+    "name": "OPENAI_API_KEY",
+    "length": 51
+   }
+  ],
+  "credential_files": [
+   {
+    "path": "/root/.aws/credentials",
+    "readable": true,
+    "is_dir": false
+   }
+  ],
+  "container_sockets": [
+   {
+    "path": "/var/run/docker.sock",
+    "writable": true,
+    "connected": true
+   }
+  ],
+  "pid1_environ_readable": true,
+  "env_var_count": 12
+ },
+ "filesystem": {
+  "writable_dirs": [
+   "/",
+   "/etc",
+   "/tmp"
+  ],
+  "root_rw": true,
+  "bind_mounts": [
+   {
+    "source": "/dev/sda1",
+    "target": "/host",
+    "fstype": "ext4",
+    "rw": true
+   }
+  ],
+  "setuid_binaries": [
+   "/usr/bin/sudo"
+  ],
+  "proc_sysrq_writable": false,
+  "host_root_visible": true
+ },
+ "process": {
+  "visible_pid_count": 400,
+  "visible_uids": [
+   0,
+   1000
+  ],
+  "pid1_is_self": false,
+  "pid1_cmdline": "/sbin/init"
+ },
+ "resources": {
+  "memory_max": "max",
+  "pids_max": "max"
+ },
+ "duration_ms": 100
+}

@@ -56,6 +56,10 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     res = probe.get("resources", {}) or {}
 
     # --- Network egress -----------------------------------------------------
+    if net.get("socket_syscall_blocked"):
+        findings.append(_f("NET-003", "Network syscalls blocked outright (containment holds)", "info", "network",
+                           {"detail": "every network probe was refused before a connection could be attempted"}, ["ASI02"],
+                           "No action: the sandbox refuses socket creation, which is stronger than blocking routes."))
     reached = [t for t in net.get("targets", []) if t.get("connect")]
     egress = [t["name"] for t in reached if not t["name"].startswith(("cloud-metadata", "gcp-metadata"))]
     if egress:
@@ -91,12 +95,22 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     # --- Secrets ------------------------------------------------------------
     socks = sec.get("container_sockets", [])
     if socks:
-        findings.append(_f("SEC-001", "Container runtime socket reachable from the sandbox", "critical", "secrets",
-                           {"paths": [s["path"] for s in socks], "writable": [s["path"] for s in socks if s.get("writable")],
-                            "connected": [s["path"] for s in socks if s.get("connected")]},
-                           ["ASI03", "ASI05", "ASI10"],
-                           "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, "
-                           "and a read-only root filesystem does not take it away."))
+        connected = [s["path"] for s in socks if s.get("connected")]
+        ev = {"paths": [s["path"] for s in socks], "writable": [s["path"] for s in socks if s.get("writable")],
+              "connected": connected,
+              "refused": [{"path": s["path"], "error": s.get("connect_error") or s.get("socket_error")}
+                          for s in socks if not s.get("connected")]}
+        if connected:
+            findings.append(_f("SEC-001", "Container runtime socket reachable from the sandbox", "critical", "secrets", ev,
+                               ["ASI03", "ASI05", "ASI10"],
+                               "Never expose the Docker/containerd/podman socket to an agent sandbox: a socket that answers is root on "
+                               "the host, and a read-only root filesystem does not take it away."))
+        else:
+            findings.append(_f("SEC-006", "Container runtime socket visible but connections are refused", "low", "secrets", ev,
+                               ["ASI03"],
+                               "The socket path is present in the sandbox's view of the filesystem, but a connect attempt was refused "
+                               "(a seccomp filter or LSM). Containment currently holds; it rests on that filter rather than on the "
+                               "socket being absent, so removing the path as well is the more durable fix."))
     env_names = [e["name"] for e in sec.get("env_secret_names", [])]
     if env_names:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",
@@ -118,6 +132,11 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     if w:
         findings.append(_f("FS-001", "System paths writable from the sandbox", "high" if any(d in ("/", "/etc", "/usr/bin", "/usr/local/bin") for d in w) else "medium",
                            "filesystem", {"writable": w}, ["ASI05", "ASI04"], "docker --read-only with explicit tmpfs for scratch."))
+    if fs.get("cwd_writable") and not w:
+        findings.append(_f("FS-007", "Working directory writable, system paths not", "info", "filesystem",
+                           {"cwd_writable": True}, ["ASI05"],
+                           "Expected for a workspace-write style sandbox: the agent can edit its project and nothing else. "
+                           "Informational, not a defect."))
     if fs.get("root_rw") and not w:
         findings.append(_f("FS-002", "Root filesystem mounted read-write", "low", "filesystem", {}, ["ASI05"], "docker --read-only."))
     # Docker always binds resolv.conf, hostname and hosts read-write; they are not host reach.
