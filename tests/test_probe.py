@@ -59,3 +59,27 @@ def test_socket_finding_proves_reachability_not_just_permissions():
     data = _json.loads(out.strip().splitlines()[-1])
     for s in data["secrets"]["container_sockets"]:
         assert "connected" in s, s
+
+
+def test_control_unix_socket_connects_on_a_normal_host():
+    """The control must succeed where nothing is blocking it, or it proves nothing."""
+    from agentsec.probe.blast_probe import _control_unix_socket
+    r = _control_unix_socket()
+    assert r["supported"] is True
+    assert r["connected"] is True
+    assert r["stage"] == "connect"
+
+
+def test_control_nopath_reports_connect_permitted_on_a_normal_host():
+    from agentsec.probe.blast_probe import _control_unix_connect_nonexistent
+    r = _control_unix_connect_nonexistent()
+    assert r["verdict"] == "connect permitted"
+    assert r["error"] == "FileNotFoundError"
+
+
+def test_control_leaves_no_directory_behind():
+    import glob
+    from agentsec.probe.blast_probe import _control_unix_socket
+    before = set(glob.glob("/tmp/.agentsec_ctl_*"))
+    _control_unix_socket()
+    assert set(glob.glob("/tmp/.agentsec_ctl_*")) == before

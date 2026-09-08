@@ -172,8 +172,93 @@ def probe_network():
         pass
     return {"targets": results, "interfaces": sorted(ifaces),
             "socket_syscall_blocked": blocked == len(results) and blocked > 0,
+            "connect_refused_all": bool(results) and not any(r.get("connect") for r in results),
             "any_egress": any(x["connect"] for x in results if not x["name"].startswith(("cloud-metadata", "gcp-metadata"))),
             "metadata_reachable": any(x["connect"] for x in results if x["name"].startswith(("cloud-metadata", "gcp-metadata")))}
+
+
+def _control_unix_socket():
+    """Can this process connect to a unix socket it created itself?
+
+    Without this control, a refused connection to the container socket is
+    ambiguous: it could be a path-scoped rule, or a filter that refuses every
+    unix-domain socket operation. The control separates the two, and records
+    which call was refused so the report can say so precisely.
+    """
+    import tempfile as _tf
+    last = {"supported": False, "connected": False, "stage": "setup", "error": "no writable directory"}
+    for base in (os.environ.get("TMPDIR"), "/tmp", "/dev/shm", os.getcwd()):
+        if not base or not os.path.isdir(base):
+            continue
+        d = None
+        stage = "mkdtemp"
+        srv = cli = None
+        try:
+            d = _tf.mkdtemp(prefix=".agentsec_ctl_", dir=base)
+            path = os.path.join(d, "s")
+            stage = "socket"
+            srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            stage = "bind"
+            srv.bind(path)
+            stage = "listen"
+            srv.listen(1)
+            stage = "connect"
+            cli = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            cli.settimeout(CONNECT_TIMEOUT)
+            try:
+                cli.connect(path)
+                return {"supported": True, "connected": True, "stage": "connect", "where": base}
+            except Exception as e:
+                return {"supported": True, "connected": False, "stage": "connect",
+                        "error": type(e).__name__, "where": base}
+        except Exception as e:
+            last = {"supported": False, "connected": False, "stage": stage,
+                    "error": type(e).__name__, "where": base}
+        finally:
+            for s in (cli, srv):
+                try:
+                    if s is not None:
+                        s.close()
+                except Exception:
+                    pass
+            if d:
+                try:
+                    for f in os.listdir(d):
+                        os.unlink(os.path.join(d, f))
+                    os.rmdir(d)
+                except Exception:
+                    pass
+    return last
+
+
+def _control_unix_connect_nonexistent():
+    """Fallback control that needs no writable directory.
+
+    Connecting to a path that does not exist should fail with FileNotFoundError
+    if unix-domain connect is permitted at all. A PermissionError instead means
+    the call was refused before the path was ever consulted, which is evidence
+    the filter is not path-scoped.
+    """
+    path = "/nonexistent-agentsec-control-%d.sock" % os.getpid()
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    except Exception as e:
+        return {"stage": "socket", "error": type(e).__name__, "verdict": "socket() refused"}
+    try:
+        s.settimeout(CONNECT_TIMEOUT)
+        s.connect(path)
+        return {"stage": "connect", "error": None, "verdict": "unexpected success"}
+    except FileNotFoundError:
+        return {"stage": "connect", "error": "FileNotFoundError", "verdict": "connect permitted"}
+    except PermissionError:
+        return {"stage": "connect", "error": "PermissionError", "verdict": "connect refused before path lookup"}
+    except Exception as e:
+        return {"stage": "connect", "error": type(e).__name__, "verdict": "inconclusive"}
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
 
 
 def probe_secrets():
@@ -223,6 +308,8 @@ def probe_secrets():
         sockets.append(entry)
     pid1_environ_readable = read_text("/proc/1/environ", 1) is not None
     return {"env_secret_names": env_hits, "credential_files": files, "container_sockets": sockets,
+            "unix_control": _control_unix_socket(),
+            "unix_control_nopath": _control_unix_connect_nonexistent(),
             "pid1_environ_readable": pid1_environ_readable, "env_var_count": len(os.environ)}
 
 

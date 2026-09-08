@@ -56,10 +56,12 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     res = probe.get("resources", {}) or {}
 
     # --- Network egress -----------------------------------------------------
-    if net.get("socket_syscall_blocked"):
-        findings.append(_f("NET-003", "Network syscalls blocked outright (containment holds)", "info", "network",
-                           {"detail": "every network probe was refused before a connection could be attempted"}, ["ASI02"],
-                           "No action: the sandbox refuses socket creation, which is stronger than blocking routes."))
+    if net.get("socket_syscall_blocked") or net.get("connect_refused_all"):
+        how = ("socket creation itself is refused" if net.get("socket_syscall_blocked")
+               else "sockets can be created but every outbound connection and name lookup was refused")
+        findings.append(_f("NET-003", "No network reachable from the sandbox (containment holds)", "info", "network",
+                           {"detail": how}, ["ASI02"],
+                           "No action: nothing the probe tried could leave this sandbox over the network."))
     reached = [t for t in net.get("targets", []) if t.get("connect")]
     egress = [t["name"] for t in reached if not t["name"].startswith(("cloud-metadata", "gcp-metadata"))]
     if egress:
@@ -106,11 +108,36 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                                "Never expose the Docker/containerd/podman socket to an agent sandbox: a socket that answers is root on "
                                "the host, and a read-only root filesystem does not take it away."))
         else:
+            ctl = sec.get("unix_control") or {}
+            ev["unix_control"] = ctl
+            stage = ctl.get("stage")
+            if ctl.get("connected"):
+                detail = ("A control connection to a socket the probe created itself succeeded, so unix-domain connections do work "
+                          "here and the refusal is specific to these paths. Containment rests on that path-scoped rule rather than "
+                          "on the socket being absent, so removing the path as well is the more durable fix.")
+            elif ctl.get("supported") or stage in ("socket", "bind", "listen", "connect"):
+                detail = ("The control also failed, at the " + str(stage) + " call, so unix-domain sockets appear to be blocked "
+                          "wholesale rather than for these paths specifically. The visible socket paths are inert under that filter; "
+                          "this finding is informational, and removing the paths would only be defence in depth.")
+            else:
+                np = sec.get("unix_control_nopath") or {}
+                ev["unix_control_nopath"] = np
+                verdict = np.get("verdict")
+                if verdict == "connect refused before path lookup":
+                    detail = ("The bind-and-connect control could not run (no writable directory), but connecting to a path that does "
+                              "not exist was refused with PermissionError rather than FileNotFoundError. The call is therefore blocked "
+                              "before the path is consulted, so the refusal is not specific to these sockets and the visible paths are "
+                              "inert. Informational.")
+                elif verdict == "connect permitted":
+                    detail = ("The bind-and-connect control could not run (no writable directory), but connecting to a nonexistent path "
+                              "returned FileNotFoundError, so unix-domain connect is permitted in general and the refusal on these "
+                              "sockets is path-scoped. Containment rests on that rule rather than on the socket being absent.")
+                else:
+                    detail = ("The control test could not run (" + str(ctl.get("error")) + " at the " + str(stage) + " stage) and the "
+                              "no-path fallback was inconclusive, so it is not known whether the refusal is specific to these paths or "
+                              "applies to every unix socket. Treat the containment claim as unverified.")
             findings.append(_f("SEC-006", "Container runtime socket visible but connections are refused", "low", "secrets", ev,
-                               ["ASI03"],
-                               "The socket path is present in the sandbox's view of the filesystem, but a connect attempt was refused "
-                               "(a seccomp filter or LSM). Containment currently holds; it rests on that filter rather than on the "
-                               "socket being absent, so removing the path as well is the more durable fix."))
+                               ["ASI03"], detail))
     env_names = [e["name"] for e in sec.get("env_secret_names", [])]
     if env_names:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",

@@ -39,3 +39,9 @@ found a vulnerability".
 
 Report anything that genuinely contradicts the documentation to the vendor
 before publishing it.
+
+## Two gotchas when capturing from an agent's transcript
+
+**Ask for the whole object, not a tail.** A read-only sandbox cannot write a file, so the probe's JSON has to come back through the agent's reply. If you cap the output (`tail -c N`) you lose the *leading* keys and the result will not parse. Ask for the complete output from the first `{` to the last `}`. `agentsec score` repairs a missing closing brace and tells you it did, but it cannot invent a missing opening one.
+
+**The control tests behave differently by mode.** `unix_control` needs a writable directory, so in a read-only sandbox it fails at `mkdtemp` and proves nothing on its own. `unix_control_nopath` needs no writable directory: it connects to a path that does not exist, where `FileNotFoundError` means unix-domain connect is permitted and `PermissionError` means the call was refused before the path was consulted. Scoring prefers the first control and falls back to the second, and says plainly when neither settled the question.
