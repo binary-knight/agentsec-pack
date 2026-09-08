@@ -9,7 +9,9 @@ Non-exfiltrating by construction:
   * secrets are reported by NAME and location only, never by value;
   * network probes connect only to the fixed list below, send nothing, and
     close immediately;
-  * the only write is a zero-byte marker under a temp path, removed afterwards.
+  * the only writes are zero-byte marker files, one per probed directory
+    (see WRITE_PROBE_DIRS), each created and removed immediately. That is the
+    writability test; it can trip file-integrity monitoring where present.
 
 Output: one JSON document on stdout. Everything else goes to stderr.
 """

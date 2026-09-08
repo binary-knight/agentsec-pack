@@ -1,0 +1,227 @@
+{
+  "generated_at": 1788874743,
+  "label": "slim_hardened",
+  "probe": {
+    "duration_ms": 7,
+    "filesystem": {
+      "bind_mounts": [
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/agentsec_probe.py"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/resolv.conf"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hostname"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hosts"
+        }
+      ],
+      "host_root_visible": false,
+      "proc_sysrq_writable": false,
+      "root_rw": false,
+      "setuid_binaries": [
+        "/bin/chage",
+        "/bin/chfn",
+        "/bin/chsh",
+        "/bin/expiry",
+        "/bin/gpasswd",
+        "/bin/mount",
+        "/bin/newgrp",
+        "/bin/passwd",
+        "/bin/sg",
+        "/bin/su",
+        "/bin/umount",
+        "/sbin/unix_chkpwd",
+        "/usr/bin/chage",
+        "/usr/bin/chfn",
+        "/usr/bin/chsh",
+        "/usr/bin/expiry",
+        "/usr/bin/gpasswd",
+        "/usr/bin/mount",
+        "/usr/bin/newgrp",
+        "/usr/bin/passwd",
+        "/usr/bin/sg",
+        "/usr/bin/su",
+        "/usr/bin/umount",
+        "/usr/sbin/unix_chkpwd"
+      ],
+      "writable_dirs": [
+        "/tmp",
+        "/dev/shm"
+      ]
+    },
+    "identity": {
+      "capabilities": {
+        "CapAmb": [],
+        "CapBnd": [],
+        "CapEff": [],
+        "CapInh": [],
+        "CapPrm": []
+      },
+      "cgroup": "0::/",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": true
+      },
+      "cwd": "/",
+      "euid": 65534,
+      "gid": 65534,
+      "hostname": "eb40a7374f35",
+      "in_user_namespace": false,
+      "no_new_privs": 1,
+      "pid": 1,
+      "ptrace_scope": "1",
+      "seccomp_mode": 2,
+      "uid": 65534
+    },
+    "network": {
+      "any_egress": false,
+      "interfaces": [
+        "lo"
+      ],
+      "metadata_reachable": false,
+      "targets": [
+        {
+          "connect": false,
+          "host": "dns.google",
+          "ms": null,
+          "name": "dns-google",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "pypi.org",
+          "ms": null,
+          "name": "pypi",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "github.com",
+          "ms": null,
+          "name": "github",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "connect_error": "OSError",
+          "host": "1.1.1.1",
+          "ms": 0,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": false,
+          "connect_error": "OSError",
+          "host": "169.254.169.254",
+          "ms": 0,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "linux",
+    "probe_version": "0.1.0",
+    "process": {
+      "pid1_cmdline": "python3 /agentsec_probe.py",
+      "pid1_is_self": true,
+      "visible_pid_count": 1,
+      "visible_uids": [
+        65534
+      ]
+    },
+    "python": "3.12.14",
+    "resources": {
+      "cpu_max": "max 100000",
+      "memory_max": "536870912",
+      "pids_max": "256"
+    },
+    "secrets": {
+      "container_sockets": [],
+      "credential_files": [
+        {
+          "is_dir": false,
+          "mode": "0o640",
+          "path": "/etc/shadow",
+          "readable": false,
+          "size": 474
+        }
+      ],
+      "env_secret_names": [],
+      "env_var_count": 7,
+      "pid1_environ_readable": true
+    },
+    "timestamp": 1788874743
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 0,
+      "high": 0,
+      "info": 0,
+      "low": 0,
+      "medium": 0
+    },
+    "finding_count": 0,
+    "findings": [],
+    "score": 0
+  },
+  "target": {
+    "command": "docker run --rm -v /home/jknight/agentsec-pack/agentsec/probe/blast_probe.py:/agentsec_probe.py:ro --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+    "flags": [
+      "--network",
+      "none",
+      "--read-only",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--user",
+      "65534:65534",
+      "--pids-limit",
+      "256",
+      "--memory",
+      "512m",
+      "--tmpfs",
+      "/tmp"
+    ],
+    "image": "python:3.12-slim",
+    "kind": "docker",
+    "python": "python3"
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}

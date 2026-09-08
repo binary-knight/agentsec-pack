@@ -30,10 +30,12 @@ def test_probe_reports_secret_names_not_values(monkeypatch):
 
 
 def test_probe_leaves_no_files_behind(tmp_path):
-    before = set(os.listdir("/tmp"))
+    dirs = [d for d in blast_probe.WRITE_PROBE_DIRS if os.path.isdir(d) and os.access(d, os.W_OK)]
+    before = {d: set(os.listdir(d)) for d in dirs}
     subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True, timeout=60)
-    after = set(os.listdir("/tmp"))
-    assert not [f for f in after - before if f.startswith(".agentsec_probe_")]
+    for d in dirs:
+        left = [f for f in set(os.listdir(d)) - before[d] if f.startswith(".agentsec_probe_")]
+        assert not left, (d, left)
 
 
 def test_egress_target_list_is_fixed():

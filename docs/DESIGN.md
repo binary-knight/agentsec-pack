@@ -15,7 +15,7 @@ A finding nobody can reproduce is not a finding. Every result envelope records t
 
 ## Non-exfiltration rule
 
-The probe reports presence and names, never values; connects only to a fixed host list; writes only a temp marker. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
+The probe reports presence and names, never values; connects only to a fixed host list; writes only zero-byte marker files, one per probed directory, removed at once. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
 
 ## Scoring
 

@@ -10,7 +10,8 @@ This repository is at the first milestone: the blast-radius probe, a runner, a s
 ## Quick start
 
 ```bash
-pip install -e .   # or run as: python -m agentsec.cli ...
+uv venv .venv && uv pip install -e '.[dev]' && source .venv/bin/activate
+# or, without installing: python -m agentsec.cli ...
 # baseline: the same Python, no sandbox
 agentsec blast-radius local --print-findings
 # a container as most people run it
@@ -22,7 +23,7 @@ agentsec blast-radius docker python:3.12-slim --label hardened --print-findings 
 agentsec compare reports/*.json
 ```
 
-Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and `reports/<label>.md`. The JSON records the exact image and flags, so anyone can reproduce the number.
+Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and `reports/<label>.md`. The JSON records the exact image and flags, so anyone can reproduce the number. Review a report before publishing it: it carries the sandbox's hostname, working directory and the *names* of secret-looking environment variables. `reports/` is git-ignored; `examples/` holds the two container reports from the README demo.
 
 ## How it works
 
@@ -30,7 +31,7 @@ Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and 
 
 ## What the probe will not do
 
-Read the probe before you run it somewhere you care about. It reports the names of secret-looking environment variables and the paths of credential files, never their contents. Its network checks resolve and connect to a fixed list of hosts, send nothing, and close. Its only write is a zero-byte temp marker it removes. Tests in `tests/test_probe.py` assert the redaction and the fixed target list.
+Read the probe before you run it somewhere you care about. It reports the names of secret-looking environment variables and the paths of credential files, never their contents. Its network checks resolve and connect to a fixed list of hosts, send nothing, and close. Its only writes are zero-byte marker files, one per probed system directory, each created and removed at once; that is how writability is measured, and it can trip file-integrity monitoring where you have it. Tests in `tests/test_probe.py` assert the redaction and the fixed target list.
 
 ## Status
 

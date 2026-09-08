@@ -22,6 +22,7 @@ def test_open_sandbox_scores_high():
     s = summarize(load("probe_open.json"))
     ids = {f["id"] for f in s["findings"]}
     assert {"NET-001", "NET-002", "PRIV-001", "PRIV-003", "SEC-001", "SEC-002", "SEC-003", "FS-001", "FS-004"} <= ids
+    assert "/etc/shadow" not in str(next(f for f in s["findings"] if f["id"] == "SEC-003")["evidence"])
     assert s["score"] == 100
 
 
