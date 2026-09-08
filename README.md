@@ -21,9 +21,37 @@ agentsec blast-radius docker python:3.12-slim --label hardened --print-findings 
   --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
   --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp
 agentsec compare reports/*.json
+
+# all ten shipped configurations at once, one comparison table
+agentsec matrix python:3.12-slim
+agentsec presets -v
+
+# CI gate: exit 2 if the sandbox is looser than the budget
+agentsec blast-radius preset docker-hardened --image myagent:latest --max-score 10
 ```
 
-Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and `reports/<label>.md`. The JSON records the exact image and flags, so anyone can reproduce the number. Review a report before publishing it: it carries the sandbox's hostname, working directory and the *names* of secret-looking environment variables. `reports/` is git-ignored; `examples/` holds the two container reports from the README demo.
+Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and `reports/<label>.md`. The JSON records the exact image and flags, so anyone can reproduce the number. Review a report before publishing it: it carries the sandbox's hostname, working directory and the *names* of secret-looking environment variables. Pass `--redact` to scrub those while leaving every score, finding and flag intact; the examples in this repo were generated that way. `reports/` is git-ignored; `examples/` holds the two container reports from the README demo.
+
+## What it found on the first run
+
+Ten sandbox configurations, one image (`python:3.12-slim`), measured on one Linux host:
+
+| Configuration | Score | Worst finding |
+|---|---:|---|
+| `bwrap-ro-root` | 86 | container runtime socket reachable |
+| `bwrap-unshare-all` | 71 | container runtime socket reachable |
+| `bwrap-workdir-net` | 69 | unrestricted internet egress |
+| `docker-default` | 59 | unrestricted internet egress |
+| `bwrap-unshare-all-clearenv` | 56 | container runtime socket reachable |
+| `podman-rootless-default` | 47 | unrestricted internet egress |
+| `docker-no-network` | 44 | runs as real root |
+| `docker-readonly` | 44 | unrestricted internet egress |
+| `docker-hardened` | **0** | none |
+| `podman-rootless-hardened` | **0** | none |
+
+The result worth arguing about is the top row. The lightweight "read-only host root" bubblewrap pattern scores **worse than a plain Docker container**, because a read-only root filesystem still hands the agent the host's container socket and every credential file in the home directory. Read-only is not containment. Scores for host-binding sandboxes depend on the host; container rows depend only on the image and flags.
+
+Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`.
 
 ## How it works
 
@@ -35,8 +63,9 @@ Read the probe before you run it somewhere you care about. It reports the names 
 
 ## Status
 
-- [x] blast-radius probe, runner (docker / local / command template), scorer, JSON + Markdown reports
-- [ ] launcher presets for common agent sandboxes
+- [x] blast-radius probe, runner (docker / podman / local / command template), scorer, JSON + Markdown reports
+- [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
+- [ ] presets that reproduce named agents' own sandboxes (only after reading each one's source)
 - [ ] Promptfoo plugin / reporter
 - [ ] verifier-integrity test class
 - [ ] hosted history and CI gate

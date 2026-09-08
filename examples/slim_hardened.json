@@ -1,5 +1,5 @@
 {
-  "generated_at": 1788874773,
+  "generated_at": 1788885131,
   "label": "slim_hardened",
   "probe": {
     "duration_ms": 7,
@@ -72,15 +72,15 @@
         "CapInh": [],
         "CapPrm": []
       },
-      "cgroup": "0::/",
+      "cgroup": "<redacted>",
       "container_markers": {
         "containerenv": false,
         "dockerenv": true
       },
-      "cwd": "/",
+      "cwd": "<redacted>",
       "euid": 65534,
       "gid": 65534,
-      "hostname": "f388e4f3392f",
+      "hostname": "<redacted>",
       "in_user_namespace": false,
       "no_new_privs": 1,
       "pid": 1,
@@ -154,7 +154,7 @@
     "platform": "linux",
     "probe_version": "0.1.0",
     "process": {
-      "pid1_cmdline": "python3 /agentsec_probe.py",
+      "pid1_cmdline": "<redacted>",
       "pid1_is_self": true,
       "visible_pid_count": 1,
       "visible_uids": [
@@ -175,6 +175,7 @@
           "mode": "0o640",
           "path": "/etc/shadow",
           "readable": false,
+          "resolved_under_home": false,
           "size": 474
         }
       ],
@@ -182,7 +183,7 @@
       "env_var_count": 7,
       "pid1_environ_readable": true
     },
-    "timestamp": 1788874773
+    "timestamp": 1788885131
   },
   "probe_stderr": "",
   "rc": 0,
@@ -197,10 +198,14 @@
     },
     "finding_count": 0,
     "findings": [],
+    "raw_score": 0,
+    "recommended_flags": [],
     "score": 0
   },
   "target": {
     "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+    "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "engine": "docker",
     "flags": [
       "--network",
       "none",
@@ -219,7 +224,9 @@
       "/tmp"
     ],
     "image": "python:3.12-slim",
-    "kind": "docker",
+    "kind": "container",
+    "preset": "docker-hardened",
+    "preset_rationale": "Every control at once: no network, immutable root, no capabilities, unprivileged user, resource limits. The reference point a real agent sandbox should be measured against.",
     "python": "python3"
   },
   "test": "sandbox-blast-radius",

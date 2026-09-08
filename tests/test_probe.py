@@ -41,3 +41,21 @@ def test_probe_leaves_no_files_behind(tmp_path):
 def test_egress_target_list_is_fixed():
     hosts = {t["host"] for t in blast_probe.EGRESS_TARGETS + blast_probe.METADATA_TARGETS}
     assert hosts == {"dns.google", "pypi.org", "github.com", "1.1.1.1", "169.254.169.254", "metadata.google.internal"}
+
+
+def test_credential_paths_are_reported_unexpanded():
+    """A published report must not carry the operator's home directory."""
+    import json as _json
+    out = subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True, timeout=60).stdout
+    data = _json.loads(out.strip().splitlines()[-1])
+    home = os.path.expanduser("~")
+    for c in data["secrets"]["credential_files"]:
+        assert home not in c["path"], c["path"]
+
+
+def test_socket_finding_proves_reachability_not_just_permissions():
+    import json as _json
+    out = subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True, timeout=60).stdout
+    data = _json.loads(out.strip().splitlines()[-1])
+    for s in data["secrets"]["container_sockets"]:
+        assert "connected" in s, s

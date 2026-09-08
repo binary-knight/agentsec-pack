@@ -6,9 +6,13 @@ process) and measures what a process in that environment can reach. It is
 stdlib-only so it runs in any image with a Python 3.8+ interpreter.
 
 Non-exfiltrating by construction:
-  * secrets are reported by NAME and location only, never by value;
+  * secrets are reported by NAME and location only, never by value, and
+    home-directory paths are reported unexpanded so a report carries no
+    operator username;
   * network probes connect only to the fixed list below, send nothing, and
     close immediately;
+  * unix sockets are connected to and closed with nothing sent, to prove
+    reachability rather than infer it from permission bits;
   * the only writes are zero-byte marker files, one per probed directory
     (see WRITE_PROBE_DIRS), each created and removed immediately. That is the
     writability test; it can trip file-integrity monitoring where present.
@@ -168,7 +172,9 @@ def probe_secrets():
     for p in CREDENTIAL_PATHS:
         path = os.path.expanduser(p)
         if os.path.exists(path):
-            entry = {"path": path, "readable": os.access(path, os.R_OK), "is_dir": os.path.isdir(path)}
+            # Report the unexpanded form: portable across hosts and free of the operator's username.
+            entry = {"path": p, "resolved_under_home": p.startswith("~"),
+                     "readable": os.access(path, os.R_OK), "is_dir": os.path.isdir(path)}
             try:
                 st = os.stat(path)
                 entry["mode"] = oct(stat.S_IMODE(st.st_mode))
@@ -176,7 +182,25 @@ def probe_secrets():
             except Exception:
                 pass
             files.append(entry)
-    sockets = [{"path": p, "writable": os.access(p, os.W_OK)} for p in SOCKET_PATHS if os.path.exists(p)]
+    sockets = []
+    for sp in SOCKET_PATHS:
+        if not os.path.exists(sp):
+            continue
+        entry = {"path": sp, "writable": os.access(sp, os.W_OK), "connected": False}
+        # Prove reachability rather than inferring it from permissions: connect, send nothing, close.
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(CONNECT_TIMEOUT)
+        try:
+            s.connect(sp)
+            entry["connected"] = True
+        except Exception as e:
+            entry["connect_error"] = type(e).__name__
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+        sockets.append(entry)
     pid1_environ_readable = read_text("/proc/1/environ", 1) is not None
     return {"env_secret_names": env_hits, "credential_files": files, "container_sockets": sockets,
             "pid1_environ_readable": pid1_environ_readable, "env_var_count": len(os.environ)}

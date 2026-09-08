@@ -82,16 +82,21 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                            {"capabilities": dangerous}, ["ASI05", "ASI03"], "docker --cap-drop ALL, then add back only what the workload needs."))
     if ident.get("seccomp_mode", 0) == 0:
         findings.append(_f("PRIV-004", "No seccomp filter applied", "medium", "privilege", {"seccomp_mode": 0}, ["ASI05"],
-                           "Apply the runtime's default seccomp profile or a tighter one."))
+                           "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; "
+                           "seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter."))
     if ident.get("no_new_privs") == 0:
         findings.append(_f("PRIV-005", "no_new_privs not set (setuid escalation possible)", "low", "privilege", {}, ["ASI03"],
                            "docker --security-opt no-new-privileges."))
 
     # --- Secrets ------------------------------------------------------------
-    for s in sec.get("container_sockets", []):
+    socks = sec.get("container_sockets", [])
+    if socks:
         findings.append(_f("SEC-001", "Container runtime socket reachable from the sandbox", "critical", "secrets",
-                           {"path": s["path"], "writable": s.get("writable")}, ["ASI03", "ASI05", "ASI10"],
-                           "Never mount the Docker/containerd/podman socket into an agent sandbox."))
+                           {"paths": [s["path"] for s in socks], "writable": [s["path"] for s in socks if s.get("writable")],
+                            "connected": [s["path"] for s in socks if s.get("connected")]},
+                           ["ASI03", "ASI05", "ASI10"],
+                           "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, "
+                           "and a read-only root filesystem does not take it away."))
     env_names = [e["name"] for e in sec.get("env_secret_names", [])]
     if env_names:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",
@@ -143,12 +148,55 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     return findings
 
 
+def raw_score(findings: list[Finding]) -> int:
+    """Uncapped sum of finding weights. Distinguishes two sandboxes that both cap out."""
+    return sum(f.weight for f in findings)
+
+
 def score(findings: list[Finding]) -> int:
-    return min(100, sum(f.weight for f in findings))
+    """Capped 0-100, for budgets and gates. Use raw_score to rank the very worst."""
+    return min(100, raw_score(findings))
 
 
 def summarize(probe: dict[str, Any]) -> dict[str, Any]:
     findings = analyze(probe)
-    return {"score": score(findings), "finding_count": len(findings),
+    return {"score": score(findings), "raw_score": raw_score(findings), "finding_count": len(findings),
             "by_severity": {s: sum(1 for f in findings if f.severity == s) for s in SEVERITY_WEIGHT},
+            "recommended_flags": recommended_flags(findings),
             "findings": [asdict(f) for f in findings]}
+
+
+# Minimum container flags that close each finding. Deterministic, so a report can
+# print "add these" without guessing. Some will break workloads that legitimately
+# need the capability or the network; that is the operator's call.
+FINDING_FLAGS = {
+    "NET-001": ["--network none"],
+    "NET-002": ["--network none"],
+    "PRIV-001": ["--user 65534:65534"],
+    "PRIV-002": ["--user 65534:65534"],
+    "PRIV-003": ["--cap-drop ALL"],
+    "PRIV-004": ["(do not disable the engine's default seccomp profile)"],
+    "PRIV-005": ["--security-opt no-new-privileges"],
+    "SEC-001": ["(remove the container socket mount)"],
+    "SEC-002": ["(inject secrets through a broker, not the environment)"],
+    "SEC-003": ["(remove the credential mount)"],
+    "SEC-004": ["(own PID namespace: avoid --pid=host)"],
+    "FS-001": ["--read-only", "--tmpfs /tmp"],
+    "FS-002": ["--read-only", "--tmpfs /tmp"],
+    "FS-003": ["(mount the working tree only, :ro where possible)"],
+    "FS-004": ["(remove the host root mount)"],
+    "FS-005": ["(do not run --privileged)"],
+    "FS-006": ["--security-opt no-new-privileges"],
+    "PROC-001": ["(own PID namespace: avoid --pid=host)"],
+    "RES-001": ["--pids-limit 256", "--memory 512m"],
+}
+
+
+def recommended_flags(findings: list[Finding]) -> list[str]:
+    """Ordered, de-duplicated flag suggestions closing the observed findings."""
+    out: list[str] = []
+    for f in findings:
+        for flag in FINDING_FLAGS.get(f.id, []):
+            if flag not in out:
+                out.append(flag)
+    return out

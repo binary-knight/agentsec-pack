@@ -1,0 +1,114 @@
+{
+  "_meta": {
+    "description": "Named sandbox configurations to measure. Every preset shipped here was executed on a Linux host on 2026-09-08 and produced a probe result; none is transcribed from documentation. Presets named after a third-party agent's sandbox must cite that agent's source in `source` and are not shipped until its code has been read.",
+    "schema": "kind=container needs engine+flags; kind=command needs template containing {probe}",
+    "verified_on": "2026-09-08, Ubuntu 24.04, docker 29.7.2, podman rootless, bubblewrap 0.9.0"
+  },
+  "presets": {
+    "docker-default": {
+      "kind": "container",
+      "engine": "docker",
+      "flags": [],
+      "rationale": "A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.",
+      "source": "docker run defaults, docker 29.7.2"
+    },
+    "docker-no-network": {
+      "kind": "container",
+      "engine": "docker",
+      "flags": [
+        "--network",
+        "none"
+      ],
+      "rationale": "The single cheapest control: an agent that cannot open a socket cannot exfiltrate, whatever it is talked into doing.",
+      "source": "docker run --network none"
+    },
+    "docker-readonly": {
+      "kind": "container",
+      "engine": "docker",
+      "flags": [
+        "--read-only",
+        "--tmpfs",
+        "/tmp"
+      ],
+      "rationale": "Immutable root filesystem with scratch space, so a compromised agent cannot persist changes into the image layer.",
+      "source": "docker run --read-only"
+    },
+    "docker-hardened": {
+      "kind": "container",
+      "engine": "docker",
+      "flags": [
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "65534:65534",
+        "--pids-limit",
+        "256",
+        "--memory",
+        "512m",
+        "--tmpfs",
+        "/tmp"
+      ],
+      "rationale": "Every control at once: no network, immutable root, no capabilities, unprivileged user, resource limits. The reference point a real agent sandbox should be measured against.",
+      "source": "composed from docker run options; verified 2026-09-08"
+    },
+    "podman-rootless-default": {
+      "kind": "container",
+      "engine": "podman",
+      "flags": [],
+      "rationale": "Rootless podman with default flags: the container's root is a namespaced root mapped to an unprivileged host uid, which changes what 'runs as root' costs.",
+      "source": "podman run defaults, rootless"
+    },
+    "podman-rootless-hardened": {
+      "kind": "container",
+      "engine": "podman",
+      "flags": [
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        "65534:65534",
+        "--pids-limit",
+        "256",
+        "--memory",
+        "512m",
+        "--tmpfs",
+        "/tmp"
+      ],
+      "rationale": "The hardened flag set under rootless podman, for teams that cannot give the agent a docker socket at all.",
+      "source": "composed; verified 2026-09-08"
+    },
+    "bwrap-ro-root": {
+      "kind": "command",
+      "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 {probe}",
+      "rationale": "A common lightweight pattern: the whole host filesystem read-only, own PID namespace, network still shared. Shows what read-only alone does and does not buy. No named agent is claimed to use this; it is a configuration, not a citation.",
+      "source": "bubblewrap 0.9.0; verified 2026-09-08"
+    },
+    "bwrap-unshare-all": {
+      "kind": "command",
+      "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent python3 {probe}",
+      "rationale": "The same, with every namespace unshared, so the network is gone. The environment is still inherited from the parent.",
+      "source": "bubblewrap 0.9.0; verified 2026-09-08"
+    },
+    "bwrap-unshare-all-clearenv": {
+      "kind": "command",
+      "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --clearenv --setenv PATH /usr/bin:/bin --die-with-parent python3 {probe}",
+      "rationale": "Adds --clearenv. Compare against bwrap-unshare-all to see exactly what the parent's environment was handing the agent.",
+      "source": "bubblewrap 0.9.0; verified 2026-09-08"
+    },
+    "bwrap-workdir-net": {
+      "kind": "command",
+      "template": "bwrap --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /etc /etc --ro-bind {probe} /probe.py --dev /dev --proc /proc --tmpfs /tmp --bind /tmp /work --chdir /work --unshare-pid --die-with-parent python3 /probe.py",
+      "rationale": "System directories read-only, one writable working directory, network left on so the agent can fetch packages. A plausible coding-agent sandbox shape, composed here rather than taken from any named product.",
+      "source": "composed to represent the common pattern; verified 2026-09-08"
+    }
+  }
+}

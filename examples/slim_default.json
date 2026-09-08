@@ -1,8 +1,8 @@
 {
-  "generated_at": 1788874773,
+  "generated_at": 1788885131,
   "label": "slim_default",
   "probe": {
-    "duration_ms": 2224,
+    "duration_ms": 2236,
     "filesystem": {
       "bind_mounts": [
         {
@@ -125,15 +125,15 @@
           "CAP_SETFCAP"
         ]
       },
-      "cgroup": "0::/",
+      "cgroup": "<redacted>",
       "container_markers": {
         "containerenv": false,
         "dockerenv": true
       },
-      "cwd": "/",
+      "cwd": "<redacted>",
       "euid": 0,
       "gid": 0,
-      "hostname": "8d0d794f970b",
+      "hostname": "<redacted>",
       "in_user_namespace": false,
       "no_new_privs": 0,
       "pid": 1,
@@ -152,15 +152,15 @@
         {
           "connect": true,
           "host": "dns.google",
-          "ms": 22,
+          "ms": 32,
           "name": "dns-google",
           "port": 443,
-          "resolved": "8.8.4.4"
+          "resolved": "8.8.8.8"
         },
         {
           "connect": true,
           "host": "pypi.org",
-          "ms": 42,
+          "ms": 82,
           "name": "pypi",
           "port": 443,
           "resolved": "151.101.128.223"
@@ -168,15 +168,15 @@
         {
           "connect": true,
           "host": "github.com",
-          "ms": 80,
+          "ms": 63,
           "name": "github",
           "port": 443,
-          "resolved": "140.82.112.3"
+          "resolved": "140.82.112.4"
         },
         {
           "connect": true,
           "host": "1.1.1.1",
-          "ms": 39,
+          "ms": 20,
           "name": "cloudflare-dns-ip",
           "port": 53,
           "resolved": "1.1.1.1"
@@ -204,7 +204,7 @@
     "platform": "linux",
     "probe_version": "0.1.0",
     "process": {
-      "pid1_cmdline": "python3 /agentsec_probe.py",
+      "pid1_cmdline": "<redacted>",
       "pid1_is_self": true,
       "visible_pid_count": 1,
       "visible_uids": [
@@ -225,6 +225,7 @@
           "mode": "0o640",
           "path": "/etc/shadow",
           "readable": true,
+          "resolved_under_home": false,
           "size": 474
         }
       ],
@@ -232,7 +233,7 @@
       "env_var_count": 7,
       "pid1_environ_readable": true
     },
-    "timestamp": 1788874770
+    "timestamp": 1788885128
   },
   "probe_stderr": "",
   "rc": 0,
@@ -362,13 +363,26 @@
         "title": "setuid binaries present and usable"
       }
     ],
+    "raw_score": 59,
+    "recommended_flags": [
+      "--network none",
+      "--user 65534:65534",
+      "--cap-drop ALL",
+      "--security-opt no-new-privileges",
+      "--read-only",
+      "--tmpfs /tmp"
+    ],
     "score": 59
   },
   "target": {
     "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py",
+    "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "engine": "docker",
     "flags": [],
     "image": "python:3.12-slim",
-    "kind": "docker",
+    "kind": "container",
+    "preset": "docker-default",
+    "preset_rationale": "A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.",
     "python": "python3"
   },
   "test": "sandbox-blast-radius",

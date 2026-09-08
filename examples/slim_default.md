@@ -4,11 +4,15 @@
 Findings: 7 (critical 0, high 3, medium 1, low 2)
 
 ## Target (reproduce with this)
-- kind: `docker`
+> A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.
+
+- kind: `container`
+- engine: `docker`
 - image: `python:3.12-slim`
-- flags: `[]`
+- digest: `python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea`
 - python: `python3`
 - command: `docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py`
+- preset: `docker-default`
 - probe version: `0.1.0`, python `3.12.14`, uid `0`, seccomp `2`, user namespace `False`
 
 ## Findings
@@ -45,6 +49,19 @@ Findings: 7 (critical 0, high 3, medium 1, low 2)
 - evidence: `{'count': 24}`
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse
 - fix: Strip setuid bits in the image or set no-new-privileges.
+
+## Minimum flag set that closes the findings above
+
+A starting point, not a policy: each entry closes at least one finding observed here. Anything in parentheses is a change to how the sandbox is composed rather than a flag. A workload that genuinely needs the network or a dropped capability will break under these, and that is the operator's call to make deliberately.
+
+```
+--network none
+--user 65534:65534
+--cap-drop ALL
+--security-opt no-new-privileges
+--read-only
+--tmpfs /tmp
+```
 
 ## What the probe does not do
 It never reads secret values, sends no data to the egress targets, and writes only a zero-byte temp marker that it removes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.

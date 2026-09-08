@@ -1,0 +1,1241 @@
+{
+  "_markdown": "# Sandbox blast radius across 10 configurations\n\nImage: `python:3.12-slim`\nDigest: `python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea`\nProbe version `0.1.0`, measured 2026-09-08.\n\n| Configuration | Score | Findings | Worst finding |\n|---|---:|---:|---|\n| `bwrap-ro-root` | 86 | 6 | SEC-001 Container runtime socket reachable from the sandbox |\n| `bwrap-unshare-all` | 71 | 5 | SEC-001 Container runtime socket reachable from the sandbox |\n| `bwrap-workdir-net` | 69 | 6 | NET-001 Unrestricted internet egress from the sandbox |\n| `docker-default` | 59 | 7 | NET-001 Unrestricted internet egress from the sandbox |\n| `bwrap-unshare-all-clearenv` | 56 | 4 | SEC-001 Container runtime socket reachable from the sandbox |\n| `podman-rootless-default` | 47 | 7 | NET-001 Unrestricted internet egress from the sandbox |\n| `docker-no-network` | 44 | 6 | PRIV-001 Agent runs as real root (uid 0, not in a user namespace) |\n| `docker-readonly` | 44 | 6 | NET-001 Unrestricted internet egress from the sandbox |\n| `docker-hardened` | 0 | 0 | none |\n| `podman-rootless-hardened` | 0 | 0 | none |\n\nSandboxes that bind the host filesystem (the bwrap rows) are scored against **this host**: what they expose depends on what the machine has. A host with no container socket and no credentials in the home directory scores lower on the same configuration. Container rows are properties of the image and flags, and travel.\n\n0 means the probe could reach nothing from inside: no network, no secrets, no writable system paths, no extra privileges. Higher is a larger blast radius. Scores are the sum of fixed per-finding weights, capped at 100.\n\n## What each configuration is\n- **bwrap-ro-root** \u2014 A common lightweight pattern: the whole host filesystem read-only, own PID namespace, network still shared. Shows what read-only alone does and does not buy. No named agent is claimed to use this; it is a configuration, not a citation.\n- **bwrap-unshare-all** \u2014 The same, with every namespace unshared, so the network is gone. The environment is still inherited from the parent.\n- **bwrap-workdir-net** \u2014 System directories read-only, one writable working directory, network left on so the agent can fetch packages. A plausible coding-agent sandbox shape, composed here rather than taken from any named product.\n- **docker-default** \u2014 A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.\n- **bwrap-unshare-all-clearenv** \u2014 Adds --clearenv. Compare against bwrap-unshare-all to see exactly what the parent's environment was handing the agent.\n- **podman-rootless-default** \u2014 Rootless podman with default flags: the container's root is a namespaced root mapped to an unprivileged host uid, which changes what 'runs as root' costs.\n- **docker-no-network** \u2014 The single cheapest control: an agent that cannot open a socket cannot exfiltrate, whatever it is talked into doing.\n- **docker-readonly** \u2014 Immutable root filesystem with scratch space, so a compromised agent cannot persist changes into the image layer.\n- **docker-hardened** \u2014 Every control at once: no network, immutable root, no capabilities, unprivileged user, resource limits. The reference point a real agent sandbox should be measured against.\n- **podman-rootless-hardened** \u2014 The hardened flag set under rootless podman, for teams that cannot give the agent a docker socket at all.\n",
+  "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+  "generated_at": 1788885128,
+  "generated_at_iso": "2026-09-08",
+  "image": "python:3.12-slim",
+  "probe_version": "0.1.0",
+  "runs": [
+    {
+      "findings": 6,
+      "preset": "bwrap-ro-root",
+      "rationale": "A common lightweight pattern: the whole host filesystem read-only, own PID namespace, network still shared. Shows what read-only alone does and does not buy. No named agent is claimed to use this; it is a configuration, not a citation.",
+      "raw_score": 86,
+      "recommended_flags": [
+        "--network none",
+        "(do not disable the engine's default seccomp profile)",
+        "(remove the container socket mount)",
+        "(inject secrets through a broker, not the environment)",
+        "(remove the credential mount)",
+        "(own PID namespace: avoid --pid=host)"
+      ],
+      "score": 86,
+      "summary": {
+        "by_severity": {
+          "critical": 1,
+          "high": 3,
+          "info": 0,
+          "low": 0,
+          "medium": 2
+        },
+        "finding_count": 6,
+        "findings": [
+          {
+            "category": "network",
+            "evidence": {
+              "reached": [
+                "dns-google",
+                "pypi",
+                "github",
+                "cloudflare-dns-ip"
+              ]
+            },
+            "id": "NET-001",
+            "owasp": [
+              "ASI02",
+              "ASI10"
+            ],
+            "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+            "severity": "high",
+            "title": "Unrestricted internet egress from the sandbox"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "seccomp_mode": 0
+            },
+            "id": "PRIV-004",
+            "owasp": [
+              "ASI05"
+            ],
+            "remediation": "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.",
+            "severity": "medium",
+            "title": "No seccomp filter applied"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "connected": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ],
+              "paths": [
+                "/var/run/docker.sock",
+                "/run/docker.sock",
+                "/run/containerd/containerd.sock"
+              ],
+              "writable": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ]
+            },
+            "id": "SEC-001",
+            "owasp": [
+              "ASI03",
+              "ASI05",
+              "ASI10"
+            ],
+            "remediation": "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, and a read-only root filesystem does not take it away.",
+            "severity": "critical",
+            "title": "Container runtime socket reachable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "names": [
+                "<redacted>"
+              ]
+            },
+            "id": "SEC-002",
+            "owasp": [
+              "ASI03",
+              "ASI02"
+            ],
+            "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+            "severity": "high",
+            "title": "Secret-looking environment variables visible to the agent"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "paths": [
+                "~/.ssh/config",
+                "~/.gitconfig",
+                "~/.config/gh/hosts.yml"
+              ]
+            },
+            "id": "SEC-003",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Do not mount home-directory credentials into the sandbox.",
+            "severity": "high",
+            "title": "Credential files readable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {},
+            "id": "SEC-004",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Run the agent in its own PID namespace.",
+            "severity": "medium",
+            "title": "PID 1 environment readable (host or supervisor secrets exposed)"
+          }
+        ],
+        "raw_score": 86,
+        "recommended_flags": [
+          "--network none",
+          "(do not disable the engine's default seccomp profile)",
+          "(remove the container socket mount)",
+          "(inject secrets through a broker, not the environment)",
+          "(remove the credential mount)",
+          "(own PID namespace: avoid --pid=host)"
+        ],
+        "score": 86
+      },
+      "target": {
+        "command": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 <agentsec probe>",
+        "kind": "command",
+        "preset": "bwrap-ro-root",
+        "preset_rationale": "A common lightweight pattern: the whole host filesystem read-only, own PID namespace, network still shared. Shows what read-only alone does and does not buy. No named agent is claimed to use this; it is a configuration, not a citation.",
+        "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 {probe}"
+      },
+      "worst": "SEC-001 Container runtime socket reachable from the sandbox"
+    },
+    {
+      "findings": 5,
+      "preset": "bwrap-unshare-all",
+      "rationale": "The same, with every namespace unshared, so the network is gone. The environment is still inherited from the parent.",
+      "raw_score": 71,
+      "recommended_flags": [
+        "(do not disable the engine's default seccomp profile)",
+        "(remove the container socket mount)",
+        "(inject secrets through a broker, not the environment)",
+        "(remove the credential mount)",
+        "(own PID namespace: avoid --pid=host)"
+      ],
+      "score": 71,
+      "summary": {
+        "by_severity": {
+          "critical": 1,
+          "high": 2,
+          "info": 0,
+          "low": 0,
+          "medium": 2
+        },
+        "finding_count": 5,
+        "findings": [
+          {
+            "category": "privilege",
+            "evidence": {
+              "seccomp_mode": 0
+            },
+            "id": "PRIV-004",
+            "owasp": [
+              "ASI05"
+            ],
+            "remediation": "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.",
+            "severity": "medium",
+            "title": "No seccomp filter applied"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "connected": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ],
+              "paths": [
+                "/var/run/docker.sock",
+                "/run/docker.sock",
+                "/run/containerd/containerd.sock"
+              ],
+              "writable": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ]
+            },
+            "id": "SEC-001",
+            "owasp": [
+              "ASI03",
+              "ASI05",
+              "ASI10"
+            ],
+            "remediation": "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, and a read-only root filesystem does not take it away.",
+            "severity": "critical",
+            "title": "Container runtime socket reachable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "names": [
+                "<redacted>"
+              ]
+            },
+            "id": "SEC-002",
+            "owasp": [
+              "ASI03",
+              "ASI02"
+            ],
+            "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+            "severity": "high",
+            "title": "Secret-looking environment variables visible to the agent"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "paths": [
+                "~/.ssh/config",
+                "~/.gitconfig",
+                "~/.config/gh/hosts.yml"
+              ]
+            },
+            "id": "SEC-003",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Do not mount home-directory credentials into the sandbox.",
+            "severity": "high",
+            "title": "Credential files readable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {},
+            "id": "SEC-004",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Run the agent in its own PID namespace.",
+            "severity": "medium",
+            "title": "PID 1 environment readable (host or supervisor secrets exposed)"
+          }
+        ],
+        "raw_score": 71,
+        "recommended_flags": [
+          "(do not disable the engine's default seccomp profile)",
+          "(remove the container socket mount)",
+          "(inject secrets through a broker, not the environment)",
+          "(remove the credential mount)",
+          "(own PID namespace: avoid --pid=host)"
+        ],
+        "score": 71
+      },
+      "target": {
+        "command": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent python3 <agentsec probe>",
+        "kind": "command",
+        "preset": "bwrap-unshare-all",
+        "preset_rationale": "The same, with every namespace unshared, so the network is gone. The environment is still inherited from the parent.",
+        "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent python3 {probe}"
+      },
+      "worst": "SEC-001 Container runtime socket reachable from the sandbox"
+    },
+    {
+      "findings": 4,
+      "preset": "bwrap-unshare-all-clearenv",
+      "rationale": "Adds --clearenv. Compare against bwrap-unshare-all to see exactly what the parent's environment was handing the agent.",
+      "raw_score": 56,
+      "recommended_flags": [
+        "(do not disable the engine's default seccomp profile)",
+        "(remove the container socket mount)",
+        "(remove the credential mount)",
+        "(own PID namespace: avoid --pid=host)"
+      ],
+      "score": 56,
+      "summary": {
+        "by_severity": {
+          "critical": 1,
+          "high": 1,
+          "info": 0,
+          "low": 0,
+          "medium": 2
+        },
+        "finding_count": 4,
+        "findings": [
+          {
+            "category": "privilege",
+            "evidence": {
+              "seccomp_mode": 0
+            },
+            "id": "PRIV-004",
+            "owasp": [
+              "ASI05"
+            ],
+            "remediation": "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.",
+            "severity": "medium",
+            "title": "No seccomp filter applied"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "connected": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ],
+              "paths": [
+                "/var/run/docker.sock",
+                "/run/docker.sock",
+                "/run/containerd/containerd.sock"
+              ],
+              "writable": [
+                "/var/run/docker.sock",
+                "/run/docker.sock"
+              ]
+            },
+            "id": "SEC-001",
+            "owasp": [
+              "ASI03",
+              "ASI05",
+              "ASI10"
+            ],
+            "remediation": "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, and a read-only root filesystem does not take it away.",
+            "severity": "critical",
+            "title": "Container runtime socket reachable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "paths": [
+                "~/.ssh/config",
+                "~/.gitconfig",
+                "~/.config/gh/hosts.yml"
+              ]
+            },
+            "id": "SEC-003",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Do not mount home-directory credentials into the sandbox.",
+            "severity": "high",
+            "title": "Credential files readable from the sandbox"
+          },
+          {
+            "category": "secrets",
+            "evidence": {},
+            "id": "SEC-004",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Run the agent in its own PID namespace.",
+            "severity": "medium",
+            "title": "PID 1 environment readable (host or supervisor secrets exposed)"
+          }
+        ],
+        "raw_score": 56,
+        "recommended_flags": [
+          "(do not disable the engine's default seccomp profile)",
+          "(remove the container socket mount)",
+          "(remove the credential mount)",
+          "(own PID namespace: avoid --pid=host)"
+        ],
+        "score": 56
+      },
+      "target": {
+        "command": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --clearenv --setenv PATH /usr/bin:/bin --die-with-parent python3 <agentsec probe>",
+        "kind": "command",
+        "preset": "bwrap-unshare-all-clearenv",
+        "preset_rationale": "Adds --clearenv. Compare against bwrap-unshare-all to see exactly what the parent's environment was handing the agent.",
+        "template": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --clearenv --setenv PATH /usr/bin:/bin --die-with-parent python3 {probe}"
+      },
+      "worst": "SEC-001 Container runtime socket reachable from the sandbox"
+    },
+    {
+      "findings": 6,
+      "preset": "bwrap-workdir-net",
+      "rationale": "System directories read-only, one writable working directory, network left on so the agent can fetch packages. A plausible coding-agent sandbox shape, composed here rather than taken from any named product.",
+      "raw_score": 69,
+      "recommended_flags": [
+        "--network none",
+        "(do not disable the engine's default seccomp profile)",
+        "(inject secrets through a broker, not the environment)",
+        "(own PID namespace: avoid --pid=host)",
+        "--read-only",
+        "--tmpfs /tmp",
+        "(mount the working tree only, :ro where possible)"
+      ],
+      "score": 69,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 3,
+          "info": 0,
+          "low": 0,
+          "medium": 3
+        },
+        "finding_count": 6,
+        "findings": [
+          {
+            "category": "network",
+            "evidence": {
+              "reached": [
+                "cloudflare-dns-ip"
+              ]
+            },
+            "id": "NET-001",
+            "owasp": [
+              "ASI02",
+              "ASI10"
+            ],
+            "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+            "severity": "high",
+            "title": "Unrestricted internet egress from the sandbox"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "seccomp_mode": 0
+            },
+            "id": "PRIV-004",
+            "owasp": [
+              "ASI05"
+            ],
+            "remediation": "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.",
+            "severity": "medium",
+            "title": "No seccomp filter applied"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "names": [
+                "<redacted>"
+              ]
+            },
+            "id": "SEC-002",
+            "owasp": [
+              "ASI03",
+              "ASI02"
+            ],
+            "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+            "severity": "high",
+            "title": "Secret-looking environment variables visible to the agent"
+          },
+          {
+            "category": "secrets",
+            "evidence": {},
+            "id": "SEC-004",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Run the agent in its own PID namespace.",
+            "severity": "medium",
+            "title": "PID 1 environment readable (host or supervisor secrets exposed)"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "writable": [
+                "/"
+              ]
+            },
+            "id": "FS-001",
+            "owasp": [
+              "ASI05",
+              "ASI04"
+            ],
+            "remediation": "docker --read-only with explicit tmpfs for scratch.",
+            "severity": "high",
+            "title": "System paths writable from the sandbox"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "mounts": [
+                "/work"
+              ]
+            },
+            "id": "FS-003",
+            "owasp": [
+              "ASI02",
+              "ASI05"
+            ],
+            "remediation": "Mount only the working tree, read-only where possible; never mount the host root.",
+            "severity": "medium",
+            "title": "Read-write bind mounts from the host"
+          }
+        ],
+        "raw_score": 69,
+        "recommended_flags": [
+          "--network none",
+          "(do not disable the engine's default seccomp profile)",
+          "(inject secrets through a broker, not the environment)",
+          "(own PID namespace: avoid --pid=host)",
+          "--read-only",
+          "--tmpfs /tmp",
+          "(mount the working tree only, :ro where possible)"
+        ],
+        "score": 69
+      },
+      "target": {
+        "command": "bwrap --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /etc /etc --ro-bind <agentsec probe> /probe.py --dev /dev --proc /proc --tmpfs /tmp --bind /tmp /work --chdir /work --unshare-pid --die-with-parent python3 /probe.py",
+        "kind": "command",
+        "preset": "bwrap-workdir-net",
+        "preset_rationale": "System directories read-only, one writable working directory, network left on so the agent can fetch packages. A plausible coding-agent sandbox shape, composed here rather than taken from any named product.",
+        "template": "bwrap --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /etc /etc --ro-bind {probe} /probe.py --dev /dev --proc /proc --tmpfs /tmp --bind /tmp /work --chdir /work --unshare-pid --die-with-parent python3 /probe.py"
+      },
+      "worst": "NET-001 Unrestricted internet egress from the sandbox"
+    },
+    {
+      "findings": 7,
+      "preset": "docker-default",
+      "rationale": "A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.",
+      "raw_score": 59,
+      "recommended_flags": [
+        "--network none",
+        "--user 65534:65534",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges",
+        "--read-only",
+        "--tmpfs /tmp"
+      ],
+      "score": 59,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 3,
+          "info": 1,
+          "low": 2,
+          "medium": 1
+        },
+        "finding_count": 7,
+        "findings": [
+          {
+            "category": "network",
+            "evidence": {
+              "reached": [
+                "dns-google",
+                "pypi",
+                "github",
+                "cloudflare-dns-ip"
+              ]
+            },
+            "id": "NET-001",
+            "owasp": [
+              "ASI02",
+              "ASI10"
+            ],
+            "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+            "severity": "high",
+            "title": "Unrestricted internet egress from the sandbox"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "euid": 0
+            },
+            "id": "PRIV-001",
+            "owasp": [
+              "ASI03",
+              "ASI05"
+            ],
+            "remediation": "Run as an unprivileged user (docker --user) or inside a user namespace.",
+            "severity": "high",
+            "title": "Agent runs as real root (uid 0, not in a user namespace)"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "capabilities": [
+                "CAP_DAC_OVERRIDE",
+                "CAP_MKNOD",
+                "CAP_NET_RAW",
+                "CAP_SETGID",
+                "CAP_SETUID",
+                "CAP_SYS_CHROOT"
+              ]
+            },
+            "id": "PRIV-003",
+            "owasp": [
+              "ASI05",
+              "ASI03"
+            ],
+            "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
+            "severity": "medium",
+            "title": "Dangerous Linux capabilities in the effective set"
+          },
+          {
+            "category": "privilege",
+            "evidence": {},
+            "id": "PRIV-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "docker --security-opt no-new-privileges.",
+            "severity": "low",
+            "title": "no_new_privs not set (setuid escalation possible)"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "path": "/etc/shadow"
+            },
+            "id": "SEC-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Informational in a plain image; becomes real if the image carries live account hashes.",
+            "severity": "info",
+            "title": "Image shadow file readable (process is root)"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "writable": [
+                "/",
+                "/etc",
+                "/usr/bin",
+                "/usr/local/bin",
+                "/root",
+                "/home",
+                "/var",
+                "/opt"
+              ]
+            },
+            "id": "FS-001",
+            "owasp": [
+              "ASI05",
+              "ASI04"
+            ],
+            "remediation": "docker --read-only with explicit tmpfs for scratch.",
+            "severity": "high",
+            "title": "System paths writable from the sandbox"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "count": 24
+            },
+            "id": "FS-006",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+            "severity": "low",
+            "title": "setuid binaries present and usable"
+          }
+        ],
+        "raw_score": 59,
+        "recommended_flags": [
+          "--network none",
+          "--user 65534:65534",
+          "--cap-drop ALL",
+          "--security-opt no-new-privileges",
+          "--read-only",
+          "--tmpfs /tmp"
+        ],
+        "score": 59
+      },
+      "target": {
+        "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+        "engine": "docker",
+        "flags": [],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "docker-default",
+        "preset_rationale": "A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.",
+        "python": "python3"
+      },
+      "worst": "NET-001 Unrestricted internet egress from the sandbox"
+    },
+    {
+      "findings": 0,
+      "preset": "docker-hardened",
+      "rationale": "Every control at once: no network, immutable root, no capabilities, unprivileged user, resource limits. The reference point a real agent sandbox should be measured against.",
+      "raw_score": 0,
+      "recommended_flags": [],
+      "score": 0,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "info": 0,
+          "low": 0,
+          "medium": 0
+        },
+        "finding_count": 0,
+        "findings": [],
+        "raw_score": 0,
+        "recommended_flags": [],
+        "score": 0
+      },
+      "target": {
+        "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+        "engine": "docker",
+        "flags": [
+          "--network",
+          "none",
+          "--read-only",
+          "--cap-drop",
+          "ALL",
+          "--security-opt",
+          "no-new-privileges",
+          "--user",
+          "65534:65534",
+          "--pids-limit",
+          "256",
+          "--memory",
+          "512m",
+          "--tmpfs",
+          "/tmp"
+        ],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "docker-hardened",
+        "preset_rationale": "Every control at once: no network, immutable root, no capabilities, unprivileged user, resource limits. The reference point a real agent sandbox should be measured against.",
+        "python": "python3"
+      },
+      "worst": null
+    },
+    {
+      "findings": 6,
+      "preset": "docker-no-network",
+      "rationale": "The single cheapest control: an agent that cannot open a socket cannot exfiltrate, whatever it is talked into doing.",
+      "raw_score": 44,
+      "recommended_flags": [
+        "--user 65534:65534",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges",
+        "--read-only",
+        "--tmpfs /tmp"
+      ],
+      "score": 44,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 2,
+          "info": 1,
+          "low": 2,
+          "medium": 1
+        },
+        "finding_count": 6,
+        "findings": [
+          {
+            "category": "privilege",
+            "evidence": {
+              "euid": 0
+            },
+            "id": "PRIV-001",
+            "owasp": [
+              "ASI03",
+              "ASI05"
+            ],
+            "remediation": "Run as an unprivileged user (docker --user) or inside a user namespace.",
+            "severity": "high",
+            "title": "Agent runs as real root (uid 0, not in a user namespace)"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "capabilities": [
+                "CAP_DAC_OVERRIDE",
+                "CAP_MKNOD",
+                "CAP_NET_RAW",
+                "CAP_SETGID",
+                "CAP_SETUID",
+                "CAP_SYS_CHROOT"
+              ]
+            },
+            "id": "PRIV-003",
+            "owasp": [
+              "ASI05",
+              "ASI03"
+            ],
+            "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
+            "severity": "medium",
+            "title": "Dangerous Linux capabilities in the effective set"
+          },
+          {
+            "category": "privilege",
+            "evidence": {},
+            "id": "PRIV-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "docker --security-opt no-new-privileges.",
+            "severity": "low",
+            "title": "no_new_privs not set (setuid escalation possible)"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "path": "/etc/shadow"
+            },
+            "id": "SEC-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Informational in a plain image; becomes real if the image carries live account hashes.",
+            "severity": "info",
+            "title": "Image shadow file readable (process is root)"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "writable": [
+                "/",
+                "/etc",
+                "/usr/bin",
+                "/usr/local/bin",
+                "/root",
+                "/home",
+                "/var",
+                "/opt"
+              ]
+            },
+            "id": "FS-001",
+            "owasp": [
+              "ASI05",
+              "ASI04"
+            ],
+            "remediation": "docker --read-only with explicit tmpfs for scratch.",
+            "severity": "high",
+            "title": "System paths writable from the sandbox"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "count": 24
+            },
+            "id": "FS-006",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+            "severity": "low",
+            "title": "setuid binaries present and usable"
+          }
+        ],
+        "raw_score": 44,
+        "recommended_flags": [
+          "--user 65534:65534",
+          "--cap-drop ALL",
+          "--security-opt no-new-privileges",
+          "--read-only",
+          "--tmpfs /tmp"
+        ],
+        "score": 44
+      },
+      "target": {
+        "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --network none python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+        "engine": "docker",
+        "flags": [
+          "--network",
+          "none"
+        ],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "docker-no-network",
+        "preset_rationale": "The single cheapest control: an agent that cannot open a socket cannot exfiltrate, whatever it is talked into doing.",
+        "python": "python3"
+      },
+      "worst": "PRIV-001 Agent runs as real root (uid 0, not in a user namespace)"
+    },
+    {
+      "findings": 6,
+      "preset": "docker-readonly",
+      "rationale": "Immutable root filesystem with scratch space, so a compromised agent cannot persist changes into the image layer.",
+      "raw_score": 44,
+      "recommended_flags": [
+        "--network none",
+        "--user 65534:65534",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges"
+      ],
+      "score": 44,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 2,
+          "info": 1,
+          "low": 2,
+          "medium": 1
+        },
+        "finding_count": 6,
+        "findings": [
+          {
+            "category": "network",
+            "evidence": {
+              "reached": [
+                "dns-google",
+                "pypi",
+                "github",
+                "cloudflare-dns-ip"
+              ]
+            },
+            "id": "NET-001",
+            "owasp": [
+              "ASI02",
+              "ASI10"
+            ],
+            "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+            "severity": "high",
+            "title": "Unrestricted internet egress from the sandbox"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "euid": 0
+            },
+            "id": "PRIV-001",
+            "owasp": [
+              "ASI03",
+              "ASI05"
+            ],
+            "remediation": "Run as an unprivileged user (docker --user) or inside a user namespace.",
+            "severity": "high",
+            "title": "Agent runs as real root (uid 0, not in a user namespace)"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "capabilities": [
+                "CAP_DAC_OVERRIDE",
+                "CAP_MKNOD",
+                "CAP_NET_RAW",
+                "CAP_SETGID",
+                "CAP_SETUID",
+                "CAP_SYS_CHROOT"
+              ]
+            },
+            "id": "PRIV-003",
+            "owasp": [
+              "ASI05",
+              "ASI03"
+            ],
+            "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
+            "severity": "medium",
+            "title": "Dangerous Linux capabilities in the effective set"
+          },
+          {
+            "category": "privilege",
+            "evidence": {},
+            "id": "PRIV-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "docker --security-opt no-new-privileges.",
+            "severity": "low",
+            "title": "no_new_privs not set (setuid escalation possible)"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "path": "/etc/shadow"
+            },
+            "id": "SEC-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Informational in a plain image; becomes real if the image carries live account hashes.",
+            "severity": "info",
+            "title": "Image shadow file readable (process is root)"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "count": 24
+            },
+            "id": "FS-006",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+            "severity": "low",
+            "title": "setuid binaries present and usable"
+          }
+        ],
+        "raw_score": 44,
+        "recommended_flags": [
+          "--network none",
+          "--user 65534:65534",
+          "--cap-drop ALL",
+          "--security-opt no-new-privileges"
+        ],
+        "score": 44
+      },
+      "target": {
+        "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --read-only --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+        "engine": "docker",
+        "flags": [
+          "--read-only",
+          "--tmpfs",
+          "/tmp"
+        ],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "docker-readonly",
+        "preset_rationale": "Immutable root filesystem with scratch space, so a compromised agent cannot persist changes into the image layer.",
+        "python": "python3"
+      },
+      "worst": "NET-001 Unrestricted internet egress from the sandbox"
+    },
+    {
+      "findings": 7,
+      "preset": "podman-rootless-default",
+      "rationale": "Rootless podman with default flags: the container's root is a namespaced root mapped to an unprivileged host uid, which changes what 'runs as root' costs.",
+      "raw_score": 47,
+      "recommended_flags": [
+        "--network none",
+        "--user 65534:65534",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges",
+        "--read-only",
+        "--tmpfs /tmp"
+      ],
+      "score": 47,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 2,
+          "info": 1,
+          "low": 3,
+          "medium": 1
+        },
+        "finding_count": 7,
+        "findings": [
+          {
+            "category": "network",
+            "evidence": {
+              "reached": [
+                "dns-google",
+                "pypi",
+                "github",
+                "cloudflare-dns-ip"
+              ]
+            },
+            "id": "NET-001",
+            "owasp": [
+              "ASI02",
+              "ASI10"
+            ],
+            "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+            "severity": "high",
+            "title": "Unrestricted internet egress from the sandbox"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "euid": 0
+            },
+            "id": "PRIV-002",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Prefer an unprivileged uid even inside user namespaces.",
+            "severity": "low",
+            "title": "Agent runs as namespaced root"
+          },
+          {
+            "category": "privilege",
+            "evidence": {
+              "capabilities": [
+                "CAP_DAC_OVERRIDE",
+                "CAP_SETGID",
+                "CAP_SETUID",
+                "CAP_SYS_CHROOT"
+              ]
+            },
+            "id": "PRIV-003",
+            "owasp": [
+              "ASI05",
+              "ASI03"
+            ],
+            "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
+            "severity": "medium",
+            "title": "Dangerous Linux capabilities in the effective set"
+          },
+          {
+            "category": "privilege",
+            "evidence": {},
+            "id": "PRIV-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "docker --security-opt no-new-privileges.",
+            "severity": "low",
+            "title": "no_new_privs not set (setuid escalation possible)"
+          },
+          {
+            "category": "secrets",
+            "evidence": {
+              "path": "/etc/shadow"
+            },
+            "id": "SEC-005",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Informational in a plain image; becomes real if the image carries live account hashes.",
+            "severity": "info",
+            "title": "Image shadow file readable (process is root)"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "writable": [
+                "/",
+                "/etc",
+                "/usr/bin",
+                "/usr/local/bin",
+                "/root",
+                "/home",
+                "/var",
+                "/opt"
+              ]
+            },
+            "id": "FS-001",
+            "owasp": [
+              "ASI05",
+              "ASI04"
+            ],
+            "remediation": "docker --read-only with explicit tmpfs for scratch.",
+            "severity": "high",
+            "title": "System paths writable from the sandbox"
+          },
+          {
+            "category": "filesystem",
+            "evidence": {
+              "count": 24
+            },
+            "id": "FS-006",
+            "owasp": [
+              "ASI03"
+            ],
+            "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+            "severity": "low",
+            "title": "setuid binaries present and usable"
+          }
+        ],
+        "raw_score": 47,
+        "recommended_flags": [
+          "--network none",
+          "--user 65534:65534",
+          "--cap-drop ALL",
+          "--security-opt no-new-privileges",
+          "--read-only",
+          "--tmpfs /tmp"
+        ],
+        "score": 47
+      },
+      "target": {
+        "command": "podman run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "docker.io/library/python@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79",
+        "engine": "podman",
+        "flags": [],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "podman-rootless-default",
+        "preset_rationale": "Rootless podman with default flags: the container's root is a namespaced root mapped to an unprivileged host uid, which changes what 'runs as root' costs.",
+        "python": "python3"
+      },
+      "worst": "NET-001 Unrestricted internet egress from the sandbox"
+    },
+    {
+      "findings": 0,
+      "preset": "podman-rootless-hardened",
+      "rationale": "The hardened flag set under rootless podman, for teams that cannot give the agent a docker socket at all.",
+      "raw_score": 0,
+      "recommended_flags": [],
+      "score": 0,
+      "summary": {
+        "by_severity": {
+          "critical": 0,
+          "high": 0,
+          "info": 0,
+          "low": 0,
+          "medium": 0
+        },
+        "finding_count": 0,
+        "findings": [],
+        "raw_score": 0,
+        "recommended_flags": [],
+        "score": 0
+      },
+      "target": {
+        "command": "podman run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+        "digest": "docker.io/library/python@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79",
+        "engine": "podman",
+        "flags": [
+          "--network",
+          "none",
+          "--read-only",
+          "--cap-drop",
+          "ALL",
+          "--security-opt",
+          "no-new-privileges",
+          "--user",
+          "65534:65534",
+          "--pids-limit",
+          "256",
+          "--memory",
+          "512m",
+          "--tmpfs",
+          "/tmp"
+        ],
+        "image": "python:3.12-slim",
+        "kind": "container",
+        "preset": "podman-rootless-hardened",
+        "preset_rationale": "The hardened flag set under rootless podman, for teams that cannot give the agent a docker socket at all.",
+        "python": "python3"
+      },
+      "worst": null
+    }
+  ],
+  "schema_version": 1,
+  "skipped": {},
+  "test": "sandbox-blast-radius-matrix",
+  "tool": "agentsec-pack"
+}
