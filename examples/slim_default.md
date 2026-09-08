@@ -8,7 +8,7 @@ Findings: 7 (critical 0, high 3, medium 1, low 2)
 - image: `python:3.12-slim`
 - flags: `[]`
 - python: `python3`
-- command: `docker run --rm -v /home/jknight/agentsec-pack/agentsec/probe/blast_probe.py:/agentsec_probe.py:ro python:3.12-slim python3 /agentsec_probe.py`
+- command: `docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py`
 - probe version: `0.1.0`, python `3.12.14`, uid `0`, seccomp `2`, user namespace `False`
 
 ## Findings

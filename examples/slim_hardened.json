@@ -1,5 +1,5 @@
 {
-  "generated_at": 1788874743,
+  "generated_at": 1788874773,
   "label": "slim_hardened",
   "probe": {
     "duration_ms": 7,
@@ -80,7 +80,7 @@
       "cwd": "/",
       "euid": 65534,
       "gid": 65534,
-      "hostname": "eb40a7374f35",
+      "hostname": "f388e4f3392f",
       "in_user_namespace": false,
       "no_new_privs": 1,
       "pid": 1,
@@ -182,7 +182,7 @@
       "env_var_count": 7,
       "pid1_environ_readable": true
     },
-    "timestamp": 1788874743
+    "timestamp": 1788874773
   },
   "probe_stderr": "",
   "rc": 0,
@@ -200,7 +200,7 @@
     "score": 0
   },
   "target": {
-    "command": "docker run --rm -v /home/jknight/agentsec-pack/agentsec/probe/blast_probe.py:/agentsec_probe.py:ro --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
+    "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp python:3.12-slim python3 /agentsec_probe.py",
     "flags": [
       "--network",
       "none",

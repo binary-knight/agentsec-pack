@@ -55,7 +55,8 @@ def run_docker(image: str, docker_flags: list[str] | None = None, python: str = 
     rc, out, err = _run(cmd, timeout)
     if rc != 0 and not out.strip():
         raise RuntimeError(f"docker run failed (rc={rc}): {err[-1000:]}")
-    return {"target": {"kind": "docker", "image": image, "flags": flags, "python": python, "command": shlex.join(cmd)},
+    shown = [docker_bin, "run", "--rm", "-v", "<agentsec probe>:/agentsec_probe.py:ro"] + flags + [image, python, "/agentsec_probe.py"]
+    return {"target": {"kind": "docker", "image": image, "flags": flags, "python": python, "command": shlex.join(shown)},
             "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
 
 
@@ -65,7 +66,7 @@ def run_command(template: str, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]
         raise ValueError("launcher template must contain {probe}")
     cmd = shlex.split(template.format(probe=shlex.quote(probe_path())))
     rc, out, err = _run(cmd, timeout)
-    return {"target": {"kind": "command", "template": template, "command": shlex.join(cmd)}, "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
+    return {"target": {"kind": "command", "template": template, "command": template.replace("{probe}", "<agentsec probe>")}, "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
 
 
 def result_envelope(run: dict[str, Any], summary: dict[str, Any], label: str | None = None) -> dict[str, Any]:

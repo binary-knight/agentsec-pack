@@ -1,8 +1,8 @@
 {
-  "generated_at": 1788874742,
+  "generated_at": 1788874773,
   "label": "slim_default",
   "probe": {
-    "duration_ms": 2144,
+    "duration_ms": 2224,
     "filesystem": {
       "bind_mounts": [
         {
@@ -133,7 +133,7 @@
       "cwd": "/",
       "euid": 0,
       "gid": 0,
-      "hostname": "6ae1cfd26afb",
+      "hostname": "8d0d794f970b",
       "in_user_namespace": false,
       "no_new_privs": 0,
       "pid": 1,
@@ -152,31 +152,31 @@
         {
           "connect": true,
           "host": "dns.google",
-          "ms": 25,
+          "ms": 22,
           "name": "dns-google",
           "port": 443,
-          "resolved": "8.8.8.8"
+          "resolved": "8.8.4.4"
         },
         {
           "connect": true,
           "host": "pypi.org",
-          "ms": 20,
+          "ms": 42,
           "name": "pypi",
           "port": 443,
-          "resolved": "151.101.64.223"
+          "resolved": "151.101.128.223"
         },
         {
           "connect": true,
           "host": "github.com",
-          "ms": 59,
+          "ms": 80,
           "name": "github",
           "port": 443,
-          "resolved": "140.82.113.4"
+          "resolved": "140.82.112.3"
         },
         {
           "connect": true,
           "host": "1.1.1.1",
-          "ms": 18,
+          "ms": 39,
           "name": "cloudflare-dns-ip",
           "port": 53,
           "resolved": "1.1.1.1"
@@ -232,7 +232,7 @@
       "env_var_count": 7,
       "pid1_environ_readable": true
     },
-    "timestamp": 1788874740
+    "timestamp": 1788874770
   },
   "probe_stderr": "",
   "rc": 0,
@@ -365,7 +365,7 @@
     "score": 59
   },
   "target": {
-    "command": "docker run --rm -v /home/jknight/agentsec-pack/agentsec/probe/blast_probe.py:/agentsec_probe.py:ro python:3.12-slim python3 /agentsec_probe.py",
+    "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py",
     "flags": [],
     "image": "python:3.12-slim",
     "kind": "docker",
