@@ -188,3 +188,13 @@ def test_the_degraded_sandbox_profile_records_the_vendors_own_warning():
     assert "socat" in p["vendor_warning"]
     assert "WITHOUT sandboxing" in p["vendor_warning"]
     assert p["score"] == 100, "a degraded sandbox must score as the unsandboxed run it actually is"
+
+
+def test_degraded_sandbox_profile_names_the_vendors_own_remedy():
+    """Reporting a gap without naming the documented fix is not a fair report."""
+    import json
+    with open(os.path.join(REPO, "agentsec", "data", "measured_profiles.json")) as f:
+        p = json.load(f)["profiles"]["claude-code-2.1.266-sandbox-enabled-deps-missing"]
+    assert "failIfUnavailable" in p["fail_closed_verified"]
+    assert "Measured, not quoted" in p["fail_closed_verified"]
+    assert "documented behaviour" in p["result"]
