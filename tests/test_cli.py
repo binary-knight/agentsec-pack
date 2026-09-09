@@ -21,11 +21,15 @@ def test_every_module_parses_on_the_oldest_python_we_claim_to_support():
     only CI on an older runner caught it. This makes the claim testable here."""
     import ast
     import re as _re
-    import tomllib
 
+    # Read the claim with a regex rather than tomllib, which is itself 3.11+.
+    # A test that checks version support must run on the version it checks.
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(os.path.join(root, "pyproject.toml"), "rb") as f:
-        claim = tomllib.load(f)["project"]["requires-python"]
+    with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as f:
+        pyproject = f.read()
+    m = _re.search(r'^requires-python\s*=\s*["\']([^"\']+)["\']', pyproject, _re.M)
+    assert m, "pyproject.toml does not state requires-python"
+    claim = m.group(1)
     major, minor = (int(x) for x in _re.search(r"(\d+)\.(\d+)", claim).groups())
 
     bad = []
