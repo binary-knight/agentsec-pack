@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentsec</title>
+<style>
+:root{
+  --paper:#E9EDEF; --surface:#FFFFFF; --sunk:#F3F6F7;
+  --ink:#0E161B; --muted:#5A6B76; --faint:#8496A1;
+  --rule:#C7D2D8; --rule-soft:#DDE4E8;
+  --sealed:#0E7263; --sealed-soft:#D3E7E3;
+  --crit:#A81E15; --high:#B45309; --med:#7C6209; --low:#4A6572; --info:#5A6B76;
+  --focus:#0E7263;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C1317; --surface:#131D22; --sunk:#0F181D;
+    --ink:#E2E9ED; --muted:#93A5B0; --faint:#6C7E89;
+    --rule:#25333B; --rule-soft:#1C272E;
+    --sealed:#3FBFA8; --sealed-soft:#12332F;
+    --crit:#F0776C; --high:#E0983F; --med:#C7A93B; --low:#8FA6B2; --info:#93A5B0;
+    --focus:#3FBFA8;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1317; --surface:#131D22; --sunk:#0F181D;
+  --ink:#E2E9ED; --muted:#93A5B0; --faint:#6C7E89;
+  --rule:#25333B; --rule-soft:#1C272E;
+  --sealed:#3FBFA8; --sealed-soft:#12332F;
+  --crit:#F0776C; --high:#E0983F; --med:#C7A93B; --low:#8FA6B2; --info:#93A5B0;
+  --focus:#3FBFA8;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+code,.mono,pre{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--sealed)}
+:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---- frame ---- */
+.top{
+  display:flex; align-items:baseline; gap:24px; flex-wrap:wrap;
+  padding:14px 28px; border-bottom:1px solid var(--rule); background:var(--surface);
+  position:sticky; top:0; z-index:20;
+}
+.wordmark{font-size:15px; font-weight:640; letter-spacing:-.01em; margin:0}
+.wordmark span{color:var(--muted); font-weight:400}
+nav{display:flex; gap:2px; margin-left:auto}
+nav button{
+  font:inherit; font-size:13.5px; color:var(--muted); background:none; border:0;
+  padding:6px 12px; cursor:pointer; border-bottom:2px solid transparent;
+}
+nav button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--sealed); font-weight:560}
+main{max-width:1120px; margin:0 auto; padding:28px}
+.panel{background:var(--surface); border:1px solid var(--rule-soft)}
+h2{font-size:13.5px; font-weight:600; color:var(--muted); margin:0 0 10px}
+
+/* ---- instrument: the reach band ---- */
+.instrument{padding:22px 24px 20px; border:1px solid var(--rule); background:var(--surface)}
+.inst-head{display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:18px}
+.inst-label{font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; word-break:break-word}
+.inst-sub{color:var(--muted); font-size:13.5px; margin:4px 0 0}
+.readout{margin-left:auto; text-align:right; flex:none}
+.readout .val{font-size:38px; font-weight:660; letter-spacing:-.03em; line-height:1}
+.readout .of{color:var(--faint); font-size:16px; font-weight:400}
+.readout .cap{display:block; color:var(--muted); font-size:12.5px; margin-top:3px}
+
+.band{display:grid; grid-template-columns:repeat(5,1fr); gap:3px}
+.axis{background:var(--sunk); border:1px solid var(--rule-soft); padding:9px 10px 10px; min-height:74px; display:flex; flex-direction:column; gap:5px}
+.axis-name{font-size:12.5px; color:var(--muted)}
+.axis-state{font-size:14px; font-weight:580; letter-spacing:-.005em}
+.seal{height:5px; margin-top:auto; background:var(--sealed)}
+.axis[data-state="sealed"] .axis-state{color:var(--sealed)}
+.axis[data-state="inert"] .seal{
+  background:repeating-linear-gradient(135deg,var(--sealed) 0 4px,transparent 4px 8px);
+}
+.axis[data-state="inert"] .axis-state{color:var(--muted)}
+.axis[data-state="breached"] .seal{background:var(--sev)}
+.axis[data-state="breached"] .axis-state{color:var(--sev)}
+.legend{display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-size:12.5px; color:var(--muted)}
+.legend i{display:inline-block; width:22px; height:5px; margin-right:6px; vertical-align:middle}
+
+/* ---- findings ---- */
+.findings{margin-top:22px}
+.f-row{border-top:1px solid var(--rule-soft); background:var(--surface)}
+.f-row:last-child{border-bottom:1px solid var(--rule-soft)}
+.f-head{display:flex; align-items:baseline; gap:12px; width:100%; text-align:left; font:inherit;
+  color:var(--ink); background:none; border:0; padding:12px 16px 12px 0; cursor:pointer;
+  border-left:4px solid var(--sev)}
+.f-head:hover{background:var(--sunk)}
+.f-id{font-size:12.5px; color:var(--muted); flex:none; width:74px; padding-left:12px}
+.f-sev{font-size:12.5px; color:var(--sev); font-weight:600; flex:none; width:66px}
+.f-title{flex:1; font-size:14.5px}
+.f-caret{color:var(--faint); flex:none; font-size:12px}
+.f-body{padding:2px 20px 18px 90px; display:grid; gap:12px}
+.f-body dt{font-size:12.5px; color:var(--muted); margin-bottom:3px}
+.f-body dd{margin:0; font-size:14px}
+pre.ev{margin:0; background:var(--sunk); border:1px solid var(--rule-soft); padding:10px 12px;
+  font-size:12.5px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--ink)}
+.fix{display:flex; gap:10px; align-items:flex-start}
+.fix code{background:var(--sunk); border:1px solid var(--rule-soft); padding:2px 6px; font-size:12.5px}
+button.copy{font:inherit; font-size:12px; color:var(--muted); background:none; border:1px solid var(--rule);
+  padding:3px 9px; cursor:pointer; flex:none}
+button.copy:hover{color:var(--ink); border-color:var(--muted)}
+
+/* ---- provenance ---- */
+.prov{margin-top:22px; padding:18px 20px}
+.prov dl{margin:0; display:grid; grid-template-columns:150px 1fr; gap:9px 18px}
+.prov dt{font-size:12.5px; color:var(--muted)}
+.prov dd{margin:0; font-size:13.5px; word-break:break-word}
+.prov dd.mono{font-size:12.5px}
+
+/* ---- lists / tables ---- */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse; width:100%; font-size:14px}
+th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule-soft)}
+th{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap}
+td.n,th.n{text-align:right}
+tbody tr:hover{background:var(--sunk)}
+tbody tr{cursor:pointer}
+.bar{display:block; height:6px; background:var(--sev); min-width:2px}
+.barcell{width:132px}
+.bartrack{background:var(--sunk); border:1px solid var(--rule-soft)}
+
+/* ---- forms ---- */
+.form{padding:20px; display:grid; gap:14px; max-width:640px}
+label{display:grid; gap:5px; font-size:13px; color:var(--muted)}
+input,select,textarea{font:inherit; font-size:14px; color:var(--ink); background:var(--sunk);
+  border:1px solid var(--rule); padding:8px 10px; width:100%}
+textarea{min-height:150px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px}
+.flags{display:flex; flex-wrap:wrap; gap:8px}
+.flags label{flex-direction:row; align-items:center; gap:6px; font-size:13px; color:var(--ink);
+  border:1px solid var(--rule); padding:5px 10px; cursor:pointer}
+.flags input{width:auto}
+button.go{font:inherit; font-size:14px; font-weight:560; color:var(--surface); background:var(--sealed);
+  border:0; padding:10px 20px; cursor:pointer; justify-self:start}
+button.go:disabled{opacity:.5; cursor:default}
+.note{font-size:13px; color:var(--muted); max-width:62ch}
+.err{border-left:3px solid var(--crit); padding:10px 14px; background:var(--sunk); font-size:13.5px}
+.status{font-size:13.5px; color:var(--muted); min-height:20px}
+.empty{padding:34px 20px; color:var(--muted); font-size:14px; max-width:60ch}
+.hidden{display:none!important}
+.back{font:inherit; font-size:13px; color:var(--muted); display:block; background:none; border:0; padding:0 0 12px; cursor:pointer}
+.back:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="top">
+  <p class="wordmark">agentsec <span id="modeword"></span></p>
+  <nav id="nav" role="tablist"></nav>
+</header>
+<main>
+  <section id="view-runs" role="tabpanel"></section>
+  <section id="view-measure" role="tabpanel" class="hidden"></section>
+  <section id="view-score" role="tabpanel" class="hidden"></section>
+</main>
+
+<script type="application/json" id="payload">__AGENTSEC_PAYLOAD__</script>
+<script>
+(function(){
+"use strict";
+var D = JSON.parse(document.getElementById("payload").textContent);
+var SERVER = D.mode === "server";
+var AXES = ["privilege","network","secrets","filesystem","process"];
+var AXIS_LABEL = {privilege:"Privilege", network:"Network", secrets:"Secrets", filesystem:"Filesystem", process:"Processes"};
+var ORDER = ["critical","high","medium","low","info"];
+var SEVVAR = {critical:"--crit", high:"--high", medium:"--med", low:"--low", info:"--info"};
+
+function el(t, a, kids){
+  var n = document.createElement(t);
+  if(a) for(var k in a){
+    if(k === "class") n.className = a[k];
+    else if(k === "text") n.textContent = a[k];
+    else if(k.slice(0,2) === "on") n.addEventListener(k.slice(2), a[k]);
+    else if(a[k] !== null && a[k] !== undefined) n.setAttribute(k, a[k]);
+  }
+  (kids || []).forEach(function(c){ if(c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return n;
+}
+function sev(f){ return f.severity || "info"; }
+function worst(list){
+  for(var i=0;i<ORDER.length;i++){ for(var j=0;j<list.length;j++){ if(sev(list[j]) === ORDER[i]) return ORDER[i]; } }
+  return null;
+}
+function label(env){ return env.label || (env.target && (env.target.preset || env.target.image || env.target.kind)) || "unnamed run"; }
+function findings(env){ return ((env.summary || {}).findings) || []; }
+
+/* An axis is sealed when nothing was found, inert when the probe saw something
+   but could not reach it, breached when it could. That distinction is the whole
+   point of the tool, so it is the thing the eye lands on first. */
+function axisState(env, axis){
+  var f = findings(env).filter(function(x){ return x.category === axis; });
+  if(!f.length) return {state:"sealed", word:"Sealed", sev:null, n:0};
+  var w = worst(f);
+  if(w === "info" || w === "low") return {state:"inert", word: w === "info" ? "Held" : "Visible, refused", sev:w, n:f.length};
+  return {state:"breached", word:"Reachable", sev:w, n:f.length};
+}
+
+function instrument(env){
+  var s = env.summary || {};
+  var capped = (s.raw_score || 0) > 100;
+  var states = AXES.map(function(a){ return axisState(env, a); });
+  var sealedCount = states.filter(function(x){ return x.state !== "breached"; }).length;
+
+  var band = el("div", {class:"band"}, states.map(function(st, i){
+    var node = el("div", {class:"axis", "data-state":st.state}, [
+      el("div", {class:"axis-name", text:AXIS_LABEL[AXES[i]]}),
+      el("div", {class:"axis-state", text:st.word}),
+      el("div", {class:"seal"})
+    ]);
+    if(st.sev) node.style.setProperty("--sev", "var(" + SEVVAR[st.sev] + ")");
+    node.title = st.n ? st.n + (st.n === 1 ? " finding" : " findings") : "nothing found on this axis";
+    return node;
+  }));
+
+  return el("section", {class:"instrument"}, [
+    el("div", {class:"inst-head"}, [
+      el("div", {}, [
+        el("h1", {class:"inst-label", text:label(env)}),
+        el("p", {class:"inst-sub", text:
+          sealedCount + " of 5 axes contained · " + (s.finding_count || 0) + " findings"})
+      ]),
+      el("div", {class:"readout"}, [
+        el("div", {class:"val num"}, [String(s.score === undefined ? "–" : s.score), el("span", {class:"of", text:" / 100"})]),
+        el("span", {class:"cap", text: capped ? "capped from " + s.raw_score : "0 means nothing was reachable"})
+      ])
+    ]),
+    band,
+    el("div", {class:"legend"}, [
+      el("span", {}, [el("i", {style:"background:var(--sealed)"}), "Sealed: nothing found"]),
+      el("span", {}, [el("i", {style:"background:repeating-linear-gradient(135deg,var(--sealed) 0 4px,transparent 4px 8px)"}), "Visible but refused"]),
+      el("span", {}, [el("i", {style:"background:var(--crit)"}), "Reachable: the probe got through"])
+    ])
+  ]);
+}
+
+function copyBtn(text){
+  return el("button", {class:"copy", type:"button", onclick:function(ev){
+    var b = ev.currentTarget;
+    navigator.clipboard.writeText(text).then(function(){
+      b.textContent = "Copied"; setTimeout(function(){ b.textContent = "Copy"; }, 1400);
+    }, function(){ b.textContent = "Press ⌘C"; });
+  }}, ["Copy"]);
+}
+
+function findingRow(f){
+  var body = el("div", {class:"f-body hidden"});
+  var dl = el("dl", {});
+  if(f.evidence && Object.keys(f.evidence).length){
+    dl.appendChild(el("dt", {text:"What the probe saw"}));
+    dl.appendChild(el("dd", {}, [el("pre", {class:"ev", text:JSON.stringify(f.evidence, null, 2)})]));
+  }
+  if((f.owasp || []).length){
+    dl.appendChild(el("dt", {text:"OWASP agentic"}));
+    dl.appendChild(el("dd", {text:(f.owasp || []).map(function(o){ return o + " " + (D.owasp[o] || ""); }).join(" · ")}));
+  }
+  if(f.remediation){
+    dl.appendChild(el("dt", {text:"What closes it"}));
+    dl.appendChild(el("dd", {text:f.remediation}));
+  }
+  var flags = (D.flags || {})[f.id];
+  if(flags && flags.length){
+    dl.appendChild(el("dt", {text:"Flag"}));
+    dl.appendChild(el("dd", {}, [el("span", {class:"fix"}, [el("code", {text:flags.join(" ")}), copyBtn(flags.join(" "))])]));
+  }
+  body.appendChild(dl);
+
+  var caret = el("span", {class:"f-caret", text:"›"});
+  var head = el("button", {class:"f-head", type:"button", "aria-expanded":"false", onclick:function(ev){
+    var open = body.classList.toggle("hidden") === false;
+    ev.currentTarget.setAttribute("aria-expanded", String(open));
+    caret.textContent = open ? "⌄" : "›";
+  }}, [
+    el("span", {class:"f-id mono", text:f.id}),
+    el("span", {class:"f-sev", text:sev(f)}),
+    el("span", {class:"f-title", text:f.title}),
+    caret
+  ]);
+  var row = el("div", {class:"f-row"}, [head, body]);
+  row.style.setProperty("--sev", "var(" + SEVVAR[sev(f)] + ")");
+  return row;
+}
+
+var PROV_KEYS = [
+  ["how","How it was run"], ["environment","Environment"], ["mode","Mode"],
+  ["version","Version"], ["host","Host"], ["model","Model"], ["measured","Measured"],
+  ["network_condition","Network result holds only under"], ["seccomp_note","Discrepancy with the docs"],
+  ["injected_env_evidence","Injected variables"], ["fail_closed_verified","Fail-closed check"],
+  ["controls","Controls run"], ["vendor_docs","Vendor documentation"],
+  ["conflict_of_interest","Conflict of interest"], ["vendor_warning","Warning printed"]
+];
+
+function provenance(env){
+  var dl = el("dl", {});
+  var t = env.target || {};
+  var seen = {};
+  function add(term, val, mono){
+    if(val === null || val === undefined || val === "") return;
+    var s = String(val);
+    // The capture target and the shipped profile often carry the same sentence.
+    // Showing it twice makes the panel look careless and buries the rest.
+    var key = s.replace(/\s+/g, " ").trim().slice(0, 120);
+    if(seen[key]) return;
+    seen[key] = true;
+    dl.appendChild(el("dt", {text:term}));
+    dl.appendChild(el("dd", {class: mono ? "mono" : null, text:s}));
+  }
+  var prof = (D.profiles || {})[env.label];
+  if(prof) PROV_KEYS.forEach(function(p){ add(p[1], prof[p[0]]); });
+  add("Probe version", (env.probe || {}).probe_version, true);
+  add("Python", (env.probe || {}).python, true);
+  // A shipped profile carries the fuller account of how a capture was run, so
+  // the envelope's own copy would just repeat it in shorter words.
+  var SKIP = {preset_rationale:1, label:1, note:1};
+  if(prof) SKIP.how = 1;
+  Object.keys(t).forEach(function(k){
+    if(SKIP[k]) return;
+    add(k.replace(/_/g," ").replace(/^./,function(c){return c.toUpperCase();}), Array.isArray(t[k]) ? t[k].join(" ") : t[k], true);
+  });
+  if(t.preset_rationale) add("Why this configuration", t.preset_rationale);
+
+  if(!dl.children.length) return null;
+  return el("section", {class:"panel prov"}, [el("h2", {text:"Provenance"}), dl]);
+}
+
+function detail(env, onBack){
+  var wrap = el("div", {});
+  if(onBack) wrap.appendChild(el("button", {class:"back", type:"button", onclick:onBack, text:"‹ All runs"}));
+  wrap.appendChild(instrument(env));
+  var fs = findings(env);
+  var list = el("section", {class:"findings"}, [el("h2", {text:"Findings, worst first"})]);
+  if(!fs.length){
+    list.appendChild(el("div", {class:"panel empty", text:"Nothing found. The probe could not reach the network, secrets, host filesystem, extra privileges or other processes from inside this sandbox."}));
+  } else {
+    var sorted = fs.slice().sort(function(a,b){ return ORDER.indexOf(sev(a)) - ORDER.indexOf(sev(b)); });
+    sorted.forEach(function(f){ list.appendChild(findingRow(f)); });
+  }
+  wrap.appendChild(list);
+  var p = provenance(env);
+  if(p) wrap.appendChild(p);
+  return wrap;
+}
+
+/* ---------- runs view ---------- */
+function runsView(){
+  var host = document.getElementById("view-runs");
+  host.textContent = "";
+  var results = D.results || [];
+  if(!results.length){
+    host.appendChild(el("div", {class:"panel empty"}, [
+      SERVER ? "No runs yet. Open Measure to run a sandbox configuration, or Score to paste probe output captured from inside an agent."
+             : "This report contains no results."]));
+    return;
+  }
+  if(results.length === 1){ host.appendChild(detail(results[0], null)); return; }
+
+  var byLabel = {};
+  results.forEach(function(r){ (byLabel[label(r)] = byLabel[label(r)] || []).push(r); });
+
+  var anyHistory = Object.keys(byLabel).some(function(k){ return byLabel[k].length > 1; });
+  var rows = results.slice().sort(function(a,b){ return (b.summary||{}).score - (a.summary||{}).score; });
+  var tb = el("tbody", {});
+  rows.forEach(function(r){
+    var s = r.summary || {}, st = {};
+    AXES.forEach(function(a){ st[a] = axisState(r, a); });
+    var breached = AXES.filter(function(a){ return st[a].state === "breached"; }).map(function(a){ return AXIS_LABEL[a]; });
+    var w = worst(findings(r));
+    var bar = el("span", {class:"bar", style:"width:" + Math.max(2, (s.score || 0)) + "%"});
+    var cell = el("div", {class:"bartrack"}, [bar]);
+    var runCount = byLabel[label(r)].length;
+    var tr = el("tr", {tabindex:"0", onclick:function(){ show(r); },
+      onkeydown:function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); show(r); } }}, [
+      el("td", {text:label(r)}),
+      el("td", {class:"n num", text:String(s.score === undefined ? "–" : s.score)}),
+      el("td", {class:"barcell"}, [cell]),
+      el("td", {text: breached.length ? breached.join(", ") : "nothing reachable"}),
+      el("td", {class:"n num", text:String(s.finding_count || 0)})
+    ].concat(anyHistory ? [el("td", {text: runCount > 1 ? runCount + " runs" : ""})] : []));
+    tr.style.setProperty("--sev", "var(" + SEVVAR[w || "info"] + ")");
+    if(!w) tr.style.setProperty("--sev", "var(--sealed)");
+    tb.appendChild(tr);
+  });
+
+  var table = el("table", {}, [
+    el("thead", {}, [el("tr", {}, [
+      el("th", {text:"Run"}), el("th", {class:"n", text:"Score"}), el("th", {text:""}),
+      el("th", {text:"Reachable from inside"}), el("th", {class:"n", text:"Findings"})
+    ].concat(anyHistory ? [el("th", {text:"History"})] : []))]),
+    tb
+  ]);
+  host.appendChild(el("div", {}, [
+    el("h2", {text:"Runs, largest blast radius first"}),
+    el("div", {class:"panel tablewrap"}, [table])
+  ]));
+
+  function show(r){
+    host.textContent = "";
+    host.appendChild(detail(r, function(){ runsView(); }));
+    window.scrollTo(0,0);
+  }
+}
+
+/* ---------- server-only views ---------- */
+function api(path, body){
+  return fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: body ? {"content-type":"application/json", "x-agentsec-token":D.token}
+                  : {"x-agentsec-token":D.token},
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r){
+    return r.json().then(function(j){
+      if(!r.ok) throw new Error(j.error || ("request failed: " + r.status));
+      return j;
+    }, function(){ throw new Error("server sent a malformed reply"); });
+  });
+}
+
+function measureView(){
+  var host = document.getElementById("view-measure");
+  host.textContent = "";
+  var presets = D.presets || {};
+  var names = Object.keys(presets).sort();
+  var sel = el("select", {id:"preset"}, names.map(function(n){ return el("option", {value:n, text:n}); }));
+  var why = el("p", {class:"note"});
+  function syncWhy(){ why.textContent = (presets[sel.value] || {}).rationale || ""; }
+  sel.addEventListener("change", syncWhy); syncWhy();
+
+  var status = el("div", {class:"status"});
+  var out = el("div", {});
+  var go = el("button", {class:"go", type:"button", text:"Run this configuration"});
+
+  go.addEventListener("click", function(){
+    go.disabled = true; out.textContent = ""; status.textContent = "Starting the sandbox…";
+    api("/api/run", {preset: sel.value}).then(function(j){
+      poll(j.job);
+    }).catch(function(e){ go.disabled = false; status.textContent = ""; out.appendChild(el("div",{class:"err",text:e.message})); });
+  });
+
+  function poll(id){
+    api("/api/job/" + encodeURIComponent(id)).then(function(j){
+      if(j.state === "running"){ status.textContent = "Running the probe inside the sandbox…"; setTimeout(function(){ poll(id); }, 700); return; }
+      go.disabled = false; status.textContent = "";
+      if(j.state === "error"){ out.appendChild(el("div",{class:"err",text:j.error})); return; }
+      D.results.unshift(j.result);
+      out.appendChild(detail(j.result, null));
+      runsView();
+    }).catch(function(e){ go.disabled = false; status.textContent = ""; out.appendChild(el("div",{class:"err",text:e.message})); });
+  }
+
+  host.appendChild(el("div", {}, [
+    el("h2", {text:"Measure a sandbox configuration"}),
+    el("div", {class:"panel form"}, [
+      el("label", {}, ["Configuration", sel]),
+      why,
+      go,
+      status,
+      el("p", {class:"note", text:"Only the configurations shipped with agentsec can be run from this page. It will not accept a command you type, because a browser tab is the wrong place to hold that power."})
+    ]),
+    out
+  ]));
+}
+
+function scoreView(){
+  var host = document.getElementById("view-score");
+  host.textContent = "";
+  var lab = el("input", {type:"text", placeholder:"vendor-agent 1.2.3 read-only"});
+  var how = el("input", {type:"text", placeholder:"the exact command, and the environment it was launched in"});
+  var json = el("textarea", {placeholder:"Paste the single line of JSON the probe printed inside the agent."});
+  var status = el("div", {class:"status"});
+  var out = el("div", {});
+  var go = el("button", {class:"go", type:"button", text:"Score this capture"});
+
+  go.addEventListener("click", function(){
+    out.textContent = "";
+    if(!lab.value.trim() || !how.value.trim() || !json.value.trim()){
+      out.appendChild(el("div", {class:"err", text:"All three fields are needed. A score with no record of how it was captured cannot be compared with anything."}));
+      return;
+    }
+    go.disabled = true; status.textContent = "Scoring…";
+    api("/api/score", {label:lab.value, how:how.value, probe:json.value}).then(function(j){
+      go.disabled = false; status.textContent = "";
+      if(j.repaired) out.appendChild(el("div", {class:"err", text:"The JSON was truncated and a missing closing brace was repaired. Check the result against the transcript."}));
+      D.results.unshift(j.result);
+      out.appendChild(detail(j.result, null));
+      runsView();
+    }).catch(function(e){ go.disabled = false; status.textContent = ""; out.appendChild(el("div",{class:"err",text:e.message})); });
+  });
+
+  host.appendChild(el("div", {}, [
+    el("h2", {text:"Score a capture from inside an agent"}),
+    el("div", {class:"panel form"}, [
+      el("p", {class:"note", text:"A container can be wrapped from outside. An agent's own sandbox cannot, because the agent is already inside it. Ask the agent to run the probe and paste back what it printed."}),
+      el("label", {}, ["What was measured", lab]),
+      el("label", {}, ["How it was run", how]),
+      el("label", {}, ["Probe output", json]),
+      go, status
+    ]),
+    out
+  ]));
+}
+
+/* ---------- tabs ---------- */
+var CAN_RUN = SERVER && Object.keys(D.presets || {}).length > 0;
+var TABS = SERVER
+  ? (CAN_RUN ? [["runs","Runs"],["measure","Measure"],["score","Score a capture"]]
+             : [["runs","Runs"],["score","Score a capture"]])
+  : [["runs","Runs"]];
+
+function build(){
+  document.getElementById("modeword").textContent =
+    !SERVER ? "— report" : (CAN_RUN ? "— local console" : "— console, read-only");
+  var nav = document.getElementById("nav");
+  TABS.forEach(function(t){
+    var b = el("button", {type:"button", role:"tab", "aria-selected":String(t[0] === "runs"), text:t[1],
+      onclick:function(){ select(t[0]); }});
+    b.dataset.tab = t[0];
+    nav.appendChild(b);
+  });
+  if(TABS.length < 2) nav.classList.add("hidden");
+  runsView();
+  if(SERVER){ if(CAN_RUN) measureView(); scoreView(); }
+}
+function select(name){
+  ["runs","measure","score"].forEach(function(n){
+    var v = document.getElementById("view-" + n);
+    if(v) v.classList.toggle("hidden", n !== name);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function(b){
+    b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  });
+}
+build();
+})();
+</script>
+</body>
+</html>

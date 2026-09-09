@@ -196,6 +196,46 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_results(paths: list[str]) -> list[dict]:
+    """Accept files or directories, newest first, skipping anything unscored."""
+    files: list[str] = []
+    for p in paths:
+        if os.path.isdir(p):
+            files += [os.path.join(p, n) for n in sorted(os.listdir(p)) if n.endswith(".json")]
+        else:
+            files.append(p)
+    out = []
+    for f in files:
+        try:
+            with open(f) as fh:
+                env = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(env, dict) and "summary" in env and "probe" in env:
+            out.append(env)
+    out.sort(key=lambda e: e.get("generated_at", 0), reverse=True)
+    return out
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    from .ui import render_html
+    results = _load_results(args.results)
+    if not results:
+        print("no scored results found in those paths", file=sys.stderr)
+        return 1
+    with open(args.out, "w", encoding="utf-8") as f:
+        f.write(render_html(results))
+    print(f"{len(results)} result(s) -> {args.out}")
+    return 0
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    from .ui.server import serve
+    serve(port=args.port, results=_load_results(args.results), open_browser=args.open,
+          bind=args.bind, allow_remote_runs=args.allow_remote_runs)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="agentsec", description="Adversarial tests for AI agent deployments (working name).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -245,6 +285,22 @@ def main(argv: list[str] | None = None) -> int:
     cb.add_argument("--out", default="reports")
     cb.add_argument("--label", default="combined")
     cb.set_defaults(func=cmd_combine)
+
+    rp = sub.add_parser("report", help="render saved results as one self-contained HTML page")
+    rp.add_argument("results", nargs="+", help="report JSON files, or directories of them")
+    rp.add_argument("--out", default="agentsec-report.html")
+    rp.set_defaults(func=cmd_report)
+
+    u = sub.add_parser("ui", help="open a local console in the browser (127.0.0.1 only)")
+    u.add_argument("--port", type=int, default=8787)
+    u.add_argument("--results", nargs="*", default=[], help="report JSON files or directories to load at startup")
+    u.add_argument("--open", action="store_true", help="open the console in your browser")
+    u.add_argument("--bind", default="127.0.0.1",
+                   help="address to bind; anything other than loopback makes the console read-only "
+                        "unless --allow-remote-runs is also given")
+    u.add_argument("--allow-remote-runs", action="store_true",
+                   help="permit launching configurations from a console that is reachable off this machine")
+    u.set_defaults(func=cmd_ui)
 
     c = sub.add_parser("compare", help="print scores side by side")
     c.add_argument("results", nargs="+")
