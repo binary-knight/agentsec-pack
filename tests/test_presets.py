@@ -142,3 +142,25 @@ def test_socket_finding_is_critical_only_when_a_connection_succeeded():
     ids2 = {f.id: f for f in analyze(base)}
     assert "SEC-001" not in ids2, "a refused socket must not be scored as reachable"
     assert ids2["SEC-006"].severity == "low"
+
+
+def test_codex_bwrap_layer_preset_declares_what_it_does_not_reproduce():
+    """A preset named after a product must not be mistaken for the product."""
+    p = presets.load_all()["codex-cli-0.153.4-bwrap-layer"]
+    assert "seccomp" in p["rationale"].lower()
+    assert "not" in p["rationale"].lower()
+    assert "cmdline" in p["source"], "the argv must be cited to a live capture, not to source or recall"
+    assert "--apply-seccomp-then-exec" not in p["template"], (
+        "the template must not claim to apply the vendor's second layer")
+
+
+@pytest.mark.skipif(not shutil.which("bwrap"), reason="bwrap not installed")
+def test_bwrap_layer_alone_leaves_the_socket_reachable_that_codex_closes():
+    """The measured gap between the two layers, asserted rather than described."""
+    run = runner.run_preset("codex-cli-0.153.4-bwrap-layer")
+    probe = run["probe"]
+    ids = {f["id"] for f in summarize(probe)["findings"]}
+    assert probe["secrets"]["unix_control"]["connected"] is True, (
+        "bubblewrap alone does not restrict unix-domain sockets; if this fails the host has an extra layer")
+    assert probe["identity"]["seccomp_mode"] == 0
+    assert "PRIV-004" in ids

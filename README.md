@@ -72,6 +72,15 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 **Why the socket finding is only informational here.** Both Codex modes show `/var/run/docker.sock` in the filesystem and refuse every connection to it. Permission bits alone cannot tell you whether that refusal is a rule about those paths or a filter on the call itself, so the probe runs a control. It binds a unix socket it created itself and connects to it, and, where there is no writable directory, it connects to a path that does not exist: `PermissionError` instead of `FileNotFoundError` means the call was refused before the path was ever consulted. Under Codex both controls are refused, so the visible socket paths are inert and the report says that rather than guessing.
 
 
+**Which layer is doing the work.** Codex's sandbox is two layers, and the live process argv shows both: `bwrap --as-pid-1 --new-session --die-with-parent --ro-bind / / --dev /dev --unshare-user --unshare-pid --unshare-ipc --unshare-net --proc /proc --cap-drop ALL`, and then its own helper re-execs the command with `--apply-seccomp-then-exec` under a permission profile. The `codex-cli-0.153.4-bwrap-layer` preset reproduces the first layer only, so running it measures what the second one contributes:
+
+| Run | Score | Container socket | Seccomp |
+|---|---:|---|---|
+| Codex CLI 0.153.4 `--sandbox read-only` | 26 | visible, every connect refused | mode 2 |
+| `codex-cli-0.153.4-bwrap-layer` preset | 48 | **reachable: the connect succeeds** | none |
+
+`--unshare-net` removes the network but does nothing to unix-domain sockets, so under bubblewrap alone the probe connects to `/var/run/docker.sock` for real and the control confirms unix connect is permitted. The seccomp filter is what closes it. Two differences are expected rather than defects: the preset has no seccomp layer by construction, and `--as-pid-1` makes the probe itself PID 1, so the PID 1 environment finding cannot fire the way it does in the real sandbox. The preset is a way to see what bubblewrap alone buys. It is not a stand-in for Codex, and its rationale says so.
+
 Full reports with provenance: `examples/agents/`. Entries in `agentsec/data/measured_profiles.json` may only be added from an actual measurement, never from documentation, and each cites the vendor's own docs. Before publishing anything that contradicts a vendor's documentation, tell the vendor first.
 
 ## Alongside a red-team run
