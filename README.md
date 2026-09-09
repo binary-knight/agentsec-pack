@@ -81,6 +81,20 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 
 `--unshare-net` removes the network but does nothing to unix-domain sockets, so under bubblewrap alone the probe connects to `/var/run/docker.sock` for real and the control confirms unix connect is permitted. The seccomp filter is what closes it. Two differences are expected rather than defects: the preset has no seccomp layer by construction, and `--as-pid-1` makes the probe itself PID 1, so the PID 1 environment finding cannot fire the way it does in the real sandbox. The preset is a way to see what bubblewrap alone buys. It is not a stand-in for Codex, and its rationale says so.
 
+**Claude Code 2.1.266, measured the same way.** The sandbox is off unless `sandbox.enabled` is set, and on Linux it needs `bubblewrap` and `socat` present:
+
+| Configuration | Score | What the probe found |
+|---|---:|---|
+| default, `sandbox.enabled` unset | 100 | no containment: root filesystem read-write, unrestricted egress, no seccomp, and `/var/run/docker.sock` **reachable** |
+| `sandbox.enabled: true`, `socat` missing | 100 | identical to the row above |
+| `sandbox.enabled: true`, dependencies present | 41 | seccomp mode 2, `no_new_privs`, user namespace, read-only root, no egress, PID 1's environment hidden, `AF_UNIX socket()` itself refused |
+
+The middle row is the one worth acting on. Claude Code prints a clear warning when a dependency is missing and then runs the command anyway, which is a defensible choice for an interactive user who can read it. In a headless or CI run the warning goes to stderr, the exit code is still zero, and the agent runs with the user's full authority. Configuration said sandboxed; the process was not. **That gap is the reason this tool measures from inside rather than reading config**, and a `--max-score` gate on an actual probe closes it.
+
+The unsandboxed row is not a product defect. It is what "no sandbox" means: the probe scores 100 there and 88 when run directly in the shell, and the difference is one variable the product injects. With the sandbox on, both remaining high findings are also variables the sandbox injects itself, its own IPC token and a proxy password for the loopback relay. Neither is a user credential and the score is 26 without them, which is the same figure as Codex read-only.
+
+**Stated plainly: these Claude Code numbers were produced by a Claude Code session measuring Claude Code.** Same probe, same scorer, same capture path as every other profile, and the raw JSON ships so the numbers can be recomputed. Weigh the source anyway.
+
 Full reports with provenance: `examples/agents/`. Entries in `agentsec/data/measured_profiles.json` may only be added from an actual measurement, never from documentation, and each cites the vendor's own docs. Before publishing anything that contradicts a vendor's documentation, tell the vendor first.
 
 ## Alongside a red-team run
@@ -118,7 +132,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
 - [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
 - [x] measured profiles of named agents' sandboxes, captured by running the probe inside them
-- [ ] more agents; a launcher preset per agent where the sandbox can be reproduced standalone
+- [x] two agents measured across seven configurations; a preset reproducing Codex's bubblewrap layer, with the seccomp gap measured rather than assumed
+- [ ] more agents as they become installable here; presets only where the argv can be captured live
 - [ ] verifier-integrity test class
 - [ ] hosted history and CI gate
 

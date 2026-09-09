@@ -1,0 +1,544 @@
+{
+  "generated_at": 1788938309,
+  "label": "claude-code-2.1.266-sandbox-enabled",
+  "probe": {
+    "duration_ms": 13,
+    "filesystem": {
+      "bind_mounts": [
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/"
+        },
+        {
+          "fstype": "fuse.portal",
+          "rw": false,
+          "source": "portal",
+          "target": "/run/user/1000/doc"
+        },
+        {
+          "fstype": "efivarfs",
+          "rw": false,
+          "source": "efivarfs",
+          "target": "/sys/firmware/efi/efivars"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme0n1p2",
+          "target": "/boot"
+        },
+        {
+          "fstype": "vfat",
+          "rw": false,
+          "source": "/dev/nvme0n1p1",
+          "target": "/boot/efi"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/data"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "~/.npm/_logs"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/ccmeasure"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/ccmeasure/.claude"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/ccmeasure/.claude/.cc-writes"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/ccmeasure/sandbox-on.json"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/claude-1000"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/claude-1000/-tmp-ccmeasure"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/claude-1000/-tmp-ccmeasure/072e6ef3-a84c-42b7-a1fb-84c7f327d4ec"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/tmp/claude-1000/-tmp-ccmeasure/072e6ef3-a84c-42b7-a1fb-84c7f327d4ec/tasks"
+        }
+      ],
+      "cwd_writable": true,
+      "host_root_visible": false,
+      "proc_sysrq_writable": false,
+      "root_rw": false,
+      "setuid_binaries": [
+        "/bin/chage",
+        "/bin/chfn",
+        "/bin/chsh",
+        "/bin/crontab",
+        "/bin/expiry",
+        "/bin/fusermount",
+        "/bin/fusermount3",
+        "/bin/gpasswd",
+        "/bin/mount",
+        "/bin/newgidmap",
+        "/bin/newgrp",
+        "/bin/newuidmap",
+        "/bin/passwd",
+        "/bin/pkexec",
+        "/bin/sg",
+        "/bin/ssh-agent",
+        "/bin/su",
+        "/bin/sudo",
+        "/bin/sudoedit",
+        "/bin/umount",
+        "/sbin/pam_extrausers_chkpwd",
+        "/sbin/pppd",
+        "/sbin/unix_chkpwd",
+        "/usr/bin/chage",
+        "/usr/bin/chfn",
+        "/usr/bin/chsh",
+        "/usr/bin/crontab",
+        "/usr/bin/expiry",
+        "/usr/bin/fusermount",
+        "/usr/bin/fusermount3",
+        "/usr/bin/gpasswd",
+        "/usr/bin/mount",
+        "/usr/bin/newgidmap",
+        "/usr/bin/newgrp",
+        "/usr/bin/newuidmap",
+        "/usr/bin/passwd",
+        "/usr/bin/pkexec",
+        "/usr/bin/sg",
+        "/usr/bin/ssh-agent",
+        "/usr/bin/su",
+        "/usr/bin/sudo",
+        "/usr/bin/sudoedit",
+        "/usr/bin/umount",
+        "/usr/sbin/pam_extrausers_chkpwd",
+        "/usr/sbin/pppd",
+        "/usr/sbin/unix_chkpwd"
+      ],
+      "writable_dirs": [
+        "/dev/shm"
+      ]
+    },
+    "identity": {
+      "capabilities": {
+        "CapAmb": [],
+        "CapBnd": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_DAC_READ_SEARCH",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_LINUX_IMMUTABLE",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_BROADCAST",
+          "CAP_NET_ADMIN",
+          "CAP_NET_RAW",
+          "CAP_IPC_LOCK",
+          "CAP_IPC_OWNER",
+          "CAP_SYS_MODULE",
+          "CAP_SYS_RAWIO",
+          "CAP_SYS_CHROOT",
+          "CAP_SYS_PTRACE",
+          "CAP_SYS_PACCT",
+          "CAP_SYS_ADMIN",
+          "CAP_SYS_BOOT",
+          "CAP_SYS_NICE",
+          "CAP_SYS_RESOURCE",
+          "CAP_SYS_TIME",
+          "CAP_SYS_TTY_CONFIG",
+          "CAP_MKNOD",
+          "CAP_LEASE",
+          "CAP_AUDIT_WRITE",
+          "CAP_AUDIT_CONTROL",
+          "CAP_SETFCAP",
+          "CAP_MAC_OVERRIDE",
+          "CAP_MAC_ADMIN",
+          "CAP_SYSLOG",
+          "CAP_WAKE_ALARM",
+          "CAP_BLOCK_SUSPEND",
+          "CAP_AUDIT_READ",
+          "CAP_PERFMON",
+          "CAP_BPF",
+          "CAP_CHECKPOINT_RESTORE"
+        ],
+        "CapEff": [],
+        "CapInh": [],
+        "CapPrm": []
+      },
+      "cgroup": "<redacted>",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": false
+      },
+      "cwd": "<redacted>",
+      "euid": 1000,
+      "gid": 1000,
+      "hostname": "<redacted>",
+      "in_user_namespace": true,
+      "no_new_privs": 1,
+      "pid": 4,
+      "ptrace_scope": "1",
+      "seccomp_mode": 2,
+      "uid": 1000
+    },
+    "network": {
+      "any_egress": false,
+      "connect_refused_all": true,
+      "interfaces": [
+        "br-2b363bdd7f5f",
+        "br-2b549af745cd",
+        "br-5543b7c30767",
+        "br-6571c3cc8aa8",
+        "br-94f74f3c44e0",
+        "br-d89c352d3ff7",
+        "docker0",
+        "enp47s0",
+        "lo",
+        "tailscale0",
+        "wlp49s0"
+      ],
+      "metadata_reachable": false,
+      "socket_syscall_blocked": false,
+      "targets": [
+        {
+          "connect": false,
+          "host": "dns.google",
+          "ms": null,
+          "name": "dns-google",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "pypi.org",
+          "ms": null,
+          "name": "pypi",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "github.com",
+          "ms": null,
+          "name": "github",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "connect_error": "OSError",
+          "host": "1.1.1.1",
+          "ms": 0,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": false,
+          "connect_error": "OSError",
+          "host": "169.254.169.254",
+          "ms": 0,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "linux",
+    "probe_version": "0.1.0",
+    "process": {
+      "pid1_cmdline": "<redacted>",
+      "pid1_is_self": false,
+      "visible_pid_count": 3,
+      "visible_uids": [
+        1000
+      ]
+    },
+    "python": "3.12.3",
+    "resources": {},
+    "secrets": {
+      "container_sockets": [
+        {
+          "connected": false,
+          "path": "/var/run/docker.sock",
+          "socket_error": "PermissionError",
+          "writable": true
+        },
+        {
+          "connected": false,
+          "path": "/run/docker.sock",
+          "socket_error": "PermissionError",
+          "writable": true
+        },
+        {
+          "connected": false,
+          "path": "/run/containerd/containerd.sock",
+          "socket_error": "PermissionError",
+          "writable": false
+        }
+      ],
+      "credential_files": [
+        {
+          "is_dir": false,
+          "mode": "0o600",
+          "path": "~/.ssh/config",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 81
+        },
+        {
+          "is_dir": false,
+          "mode": "0o664",
+          "path": "~/.gitconfig",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 3102
+        },
+        {
+          "is_dir": false,
+          "mode": "0o600",
+          "path": "~/.config/gh/hosts.yml",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 218
+        },
+        {
+          "is_dir": false,
+          "mode": "0o640",
+          "path": "/etc/shadow",
+          "readable": false,
+          "resolved_under_home": false,
+          "size": 1255
+        }
+      ],
+      "env_secret_names": [
+        {
+          "length": 32,
+          "name": "<redacted>"
+        },
+        {
+          "length": 32,
+          "name": "<redacted>"
+        }
+      ],
+      "env_var_count": 50,
+      "pid1_environ_readable": false,
+      "unix_control": {
+        "connected": false,
+        "error": "PermissionError",
+        "stage": "socket",
+        "supported": false,
+        "where": "/tmp/ccmeasure"
+      },
+      "unix_control_nopath": {
+        "error": "PermissionError",
+        "stage": "socket",
+        "verdict": "socket() refused"
+      }
+    },
+    "timestamp": 1788938226
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 0,
+      "high": 2,
+      "info": 2,
+      "low": 1,
+      "medium": 1
+    },
+    "finding_count": 6,
+    "findings": [
+      {
+        "category": "network",
+        "evidence": {
+          "detail": "sockets can be created but every outbound connection and name lookup was refused"
+        },
+        "id": "NET-003",
+        "owasp": [
+          "ASI02"
+        ],
+        "remediation": "No action: nothing the probe tried could leave this sandbox over the network.",
+        "severity": "info",
+        "title": "No network reachable from the sandbox (containment holds)"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "connected": [],
+          "paths": [
+            "/var/run/docker.sock",
+            "/run/docker.sock",
+            "/run/containerd/containerd.sock"
+          ],
+          "refused": [
+            {
+              "error": "PermissionError",
+              "path": "/var/run/docker.sock"
+            },
+            {
+              "error": "PermissionError",
+              "path": "/run/docker.sock"
+            },
+            {
+              "error": "PermissionError",
+              "path": "/run/containerd/containerd.sock"
+            }
+          ],
+          "unix_control": {
+            "connected": false,
+            "error": "PermissionError",
+            "stage": "socket",
+            "supported": false,
+            "where": "/tmp/ccmeasure"
+          },
+          "writable": [
+            "/var/run/docker.sock",
+            "/run/docker.sock"
+          ]
+        },
+        "id": "SEC-006",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "The control also failed, at the socket call, so unix-domain sockets appear to be blocked wholesale rather than for these paths specifically. The visible socket paths are inert under that filter; this finding is informational, and removing the paths would only be defence in depth.",
+        "severity": "low",
+        "title": "Container runtime socket visible but connections are refused"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "names": [
+            "<redacted>",
+            "<redacted>"
+          ]
+        },
+        "id": "SEC-002",
+        "owasp": [
+          "ASI03",
+          "ASI02"
+        ],
+        "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+        "severity": "high",
+        "title": "Secret-looking environment variables visible to the agent"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "paths": [
+            "~/.ssh/config",
+            "~/.gitconfig",
+            "~/.config/gh/hosts.yml"
+          ]
+        },
+        "id": "SEC-003",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Do not mount home-directory credentials into the sandbox.",
+        "severity": "high",
+        "title": "Credential files readable from the sandbox"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "cwd_writable": true
+        },
+        "id": "FS-007",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "Expected for a workspace-write style sandbox: the agent can edit its project and nothing else. Informational, not a defect.",
+        "severity": "info",
+        "title": "Working directory writable, system paths not"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "mounts": [
+            "~/.npm/_logs",
+            "/tmp/ccmeasure",
+            "/tmp/ccmeasure/.claude",
+            "/tmp/claude-1000",
+            "/tmp/claude-1000/-tmp-ccmeasure",
+            "/tmp/claude-1000/-tmp-ccmeasure/072e6ef3-a84c-42b7-a1fb-84c7f327d4ec"
+          ]
+        },
+        "id": "FS-003",
+        "owasp": [
+          "ASI02",
+          "ASI05"
+        ],
+        "remediation": "Mount only the working tree, read-only where possible; never mount the host root.",
+        "severity": "medium",
+        "title": "Read-write bind mounts from the host"
+      }
+    ],
+    "raw_score": 41,
+    "recommended_flags": [
+      "(inject secrets through a broker, not the environment)",
+      "(remove the credential mount)",
+      "(mount the working tree only, :ro where possible)"
+    ],
+    "score": 41
+  },
+  "target": {
+    "how": "as above plus --settings '{\"sandbox\":{\"enabled\":true}}', with PATH extended to a socat extracted from the distribution package into a user directory. Nothing was installed system-wide, which is worth copying: the host you measure should not be changed by the act of measuring it.",
+    "kind": "captured",
+    "label": "claude-code-2.1.266-sandbox-enabled",
+    "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}

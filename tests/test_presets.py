@@ -164,3 +164,27 @@ def test_bwrap_layer_alone_leaves_the_socket_reachable_that_codex_closes():
         "bubblewrap alone does not restrict unix-domain sockets; if this fails the host has an extra layer")
     assert probe["identity"]["seccomp_mode"] == 0
     assert "PRIV-004" in ids
+
+
+def test_measured_profiles_declare_environment_and_conflicts():
+    """A score without its environment is not comparable to another score."""
+    import json
+    with open(os.path.join(REPO, "agentsec", "data", "measured_profiles.json")) as f:
+        profiles = json.load(f)["profiles"]
+    for name, p in profiles.items():
+        assert p.get("environment"), f"{name} does not say what environment it was measured in"
+        assert p.get("how"), f"{name} does not say how it was measured"
+        assert p.get("vendor_docs"), f"{name} names a product without citing its documentation"
+        if name.startswith("claude-code"):
+            assert "Claude Code session measuring Claude Code" in p.get("conflict_of_interest", ""), (
+                f"{name} must disclose that the measurer and the measured are the same product")
+
+
+def test_the_degraded_sandbox_profile_records_the_vendors_own_warning():
+    """The finding is the gap between configuration and process, so quote the warning."""
+    import json
+    with open(os.path.join(REPO, "agentsec", "data", "measured_profiles.json")) as f:
+        p = json.load(f)["profiles"]["claude-code-2.1.266-sandbox-enabled-deps-missing"]
+    assert "socat" in p["vendor_warning"]
+    assert "WITHOUT sandboxing" in p["vendor_warning"]
+    assert p["score"] == 100, "a degraded sandbox must score as the unsandboxed run it actually is"
