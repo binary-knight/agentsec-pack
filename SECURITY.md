@@ -65,3 +65,31 @@ Read `agentsec/probe/blast_probe.py` before running it somewhere you care about.
 It is one file and it is meant to be read. `docs/CAPTURING.md` explains how to
 run it inside an agent you do not control, and `--redact` scrubs a report before
 you share it.
+
+
+## What is switched on
+
+Enabled now:
+
+* **Dependabot alerts** and **Dependabot security updates**, so a vulnerable
+  dependency raises a pull request.
+* **Dependabot version updates** for pip and for the GitHub Actions these
+  workflows pin.
+* **Secret scanning, dependency audit and a security lint in CI.** GitHub's own
+  secret scanning and code scanning require a public repository or a purchased
+  Advanced Security licence, and neither applies here yet, so the `security` job
+  runs the free equivalents on every push: `detect-secrets` against an audited
+  baseline, `pip-audit`, and `bandit` at high severity. The baseline holds three
+  audited false positives and is quoted in the file; anything new fails the
+  build.
+* **A leak check as its own job**, which walks every tracked file and fails on an
+  operator's home path. That has been needed twice.
+
+To switch on at the moment this repository becomes public, none of which can be
+enabled while it is private:
+
+1. **Secret scanning and push protection** (Settings, Code security).
+2. **Private vulnerability reporting**, which is what the advisory link at the
+   top of this file depends on.
+3. **CodeQL code scanning.** The workflow is already written and gated on
+   visibility, so it starts by itself; confirm the first run succeeded.

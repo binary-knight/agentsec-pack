@@ -49,3 +49,24 @@ jobs:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
       - run: python -m pytest -q tests/test_probe.py -k operator_identity
+
+  security:
+    # GitHub's own secret scanning and code scanning need a public repo or a
+    # purchased Advanced Security licence. These are the free equivalents, and
+    # they run on every push regardless of visibility.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[security]'
+
+      - name: Secrets (detect-secrets against the audited baseline)
+        run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+
+      - name: Known-vulnerable dependencies
+        run: pip-audit --skip-editable
+
+      - name: Python security lint
+        run: bandit -r agentsec --severity-level high

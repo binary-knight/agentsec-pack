@@ -1,0 +1,28 @@
+name: codeql
+
+# CodeQL is free for public repositories and needs a purchased Advanced
+# Security licence for private ones. This workflow is written now and stays
+# dormant while the repository is private, so code scanning starts on the day
+# visibility changes rather than being remembered afterwards.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
