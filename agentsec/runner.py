@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -34,18 +35,66 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
     return p.returncode, p.stdout, p.stderr
 
 
-def _parse(stdout: str) -> dict[str, Any]:
-    # The probe prints exactly one JSON line; tolerate leading noise from entrypoints.
+_CAPABILITY_CACHE: dict[str, bool] = {}
+
+
+def sandbox_available(kind: str) -> bool:
+    """Can this host actually build this kind of sandbox, right now?
+
+    Not whether the binary is on PATH. A launcher can be installed and still be
+    unable to run: bubblewrap needs an unprivileged user namespace, and Ubuntu
+    24.04 denies one by default; docker needs a daemon that answers. Checking
+    presence and calling it capability is precisely the mistake this tool exists
+    to catch, so the test suite does not make it either.
+    """
+    if kind in _CAPABILITY_CACHE:
+        return _CAPABILITY_CACHE[kind]
+    probes = {
+        "bwrap": ["bwrap", "--ro-bind", "/", "/", "--unshare-user", "--unshare-pid",
+                  "--dev", "/dev", "--proc", "/proc", "true"],
+        "docker": ["docker", "info"],
+        "podman": ["podman", "info"],
+    }
+    cmd = probes.get(kind)
+    ok = False
+    if cmd and shutil.which(cmd[0]):
+        try:
+            ok = subprocess.run(cmd, capture_output=True, timeout=60).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+    _CAPABILITY_CACHE[kind] = ok
+    return ok
+
+
+def _parse(stdout: str, stderr: str = "", cmd: str = "") -> dict[str, Any]:
+    """Turn the probe's output into a dict, or explain why there wasn't any.
+
+    When a launcher refuses to start, the probe never runs and stdout is empty.
+    Reporting only that is useless: the reason is always in stderr. On Ubuntu
+    24.04 it is usually bubblewrap being denied a user namespace, which is a
+    host policy rather than anything wrong with the command.
+    """
     for line in reversed(stdout.strip().splitlines()):
         line = line.strip()
         if line.startswith("{"):
             return json.loads(line)
-    raise ValueError("probe produced no JSON (stdout was %r)" % stdout[-500:])
+    detail = (stderr or "").strip()
+    hint = ""
+    if "namespace" in detail.lower() or "unshare" in detail.lower() or "userns" in detail.lower():
+        hint = ("\nThis host restricts unprivileged user namespaces, so the launcher could not build "
+                "a sandbox. On Ubuntu 24.04 that is kernel.apparmor_restrict_unprivileged_userns=1; "
+                "see docs/CAPTURING.md.")
+    raise ValueError(
+        "the probe produced no JSON, which means it never ran.%s%s%s" % (
+            ("\ncommand: " + cmd) if cmd else "",
+            ("\nstderr: " + detail[-800:]) if detail else "\nstderr was empty too.",
+            hint))
 
 
 def run_local(timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
     rc, out, err = _run([sys.executable, probe_path()], timeout)
-    return {"target": {"kind": "local", "python": sys.executable}, "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
+    return {"target": {"kind": "local", "python": sys.executable}, "rc": rc, "stderr": err[-2000:],
+            "probe": _parse(out, err, sys.executable + " " + probe_path())}
 
 
 def image_digest(image: str, engine: str = "docker") -> str | None:
@@ -71,7 +120,7 @@ def run_container(image: str, flags: list[str] | None = None, engine: str = "doc
     shown = [engine, "run", "--rm", "-v", "<agentsec probe>:/agentsec_probe.py:ro"] + flags + [image, python, "/agentsec_probe.py"]
     return {"target": {"kind": "container", "engine": engine, "image": image, "digest": image_digest(image, engine),
                        "flags": flags, "python": python, "command": shlex.join(shown)},
-            "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
+            "rc": rc, "stderr": err[-2000:], "probe": _parse(out, err, " ".join(cmd))}
 
 
 def run_docker(image: str, docker_flags: list[str] | None = None, **kw) -> dict[str, Any]:
@@ -101,7 +150,8 @@ def run_command(template: str, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]
         raise ValueError("launcher template must contain {probe}")
     cmd = shlex.split(template.format(probe=shlex.quote(probe_path())))
     rc, out, err = _run(cmd, timeout)
-    return {"target": {"kind": "command", "template": template, "command": template.replace("{probe}", "<agentsec probe>")}, "rc": rc, "stderr": err[-2000:], "probe": _parse(out)}
+    return {"target": {"kind": "command", "template": template, "command": template.replace("{probe}", "<agentsec probe>")}, "rc": rc, "stderr": err[-2000:],
+            "probe": _parse(out, err, template.replace("{probe}", "<agentsec probe>"))}
 
 
 def result_envelope(run: dict[str, Any], summary: dict[str, Any], label: str | None = None) -> dict[str, Any]:

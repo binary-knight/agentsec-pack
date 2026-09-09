@@ -19,11 +19,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # bubblewrap exercises the sandbox presets for real. Docker is present on
-      # the GitHub runner, so the container presets run too; tests that need a
-      # binary skip when it is missing rather than failing.
+      # Installing bubblewrap is not enough. Ubuntu 24.04 denies unprivileged
+      # user namespaces by default, so bwrap is on PATH and still cannot build a
+      # sandbox. Lift the restriction where we are allowed to; where we are not,
+      # the suite detects the missing capability and skips rather than failing.
       - name: Install sandbox tools
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          echo "bwrap can sandbox: $(bwrap --ro-bind / / --unshare-user --unshare-pid \
+            --dev /dev --proc /proc true && echo yes || echo no)"
 
       - name: Install
         run: |

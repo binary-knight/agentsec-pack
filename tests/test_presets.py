@@ -1,8 +1,11 @@
 import json
 import os
+import sys
 import shutil
 
 import pytest
+
+from agentsec import runner
 
 from agentsec import presets, runner
 
@@ -37,7 +40,7 @@ def test_named_presets_cite_a_source_not_a_vendor_claim():
             assert "http" in p["source"], f"{name} names a third party without a source URL"
 
 
-@pytest.mark.skipif(not shutil.which("bwrap"), reason="bwrap not installed")
+@pytest.mark.skipif(not runner.sandbox_available("bwrap"), reason="this host cannot build a bubblewrap sandbox")
 def test_bwrap_preset_runs_and_scores():
     run = runner.run_preset("bwrap-unshare-all")
     s = summarize(run["probe"])
@@ -46,7 +49,7 @@ def test_bwrap_preset_runs_and_scores():
     assert s["score"] >= 0
 
 
-@pytest.mark.skipif(not shutil.which("docker"), reason="docker not installed")
+@pytest.mark.skipif(not runner.sandbox_available("docker"), reason="no working docker daemon here")
 def test_docker_hardened_preset_is_contained():
     run = runner.run_preset("docker-hardened", image="python:3.12-slim")
     s = summarize(run["probe"])
@@ -82,7 +85,7 @@ def test_raw_score_separates_capped_sandboxes():
     assert raw_score(f) >= score(f)
 
 
-@pytest.mark.skipif(not shutil.which("bwrap"), reason="bwrap not installed")
+@pytest.mark.skipif(not runner.sandbox_available("bwrap"), reason="this host cannot build a bubblewrap sandbox")
 def test_matrix_writes_one_table(tmp_path):
     rc = main(["matrix", "--presets", "bwrap-unshare-all,bwrap-unshare-all-clearenv", "--out", str(tmp_path), "--label", "m"])
     assert rc == 0
@@ -154,7 +157,7 @@ def test_codex_bwrap_layer_preset_declares_what_it_does_not_reproduce():
         "the template must not claim to apply the vendor's second layer")
 
 
-@pytest.mark.skipif(not shutil.which("bwrap"), reason="bwrap not installed")
+@pytest.mark.skipif(not runner.sandbox_available("bwrap"), reason="this host cannot build a bubblewrap sandbox")
 def test_bwrap_layer_alone_leaves_the_socket_reachable_that_codex_closes():
     """The measured gap between the two layers, asserted rather than described."""
     run = runner.run_preset("codex-cli-0.153.4-bwrap-layer")
@@ -198,3 +201,59 @@ def test_degraded_sandbox_profile_names_the_vendors_own_remedy():
     assert "failIfUnavailable" in p["fail_closed_verified"]
     assert "Measured, not quoted" in p["fail_closed_verified"]
     assert "documented behaviour" in p["result"]
+
+
+def test_capability_is_checked_by_running_something_not_by_looking_at_PATH():
+    """The tool's whole argument, applied to its own test suite.
+
+    CI installed bubblewrap and the bwrap tests still failed, because Ubuntu
+    24.04 denies the user namespace it needs. A binary on PATH is not a
+    capability, and a skip guard that checks `which` says a sandbox exists when
+    none can be built.
+    """
+    import subprocess
+    import textwrap
+
+    fake = tmp = None
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    fake = os.path.join(tmp, "bwrap")
+    with open(fake, "w") as f:
+        f.write(textwrap.dedent("""\
+            #!/bin/sh
+            echo "bwrap: setting up uid map: Permission denied" >&2
+            exit 1
+        """))
+    os.chmod(fake, 0o755)
+    env = dict(os.environ, PATH=tmp + os.pathsep + os.environ["PATH"])
+    check = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, %r);"
+         "from agentsec import runner;"
+         "runner._CAPABILITY_CACHE.clear();"
+         "print(runner.sandbox_available('bwrap'))" % REPO],
+        capture_output=True, text=True, env=env)
+    assert check.stdout.strip() == "False", check.stderr
+    # and `which` would have said yes
+    assert shutil.which("bwrap", path=tmp) == fake
+
+
+def test_a_launcher_that_never_starts_explains_why():
+    """'probe produced no JSON' told a first-time user nothing. The reason is
+    always in stderr, so it belongs in the error."""
+    from agentsec.runner import _parse
+    with pytest.raises(ValueError) as exc:
+        _parse("", "bwrap: setting up uid map: Permission denied (user namespaces restricted)",
+               "bwrap --unshare-all python3 <agentsec probe>")
+    msg = str(exc.value)
+    assert "never ran" in msg
+    assert "Permission denied" in msg, "stderr must be surfaced"
+    assert "apparmor_restrict_unprivileged_userns" in msg, "name the actual host setting"
+    assert "bwrap --unshare-all" in msg, "show the command that failed"
+
+
+def test_an_empty_stderr_says_so_rather_than_going_quiet():
+    from agentsec.runner import _parse
+    with pytest.raises(ValueError) as exc:
+        _parse("", "", "some-launcher <agentsec probe>")
+    assert "stderr was empty too" in str(exc.value)

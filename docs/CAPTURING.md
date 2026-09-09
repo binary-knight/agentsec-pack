@@ -56,3 +56,28 @@ env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/bash LANG=C.
 ```
 
 Measuring both ways is better than choosing one. The difference is the part of the blast radius you can close by fixing your own shell. Record which you did in `--how`; a score without its environment is not comparable to another score.
+
+## When a launcher is installed and still cannot build a sandbox
+
+`bwrap` on PATH does not mean bubblewrap can sandbox anything. Ubuntu 24.04 ships
+with unprivileged user namespaces restricted, so bubblewrap gets `Permission
+denied` setting up its uid map and the probe never runs. Check the capability
+rather than the binary:
+
+```bash
+bwrap --ro-bind / / --unshare-user --unshare-pid --dev /dev --proc /proc true \
+  && echo "can sandbox" || echo "cannot"
+
+cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns   # 1 means restricted
+```
+
+Two ways out. Where you control the host, allow it for this binary with an
+AppArmor profile at `/etc/apparmor.d/bwrap` granting `userns,`, then
+`sudo apparmor_parser -r /etc/apparmor.d/bwrap`. On a throwaway machine or a CI
+runner, `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` lifts it
+globally, which is fine there and not fine on a workstation.
+
+`agentsec` tests the capability rather than the path: `runner.sandbox_available()`
+runs a trivial sandbox and reports whether it worked, and the test suite skips on
+that rather than on `which`. Presence is not capability, which is the same point
+the tool makes about everything else it measures.
