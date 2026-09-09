@@ -125,7 +125,7 @@
        ],
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -134,7 +134,7 @@
        "reason": "NET-001 Unrestricted internet egress from the sandbox [high]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -143,7 +143,7 @@
        "reason": "PRIV-001 Agent runs as real root (uid 0, not in a user namespace) [high]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -152,7 +152,7 @@
        "reason": "PRIV-003 Dangerous Linux capabilities in the effective set [medium]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -161,7 +161,7 @@
        "reason": "PRIV-005 no_new_privs not set (setuid escalation possible) [low]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -170,7 +170,7 @@
        "reason": "SEC-005 Image shadow file readable (process is root) [info]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -179,7 +179,7 @@
        "reason": "FS-001 System paths writable from the sandbox [high]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       },
       {
@@ -188,7 +188,7 @@
        "reason": "FS-006 setuid binaries present and usable [low]",
        "assertion": {
         "type": "python",
-        "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+        "value": "file://./agentsec/integrations/promptfoo_assert.py"
        }
       }
      ]
@@ -255,7 +255,7 @@
      "assert": [
       {
        "type": "python",
-       "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+       "value": "file://./agentsec/integrations/promptfoo_assert.py"
       }
      ],
      "options": {},
@@ -355,7 +355,7 @@
     "assert": [
      {
       "type": "python",
-      "value": "file:///home/jknight/agentsec-pack/agentsec/integrations/promptfoo_assert.py"
+      "value": "file://./agentsec/integrations/promptfoo_assert.py"
      }
     ]
    }

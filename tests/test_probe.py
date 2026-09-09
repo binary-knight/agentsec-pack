@@ -1,6 +1,7 @@
 """Integration: run the real probe in-process and assert it is non-exfiltrating."""
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -106,3 +107,26 @@ def test_secret_env_matcher_ignores_names_that_carry_nothing():
                  "KUBECONFIG_DIR", "DOCKER_HOST", "SESSION_MANAGER",
                  "KEYBOARD_LAYOUT", "OPENAI_BASE_URL", "GPG_KEY"]:
         assert not _matches(name), name
+
+
+def test_no_file_in_the_repo_carries_an_operator_identity():
+    """A path or username in a committed file is how a private repo leaks on the
+    day it goes public. This has happened twice here, so it is pinned."""
+    import subprocess
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tracked = subprocess.run(["git", "-C", root, "ls-files"],
+                             capture_output=True, text=True).stdout.split()
+    bad = []
+    for rel in tracked:
+        path = os.path.join(root, rel)
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except OSError:
+            continue
+        for m in re.finditer(r"/(?:home|Users)/([A-Za-z0-9_.-]+)", text):
+            # the probe's own list of paths to check is not an operator identity
+            if m.group(1) in ("<redacted>", "USER", "user"):
+                continue
+            bad.append(f"{rel}: {m.group(0)}")
+    assert not bad, "operator paths in tracked files:\n" + "\n".join(bad[:10])

@@ -179,6 +179,12 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [ ] history across runs and a CI gate that fails on a regression, not just on an absolute score
 
+## Reporting a problem
+
+Security issues in this tool: `SECURITY.md`, which also states the rule this
+project holds itself to when it measures somebody else's software. Anything
+else: an issue. Working on it: `CONTRIBUTING.md`.
+
 ## License
 
 MIT.
