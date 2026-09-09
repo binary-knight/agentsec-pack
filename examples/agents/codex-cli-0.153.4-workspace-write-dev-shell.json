@@ -1,6 +1,6 @@
 {
-  "generated_at": 1788937677,
-  "label": "codex-cli-0.153.4-workspace-write",
+  "generated_at": 1788937779,
+  "label": "codex-cli-0.153.4-workspace-write-dev-shell",
   "probe": {
     "duration_ms": 13,
     "filesystem": {
@@ -283,8 +283,13 @@
           "size": 1255
         }
       ],
-      "env_secret_names": [],
-      "env_var_count": 23,
+      "env_secret_names": [
+        {
+          "length": 32,
+          "name": "<redacted>"
+        }
+      ],
+      "env_var_count": 56,
       "pid1_environ_readable": true,
       "unix_control": {
         "connected": false,
@@ -299,7 +304,7 @@
         "verdict": "connect refused before path lookup"
       }
     },
-    "timestamp": 1788937594
+    "timestamp": 1788937697
   },
   "probe_stderr": "",
   "rc": 0,
@@ -307,12 +312,12 @@
   "summary": {
     "by_severity": {
       "critical": 0,
-      "high": 1,
+      "high": 2,
       "info": 2,
       "low": 1,
       "medium": 2
     },
-    "finding_count": 6,
+    "finding_count": 7,
     "findings": [
       {
         "category": "network",
@@ -373,6 +378,22 @@
       {
         "category": "secrets",
         "evidence": {
+          "names": [
+            "<redacted>"
+          ]
+        },
+        "id": "SEC-002",
+        "owasp": [
+          "ASI03",
+          "ASI02"
+        ],
+        "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+        "severity": "high",
+        "title": "Secret-looking environment variables visible to the agent"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
           "paths": [
             "~/.ssh/config",
             "~/.gitconfig",
@@ -428,18 +449,19 @@
         "title": "Read-write bind mounts from the host"
       }
     ],
-    "raw_score": 34,
+    "raw_score": 49,
     "recommended_flags": [
+      "(inject secrets through a broker, not the environment)",
       "(remove the credential mount)",
       "(own PID namespace: avoid --pid=host)",
       "(mount the working tree only, :ro where possible)"
     ],
-    "score": 34
+    "score": 49
   },
   "target": {
-    "how": "env -i HOME=$HOME PATH=$PATH TERM=xterm USER=$USER SHELL=/bin/bash LANG=C.UTF-8 codex exec -m gpt-6-astra -c model_reasoning_effort=low -c service_tier=default --sandbox workspace-write --skip-git-repo-check, asked to run the probe redirecting stdout to a file inside the workspace. The environment is minimised deliberately, as above.",
+    "how": "the same command WITHOUT env -i: launched from a developer shell that had already exported credentials (here a Claude Code session's own token). Recorded to show that the launching shell's environment is inherited into the sandbox and is part of the measured blast radius.",
     "kind": "captured",
-    "label": "codex-cli-0.153.4-workspace-write",
+    "label": "codex-cli-0.153.4-workspace-write-dev-shell",
     "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."
   },
   "test": "sandbox-blast-radius",

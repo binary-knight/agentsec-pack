@@ -45,3 +45,14 @@ before publishing it.
 **Ask for the whole object, not a tail.** A read-only sandbox cannot write a file, so the probe's JSON has to come back through the agent's reply. If you cap the output (`tail -c N`) you lose the *leading* keys and the result will not parse. Ask for the complete output from the first `{` to the last `}`. `agentsec score` repairs a missing closing brace and tells you it did, but it cannot invent a missing opening one.
 
 **The control tests behave differently by mode.** `unix_control` needs a writable directory, so in a read-only sandbox it fails at `mkdtemp` and proves nothing on its own. `unix_control_nopath` needs no writable directory: it connects to a path that does not exist, where `FileNotFoundError` means unix-domain connect is permitted and `PermissionError` means the call was refused before the path was consulted. Scoring prefers the first control and falls back to the second, and says plainly when neither settled the question.
+
+## Minimise the launching environment, or say that you did not
+
+An agent's sandbox inherits the environment of the shell that started it. Anything exported there is visible inside and is scored against the agent, which is misleading when the variable came from your terminal rather than the product. Launch with a minimal environment when you want the intrinsic figure:
+
+```bash
+env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/bash LANG=C.UTF-8 \
+  <agent command>
+```
+
+Measuring both ways is better than choosing one. The difference is the part of the blast radius you can close by fixing your own shell. Record which you did in `--how`; a score without its environment is not comparable to another score.

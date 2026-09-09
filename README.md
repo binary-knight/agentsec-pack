@@ -57,12 +57,15 @@ Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_sl
 
 A container you can wrap from outside. An agent's sandbox you cannot: it is entered by the agent. So you ask the agent to run the probe inside it and score what comes back (`docs/CAPTURING.md`, `agentsec score`).
 
-Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8 September 2026:
+Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 
 | Sandbox | Score | Contained | Still reachable |
 |---|---:|---|---|
-| Codex CLI 0.153.4 `--sandbox read-only` | 41 | root filesystem read-only, working directory not writable, DNS fails, direct-IP connects refused, container sockets refused | the invoking user's home directory: `~/.ssh/config`, `~/.gitconfig`, `~/.config/gh/hosts.yml`, secret-looking environment variables, PID 1's environment |
-| Codex CLI 0.153.4 `--sandbox workspace-write` | 49 | as above | as above, plus a writable working directory (expected, scored informational) and read-write bind mounts from the host |
+| Codex CLI 0.153.4 `--sandbox read-only` | 26 | root filesystem read-only, working directory not writable, DNS fails, direct-IP connects refused, container sockets refused | the invoking user's home directory: `~/.ssh/config`, `~/.gitconfig`, `~/.config/gh/hosts.yml`, PID 1's environment |
+| Codex CLI 0.153.4 `--sandbox workspace-write` | 34 | as above | as above, plus a writable working directory (expected, scored informational) and read-write bind mounts from the host |
+| the same two, launched from a developer shell | 41 / 49 | as above | as above, plus one secret-shaped environment variable the shell had already exported |
+
+**The launcher is part of the blast radius, so the environment is part of the measurement.** The sandbox inherits the shell it was started from. Launched from a shell with a token exported, both scores rise by 15 points for a secret that has nothing to do with Codex. The first two rows minimise the environment with `env -i` and are the intrinsic figures; the third row is the same sandbox started the way people actually start it. Shipping the pair is the point: a single number would have hidden which half you can fix by changing your own shell.
 
 **This is a design boundary, not a vulnerability, and the report says so.** The vendor documents read-only mode as "the agent can inspect files", so an agent reading your `gh` credentials file is the boundary working as written. The number is useful anyway: it says that on the write and network axes this sandbox is genuinely strong, and that what remains inside the blast radius is *read* access to whatever secrets live in the home directory of the user who launched it. That distinction matters because no filesystem or network sandbox can constrain what an agent does with what it has already read: whatever the agent can read can appear in the text it produces. This tool does not measure that path, and makes no claim about any particular product's handling of it.
 

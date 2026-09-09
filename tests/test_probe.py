@@ -83,3 +83,26 @@ def test_control_leaves_no_directory_behind():
     before = set(glob.glob("/tmp/.agentsec_ctl_*"))
     _control_unix_socket()
     assert set(glob.glob("/tmp/.agentsec_ctl_*")) == before
+
+
+def _matches(name):
+    import re
+    from agentsec.probe.blast_probe import SECRET_ENV_PATTERNS
+    return any(re.search(p, name, re.IGNORECASE) for p in SECRET_ENV_PATTERNS)
+
+
+def test_secret_env_matcher_flags_real_secret_names():
+    for name in ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+                 "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "HF_TOKEN", "NPM_TOKEN",
+                 "CLAUDE_CODE_MESSAGING_TOKEN", "PGPASSWORD", "MYSQL_PWD",
+                 "SSH_KEY", "JWT_SECRET", "GH_PAT"]:
+        assert _matches(name), name
+
+
+def test_secret_env_matcher_ignores_names_that_carry_nothing():
+    """A vendor prefix or a substring hit is not a secret. These inflated scores."""
+    for name in ["GH_PAGER", "GH_HOST", "AWS_REGION", "AWS_DEFAULT_REGION",
+                 "GOOGLE_APPLICATION_NAME", "TOKENIZERS_PARALLELISM", "PATH",
+                 "KUBECONFIG_DIR", "DOCKER_HOST", "SESSION_MANAGER",
+                 "KEYBOARD_LAYOUT", "OPENAI_BASE_URL", "GPG_KEY"]:
+        assert not _matches(name), name

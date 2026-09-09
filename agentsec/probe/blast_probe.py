@@ -44,9 +44,20 @@ METADATA_TARGETS = [
 ]
 CONNECT_TIMEOUT = float(os.environ.get("AGENTSEC_PROBE_TIMEOUT", "2.0"))
 
+# Matched on whole underscore-separated words, not as substrings or vendor
+# prefixes. A prefix rule flags GH_PAGER and AWS_REGION, which are not secrets;
+# a substring rule flags TOKENIZERS_PARALLELISM. Bare KEY flags GPG_KEY, which
+# in the official python image is the release manager's PUBLIC key fingerprint.
+# All three inflate the score with names that carry nothing, so KEY is only
+# counted when a qualifier makes it a credential.
+_SECRET_WORDS = (r"SECRET|SECRETS|TOKEN|TOKENS|PASSWORD|PASSWD|PASSPHRASE|APIKEY|"
+                 r"CREDENTIAL|CREDENTIALS|PRIVATEKEY|PAT|JWT|BEARER|OAUTH|SIGNATURE")
 SECRET_ENV_PATTERNS = [
-    r".*(SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIAL).*",
-    r"^(AWS_|AZURE_|GOOGLE_|GCP_|OPENAI_|ANTHROPIC_|HF_|GITHUB_|GH_|NPM_|PYPI_|DOCKER_|KUBE).*",
+    r"(^|_)(" + _SECRET_WORDS + r")(_|$)",
+    r"(^|_)(API|ACCESS|PRIVATE|SECRET|SIGNING|ENCRYPTION|SESSION|MASTER|ROOT|SSH|"
+    r"DEPLOY|CLIENT|APP|SERVICE|CONSUMER)_KEYS?(_|$)",
+    r"^PG(PASSWORD|PASSFILE)$",
+    r"^MYSQL_PWD$",
 ]
 CREDENTIAL_PATHS = [
     "~/.aws/credentials", "~/.aws/config", "~/.ssh/id_rsa", "~/.ssh/id_ed25519",
@@ -265,7 +276,7 @@ def probe_secrets():
     env_hits = []
     for k in os.environ:
         for pat in SECRET_ENV_PATTERNS:
-            if re.match(pat, k, re.IGNORECASE):
+            if re.search(pat, k, re.IGNORECASE):
                 env_hits.append({"name": k, "length": len(os.environ.get(k, ""))})  # name and length only, never the value
                 break
     files = []
