@@ -101,6 +101,43 @@ Two conditions on the numbers. Claude Code's network isolation is an allowlist t
 
 Full reports with provenance: `examples/agents/`. Entries in `agentsec/data/measured_profiles.json` may only be added from an actual measurement, never from documentation, and each cites the vendor's own docs. Before publishing anything that contradicts a vendor's documentation, tell the vendor first.
 
+
+## Seeing it
+
+Two commands, one page.
+
+```bash
+# a self-contained HTML file: keep it as a CI artifact, mail it, open it offline
+agentsec report reports/ --html blast-radius.html
+
+# a console on localhost, with the runs you have already saved loaded in
+agentsec ui --results reports/ --open
+```
+
+The page leads with a band across the five axes the probe measures, because the
+distinction this tool exists to make is *reachable* versus *merely visible*. An
+axis reads **Sealed** when nothing was found, **Visible but refused** when the
+probe saw something it could not reach, and **Reachable** when it got through.
+The score is second; a number alone cannot tell you which of those you have.
+Provenance is a panel rather than a footnote.
+
+Both commands render the same template, so the exported page and the clickable
+one cannot drift apart. It loads nothing from the network: system fonts, inline
+CSS, no CDN. A test fails if any `src` or `href` ever points off-box.
+
+**What the console will and will not do.** It binds `127.0.0.1`, mints a random
+token at startup and requires it on every API call, checks the `Host` header so
+a name resolving to loopback cannot be used to reach it from a hostile page,
+sends a restrictive CSP and no CORS header at all. It runs a configuration
+shipped in `presets.json`, or an engine/image/flag triple where every flag is a
+key in the remediation map. It does **not** accept a command template, and
+`tests/test_ui.py` asserts that a browser cannot ask for one.
+
+`--bind` widens it when your browser is on another machine. A console bound off
+this box is read-only unless you also pass `--allow-remote-runs`: reading a
+report is safe to expose, giving a network the ability to start containers is a
+separate decision you should make on purpose.
+
 ## Alongside a red-team run
 
 Promptfoo measures what the agent does. This measures what the agent's sandbox would let a successful attack reach. Run both and join them:
@@ -139,7 +176,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [x] two agents measured across seven configurations; a preset reproducing Codex's bubblewrap layer, with the seccomp gap measured rather than assumed
 - [ ] more agents as they become installable here; presets only where the argv can be captured live
 - [ ] verifier-integrity test class
-- [ ] hosted history and CI gate
+- [x] browser front end: static HTML report and a localhost console, sharing one template
+- [ ] history across runs and a CI gate that fails on a regression, not just on an absolute score
 
 ## License
 
