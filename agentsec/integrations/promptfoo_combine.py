@@ -161,7 +161,8 @@ def render_markdown(c: dict[str, Any]) -> str:
         for o in c["overlap"]:
             L.append(f"**{o['asi']}**")
             L.append(f"- failed: {'; '.join(o['failed_tests'])}")
-            L.append(f"- sandbox allows: {'; '.join(f"{f['id']} {f['title']}" for f in o['sandbox_findings'])}")
+            allows = "; ".join("%s %s" % (f["id"], f["title"]) for f in o["sandbox_findings"])
+            L.append("- sandbox allows: " + allows)
             L.append("")
     if pf["failed"]:
         L.append("## The failed tests")
