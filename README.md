@@ -136,6 +136,10 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 | Codex CLI 0.153.4 `--sandbox read-only` | 26 | root filesystem read-only, working directory not writable, DNS fails, direct-IP connects refused, container sockets refused | the invoking user's home directory: `~/.ssh/config`, `~/.gitconfig`, `~/.config/gh/hosts.yml`, PID 1's environment |
 | Codex CLI 0.153.4 `--sandbox workspace-write` | 34 | as above | as above, plus a writable working directory (expected, scored informational) and read-write bind mounts from the host |
 | the same two, launched from a developer shell | 41 / 49 | as above | as above, plus one secret-shaped environment variable the shell had already exported |
+| Aider 0.86.2, default (its only mode) | 100 | nothing | everything the invoking user can reach, including a connectable Docker socket |
+
+
+**Aider is the first open-source target here, and it ships no sandbox at all.** `aider --help` offers no sandbox, container or isolation option, and `aider/run_cmd.py:62` runs commands with `subprocess.Popen(shell=True)` on the host with the inherited environment. The probe was run through that exact call shape, so 100 is not an accusation: the project does not claim to contain anything, and the number simply says what you take on by running it. That is also the case for the hardening presets in this repository, which is the point of measuring it.
 
 **The launcher is part of the blast radius, so the environment is part of the measurement.** The sandbox inherits the shell it was started from. Launched from a shell with a token exported, both scores rise by 15 points for a secret that has nothing to do with Codex. The first two rows minimise the environment with `env -i` and are the intrinsic figures; the third row is the same sandbox started the way people actually start it. Shipping the pair is the point: a single number would have hidden which half you can fix by changing your own shell.
 

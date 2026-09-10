@@ -5,6 +5,22 @@
     "rules": "No entry may be added from documentation or recall. The probe must have been run inside the sandbox and its JSON kept. A vendor's documented design boundary is recorded as such, not as a vulnerability."
   },
   "profiles": {
+    "aider-0.86.2-default": {
+      "agent": "Aider",
+      "conflict_of_interest": "None. Aider is not made by the measurer or by any party to this repository, and the measurement needs no API key or account.",
+      "controls": "unix_control: bind-and-connect to a socket the probe creates itself. unix_control_nopath: connect to a nonexistent path.",
+      "environment": "Launched from a developer shell, which is how aider is run. Not minimised with env -i, because aider has no sandbox to isolate the inherited environment from; the inheritance IS the finding rather than a confound.",
+      "host": "Ubuntu 24.04, kernel 6.8",
+      "how": "aider ships no sandbox. `aider --help` offers no sandbox, container or isolation option, and aider/run_cmd.py:62 executes commands with subprocess.Popen(shell=True, cwd=...) on the host with the inherited environment; aider/commands.py:964 does the same for /run. The probe was executed through that exact call shape, from aider's own interpreter, so the measurement is of the environment an aider-run command actually gets.",
+      "measured": "2026-09-10",
+      "mode": "default (the only mode; there is no other)",
+      "model": "not applicable: no model call is needed to measure the execution environment",
+      "report": "examples/agents/aider-0.86.2-default.md",
+      "result": "No containment of any kind: unrestricted egress, root filesystem read-write, no seccomp, no_new_privs unset, host PID namespace, setuid binaries usable, and /var/run/docker.sock REACHABLE, which on a host where the user is in the docker group is root. Identical to running the probe directly in the user's shell, because that is what it is. This is not a defect in aider; the project does not claim to sandbox anything. It is the number that says what you take on by running it, and it is the reason the hardening presets in this repo exist.",
+      "score": 100,
+      "vendor_docs": "Source rather than documentation, because the claim is about behaviour and the project publishes no sandboxing docs to contradict. https://github.com/Aider-AI/aider (the Homepage declared in the PyPI metadata of aider-chat 0.86.2). Files read 2026-09-10 in the installed package: aider/run_cmd.py line 62 and aider/commands.py line 964, both subprocess with shell=True on the host. `aider --help` returns no match for sandbox, container, docker or isolation.",
+      "version": "0.86.2"
+    },
     "claude-code-2.1.266-default-no-sandbox": {
       "agent": "Claude Code",
       "conflict_of_interest": "These measurements were taken by a Claude Code session measuring Claude Code. The probe, the capture path and the scoring are the same ones used for every other profile, and the raw JSON ships alongside so the numbers can be recomputed, but a reader should weigh the source.",

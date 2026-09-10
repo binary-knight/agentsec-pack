@@ -257,3 +257,17 @@ def test_an_empty_stderr_says_so_rather_than_going_quiet():
     with pytest.raises(ValueError) as exc:
         _parse("", "", "some-launcher <agentsec probe>")
     assert "stderr was empty too" in str(exc.value)
+
+
+def test_an_agent_that_ships_no_sandbox_is_recorded_as_such_not_as_a_defect():
+    """The first open-source target measured. Aider does not claim to sandbox
+    anything, so 100 is a statement about what you take on by running it, not an
+    accusation. The profile has to keep saying that."""
+    import json
+    with open(os.path.join(REPO, "agentsec", "data", "measured_profiles.json")) as f:
+        p = json.load(f)["profiles"]["aider-0.86.2-default"]
+    assert p["score"] == 100
+    assert "not a defect in" in p["result"], "a tool with no sandbox is not thereby broken"
+    assert "does not claim to sandbox" in p["result"]
+    assert "run_cmd.py" in p["how"], "cite the line that shows how commands are executed"
+    assert "None." in p["conflict_of_interest"]
