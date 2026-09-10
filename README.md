@@ -7,30 +7,85 @@ Adversarial tests for AI agent deployments, built to answer two questions a CI o
 
 This repository is at the first milestone: the blast-radius probe, a runner, a scorer and reports. `agentsec-pack` is a placeholder name.
 
-## Quick start
+## How to use this tool
+
+### By hand
 
 ```bash
 uv venv .venv && uv pip install -e '.[dev]' && source .venv/bin/activate
-# or, without installing: python -m agentsec.cli ...
-# baseline: the same Python, no sandbox
-agentsec blast-radius local --print-findings
-# a container as most people run it
-agentsec blast-radius docker python:3.12-slim --print-findings
-# the same image, hardened
-agentsec blast-radius docker python:3.12-slim --label hardened --print-findings -- \
-  --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
-  --user 65534:65534 --pids-limit 256 --memory 512m --tmpfs /tmp
-agentsec compare reports/*.json
-
-# all ten shipped configurations at once, one comparison table
-agentsec matrix python:3.12-slim
-agentsec presets -v
-
-# CI gate: exit 2 if the sandbox is looser than the budget
-agentsec blast-radius preset docker-hardened --image myagent:latest --max-score 10
+agentsec presets            # what this host can actually run, not just what is installed
 ```
 
-Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and `reports/<label>.md`. The JSON records the exact image and flags, so anyone can reproduce the number. Review a report before publishing it: it carries the sandbox's hostname, working directory and the *names* of secret-looking environment variables. Pass `--redact` to scrub those while leaving every score, finding and flag intact; the examples in this repo were generated that way. `reports/` is git-ignored; `examples/` holds the two container reports from the README demo.
+The loop is measure, harden, measure again. Never one measurement.
+
+```bash
+# 1. what you run today
+agentsec blast-radius docker myagent:latest --label as-i-run-it --print-findings
+
+# 2. apply the flags the report recommends, keeping what your workload needs
+agentsec blast-radius docker myagent:latest --label hardened --print-findings -- \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --user 65534:65534 --tmpfs /tmp --pids-limit 256 --memory 512m
+
+# 3. see what moved
+agentsec compare reports/*.json
+```
+
+On a stock `python:3.12-slim` that reads 59, then 15. Adding `--network none`
+reaches 0, and an agent that cannot reach its model provider does not work, so
+**0 is not the target.** Aim for the lowest score your workload survives and
+record why each remaining finding is still open.
+
+Two more things it does:
+
+```bash
+agentsec matrix python:3.12-slim              # all ten configurations, one table
+agentsec ui --results reports/ --open         # the same results in a browser
+agentsec blast-radius preset docker-hardened --image myagent:latest --max-score 15
+```
+
+The last one exits 2 when the sandbox is looser than the budget, which is the CI
+gate. Set the budget to what you measured after hardening so the build fails when
+it drifts, rather than picking a round number.
+
+**Measuring an agent's own sandbox is different.** You can wrap a container from
+outside. You cannot wrap an agent's sandbox, because the agent is already inside
+it. Ask the agent to run the probe and score what comes back with `agentsec
+score`; `docs/CAPTURING.md` covers the details, including what to do when the
+sandbox is read-only and the result has to come back through a transcript.
+
+### By pointing an agent at this repository
+
+`AGENTS.md` is a brief written for an agent rather than a person. Clone the repo,
+point your agent at it, and say something like:
+
+> Read AGENTS.md in this repository and carry out Task A, then report what you
+> found. Do not change any host settings.
+
+Task A has the agent measure the sandbox it is itself running in, which is the
+measurement you cannot easily take yourself. Task B has it measure and harden an
+image you name. Task C adds the CI gate.
+
+**Read `AGENTS.md` yourself first.** It is under 100 lines, it contains no `sudo`, no
+network fetches beyond installing this package, and nothing that writes outside
+the working directory and a temp path. That matters more here than in most repos:
+pointing an agent at a file and letting it follow the instructions inside is
+exactly the pattern this tool exists to worry about. A repository is data, not
+authority, and the brief says so to the agent as well.
+
+Expect the agent to come back with a score, which of the five axes are sealed,
+and, importantly, whether anything was proven **reachable** rather than merely
+visible. Those are different findings and the tool separates them. If your agent
+reports a number without saying how it captured it, the tool refused to produce
+that number and the agent made it up: `--label` and `--how` are required.
+
+Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and
+`reports/<label>.md`. The JSON records the exact image and flags, so anyone can
+reproduce the number. Review a report before publishing it: it carries the
+sandbox's hostname, working directory and the *names* of secret-looking
+environment variables. Pass `--redact` to scrub those while leaving every score,
+finding and flag intact; the examples in this repo were generated that way.
+`reports/` is git-ignored; `examples/` holds the reports from the demos below.
 
 ## What it found on the first run
 
