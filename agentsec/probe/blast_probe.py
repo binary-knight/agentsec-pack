@@ -272,6 +272,45 @@ def _control_unix_connect_nonexistent():
             pass
 
 
+def _home_dirs():
+    """Every directory that is plausibly this account's home, and how we know.
+
+    $HOME is an environment variable, so anything inside the sandbox can change
+    it. Pointing it at an empty directory used to clear the credential finding
+    and drop the score fifteen points while every one of those files stayed
+    readable at its real path. A score that can be lowered by concealment is
+    worse than no score, so the passwd entry is consulted too; that one comes
+    from the kernel's view of the uid and the environment cannot forge it.
+    """
+    homes = []
+    env_home = os.environ.get("HOME")
+    if env_home:
+        homes.append((env_home, "HOME"))
+    try:
+        import pwd
+        pw_home = pwd.getpwuid(os.getuid()).pw_dir
+        if pw_home:
+            homes.append((pw_home, "passwd"))
+    except (ImportError, KeyError, OSError):
+        # A uid with no passwd entry is normal in a container. Not an error.
+        pass
+    out, seen = [], set()
+    for h, src in homes:
+        key = os.path.normpath(h)
+        if key not in seen:
+            seen.add(key)
+            out.append((h, src))
+    return out
+
+
+def _candidate_paths(p):
+    """Every place a credential path might actually live, with its provenance."""
+    if not p.startswith("~"):
+        return [(p, "absolute")]
+    return [(os.path.join(h, p[2:]) if p.startswith("~/") else h, src)
+            for h, src in _home_dirs()]
+
+
 def probe_secrets():
     env_hits = []
     for k in os.environ:
@@ -280,11 +319,25 @@ def probe_secrets():
                 env_hits.append({"name": k, "length": len(os.environ.get(k, ""))})  # name and length only, never the value
                 break
     files = []
+    seen_real = {}
     for p in CREDENTIAL_PATHS:
-        path = os.path.expanduser(p)
-        if os.path.exists(path):
-            # Report the unexpanded form: portable across hosts and free of the operator's username.
-            entry = {"path": p, "resolved_under_home": p.startswith("~"),
+        for path, via in _candidate_paths(p):
+            if not os.path.exists(path):
+                continue
+            try:
+                real = os.path.realpath(path)
+            except OSError:
+                real = path
+            if real in seen_real:
+                # Same file found under two homes: record both routes, not two rows.
+                prev = seen_real[real]
+                if via not in prev["via"]:
+                    prev["via"] = prev["via"] + "+" + via
+                continue
+            # Report the unexpanded form: portable across hosts and free of the
+            # operator's username. `via` says which home resolved it, so a
+            # redirected HOME is visible instead of silently hiding the file.
+            entry = {"path": p, "resolved_under_home": p.startswith("~"), "via": via,
                      "readable": os.access(path, os.R_OK), "is_dir": os.path.isdir(path)}
             try:
                 st = os.stat(path)
@@ -292,6 +345,7 @@ def probe_secrets():
                 entry["size"] = st.st_size
             except Exception:
                 pass
+            seen_real[real] = entry
             files.append(entry)
     sockets = []
     for sp in SOCKET_PATHS:
@@ -318,7 +372,10 @@ def probe_secrets():
                 pass
         sockets.append(entry)
     pid1_environ_readable = read_text("/proc/1/environ", 1) is not None
+    homes = _home_dirs()
     return {"env_secret_names": env_hits, "credential_files": files, "container_sockets": sockets,
+            "home_dirs": [{"source": s, "differs_from_env": (s != "HOME" and len(homes) > 1)} for _h, s in homes],
+            "home_env_matches_passwd": len(homes) < 2,
             "unix_control": _control_unix_socket(),
             "unix_control_nopath": _control_unix_connect_nonexistent(),
             "pid1_environ_readable": pid1_environ_readable, "env_var_count": len(os.environ)}

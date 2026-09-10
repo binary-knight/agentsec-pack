@@ -130,3 +130,79 @@ def test_no_file_in_the_repo_carries_an_operator_identity():
                 continue
             bad.append(f"{rel}: {m.group(0)}")
     assert not bad, "operator paths in tracked files:\n" + "\n".join(bad[:10])
+
+
+# --- concealment resistance -------------------------------------------------
+# Reported by the supervisor session after a real use test: pointing $HOME at an
+# empty directory cleared SEC-003 and dropped the score fifteen points while
+# every one of those files stayed readable at its real path. A score that can be
+# lowered by hiding rather than fixing is worse than no score.
+
+def _probe_with_home(home):
+    env = dict(os.environ, HOME=home)
+    out = subprocess.run([sys.executable, blast_probe.__file__],
+                         capture_output=True, text=True, env=env).stdout
+    return json.loads(out.strip().splitlines()[-1])
+
+
+def test_redirecting_HOME_does_not_hide_credentials_that_are_still_readable(tmp_path):
+    import pwd
+    try:
+        pw_home = pwd.getpwuid(os.getuid()).pw_dir
+    except KeyError:
+        import pytest
+        pytest.skip("this uid has no passwd entry, so there is no second home to check")
+
+    real = _probe_with_home(pw_home)
+    real_creds = [c["path"] for c in real["secrets"]["credential_files"] if c.get("readable")]
+    if not real_creds:
+        import pytest
+        pytest.skip("no readable credential files here, so there is nothing to conceal")
+
+    hidden = _probe_with_home(str(tmp_path))
+    hidden_creds = [c["path"] for c in hidden["secrets"]["credential_files"] if c.get("readable")]
+
+    assert set(real_creds) <= set(hidden_creds), (
+        "pointing HOME at an empty directory hid credential files that are still readable")
+    assert hidden["secrets"]["home_env_matches_passwd"] is False
+    assert any(c.get("via") == "passwd" for c in hidden["secrets"]["credential_files"]), (
+        "the passwd home must be consulted, because $HOME can be set by anything inside the sandbox")
+
+
+def test_the_score_does_not_fall_when_HOME_is_redirected(tmp_path):
+    import pwd
+    try:
+        pw_home = pwd.getpwuid(os.getuid()).pw_dir
+    except KeyError:
+        import pytest
+        pytest.skip("no passwd entry for this uid")
+    real = summarize(_probe_with_home(pw_home))
+    hidden = summarize(_probe_with_home(str(tmp_path)))
+    assert hidden["score"] >= real["score"], (
+        f"concealment lowered the score from {real['score']} to {hidden['score']}")
+
+
+def test_a_redirected_HOME_is_reported_but_not_scored_against_the_operator(tmp_path):
+    """Redirecting HOME is a real hardening technique. The bug was that it hid
+    reachable files, not that anyone does it."""
+    from agentsec.scoring import analyze
+    hidden = _probe_with_home(str(tmp_path))
+    ids = {f.id for f in analyze(hidden)}
+    assert not any(i.startswith("SEC-00") and "home" in i.lower() for i in ids), (
+        "a redirected HOME must not become a finding of its own")
+    sec003 = [f for f in analyze(hidden) if f.id == "SEC-003"]
+    if sec003:
+        assert sec003[0].evidence.get("home_env_matches_passwd") is False
+        assert "not containing them" in sec003[0].remediation
+
+
+def test_credential_finding_says_it_reports_only_what_it_probed():
+    """'Credential files readable' read as an exhaustive claim about reachability
+    and was actually a statement about a fixed list."""
+    from agentsec.scoring import analyze
+    probe = json.loads(json.dumps(_probe_with_home(os.path.expanduser("~"))))
+    for f in analyze(probe):
+        if f.id == "SEC-003":
+            assert "among those probed" in f.title
+            assert "readable_of_those_probed" in f.evidence
+            assert f.evidence.get("probed"), "say how many paths were tested"

@@ -51,3 +51,58 @@ def test_every_module_parses_on_the_oldest_python_we_claim_to_support():
                     bad.append(f"{os.path.relpath(path, root)}:{i}: reuses \" inside an f-string "
                                f"(needs Python 3.12; this project claims {claim})")
     assert not bad, "\n".join(bad)
+
+
+# --- accepting what an agent actually hands back ----------------------------
+# A read-only sandbox cannot write a file, so the JSON comes back inside a reply:
+# wrapped in prose, fenced, and clipped, often all three. The supervisor session
+# hand-wrote an extractor for this before it existed.
+
+def _probe_text():
+    import json as _json
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "probe_open.json")
+    with open(path) as f:
+        return _json.dumps(_json.load(f))
+
+
+def test_score_reads_a_clean_json_file_unchanged():
+    from agentsec.cli import _probe_from_text
+    obj, note = _probe_from_text(_probe_text())
+    assert obj and note == ""
+
+
+def test_score_finds_the_object_inside_prose():
+    from agentsec.cli import _probe_from_text
+    obj, note = _probe_from_text("Sure! Here is the output:\n\n" + _probe_text() + "\n\nAnything else?")
+    assert obj["identity"]
+    assert "skipped" in note or "trailing" in note
+
+
+def test_score_finds_the_object_inside_a_code_fence():
+    from agentsec.cli import _probe_from_text
+    obj, note = _probe_from_text("I ran it:\n\n```json\n" + _probe_text() + "\n```\n")
+    assert obj["identity"]
+    assert "fenced" in note
+
+
+def test_score_repairs_a_transcript_that_was_fenced_and_clipped():
+    """The real shape: read-only mode, reply truncated mid-object."""
+    from agentsec.cli import _probe_from_text
+    text = "Here is the probe output:\n\n```json\n" + _probe_text()[:-2] + "\n"
+    obj, note = _probe_from_text(text)
+    assert obj["identity"]
+    assert "repaired" in note, "a repair must be reported, never silent"
+
+
+def test_score_refuses_text_with_no_object_rather_than_guessing():
+    from agentsec.cli import _probe_from_text
+    import pytest
+    with pytest.raises(ValueError):
+        _probe_from_text("Sorry, I was not able to run that command.")
+
+
+def test_score_accepts_print_findings_for_symmetry_with_blast_radius(tmp_path):
+    """It always prints them; the flag existing stops the muscle memory failing."""
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "probe_open.json")
+    rc = main(["score", src, "--label", "s", "--how", "h", "--print-findings", "--out", str(tmp_path)])
+    assert rc == 0

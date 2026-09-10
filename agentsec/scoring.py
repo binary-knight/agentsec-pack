@@ -148,8 +148,20 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         findings.append(_f("SEC-005", "Image shadow file readable (process is root)", "info", "secrets", {"path": "/etc/shadow"}, ["ASI03"],
                            "Informational in a plain image; becomes real if the image carries live account hashes."))
     if readable:
-        findings.append(_f("SEC-003", "Credential files readable from the sandbox", "high", "secrets",
-                           {"paths": readable}, ["ASI03"], "Do not mount home-directory credentials into the sandbox."))
+        creds = [c for c in sec.get("credential_files", [])
+                 if c.get("readable") and c["path"] != "/etc/shadow"]
+        ev = {"readable_of_those_probed": readable,
+              "probed": len(sec.get("credential_files", [])) or None,
+              "via": sorted({c.get("via", "unknown") for c in creds})}
+        detail = ("Do not mount home-directory credentials into the sandbox.")
+        if not sec.get("home_env_matches_passwd", True):
+            ev["home_env_matches_passwd"] = False
+            detail += (" Note: $HOME does not point at this account's home directory. That is a legitimate "
+                       "hardening technique and is not scored against you, but these files were still reached "
+                       "through the passwd entry, so the redirection is not containing them.")
+        findings.append(_f("SEC-003",
+                           "Credential files readable among those probed", "high", "secrets",
+                           ev, ["ASI03"], detail))
     if sec.get("pid1_environ_readable") and not proc.get("pid1_is_self"):
         findings.append(_f("SEC-004", "PID 1 environment readable (host or supervisor secrets exposed)", "medium", "secrets", {}, ["ASI03"],
                            "Run the agent in its own PID namespace."))

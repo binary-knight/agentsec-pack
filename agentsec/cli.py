@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
@@ -133,6 +134,53 @@ def cmd_matrix(args: argparse.Namespace) -> int:
     return _budget(min(r["score"] for r in runs), args.max_score)
 
 
+def _probe_from_text(raw: str) -> tuple[dict, str]:
+    """Get the probe object out of whatever the agent handed back.
+
+    A read-only sandbox cannot write a file, so the JSON arrives inside a reply:
+    surrounded by prose, wrapped in a code fence, and often clipped at the end,
+    sometimes all three at once. Every one of those was hand-repaired by someone
+    before this existed.
+    """
+    text = raw.strip()
+
+    def attempts(candidate):
+        """Direct parse, then drop trailing junk, then close unbalanced braces."""
+        body = candidate.strip()
+        if not body:
+            return
+        yield body, ""
+        cut = body.rfind("}")
+        if cut != -1 and cut < len(body) - 1:
+            yield body[: cut + 1], "ignored trailing text after the object"
+        for extra in range(1, 9):
+            yield body + "}" * extra, f"input was missing {extra} closing brace(s); repaired before scoring"
+
+    candidates = [(text, "")]
+    for block in re.findall(r"```(?:json)?\s*(.*?)(?:```|\Z)", text, re.S):
+        candidates.append((block, "extracted the object from a fenced code block"))
+    brace = text.find('{"')
+    if brace < 0:
+        brace = text.find("{")
+    if brace > 0:
+        candidates.append((text[brace:], f"skipped {brace} characters of surrounding text"))
+
+    for candidate, how in candidates:
+        for body, repair in attempts(candidate):
+            try:
+                obj = json.loads(body)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            return obj, "; ".join(n for n in (how, repair) if n)
+
+    if "{" not in text:
+        raise ValueError("no JSON object found in that text")
+    raise ValueError("that is not parseable probe JSON, even allowing for a fenced block, "
+                     "surrounding prose and a truncated tail")
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Score a probe result the tool did not launch itself.
 
@@ -142,16 +190,9 @@ def cmd_score(args: argparse.Namespace) -> int:
     """
     with open(args.probe_json) as f:
         raw = f.read().strip()
-    try:
-        probe = json.loads(raw)
-    except json.JSONDecodeError:
-        # Agent transcripts sometimes clip the trailing brace off a pasted blob.
-        repaired, added = raw, 0
-        while repaired.count("{") > repaired.count("}") and added < 8:
-            repaired += "}"
-            added += 1
-        probe = json.loads(repaired)
-        print(f"note: input was missing {added} closing brace(s); repaired before scoring", file=sys.stderr)
+    probe, note = _probe_from_text(raw)
+    if note:
+        print(f"note: {note}", file=sys.stderr)
     summary = summarize(probe)
     env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "label": args.label,
            "generated_at": int(time.time()),
@@ -275,6 +316,8 @@ def main(argv: list[str] | None = None) -> int:
     sc.add_argument("--out", default="reports")
     sc.add_argument("--max-score", type=int)
     sc.add_argument("--redact", action="store_true")
+    sc.add_argument("--print-findings", action="store_true",
+                    help="accepted for symmetry with blast-radius; score always prints its findings")
     sc.set_defaults(func=cmd_score)
 
     cb = sub.add_parser("combine", help="join a promptfoo run with a sandbox measurement")

@@ -99,3 +99,18 @@ def test_net003_fires_when_every_connection_is_refused_even_if_sockets_open():
                         "interfaces": [], "socket_syscall_blocked": False, "connect_refused_all": True}
     ids = [f.id for f in analyze(probe)]
     assert "NET-003" in ids
+
+
+def test_an_unrunnable_control_reports_unverified_and_never_a_silent_pass():
+    """Requested by the supervisor session after a real use test, as the single
+    behaviour that made the rest of the output trustworthy: when SEC-006's
+    control cannot run, the report must say the containment claim is unverified
+    rather than quietly treating it as contained."""
+    f = _sec006(_probe_with_sockets(
+        {"supported": False, "connected": False, "stage": "mkdtemp", "error": "OSError"},
+        {"verdict": "inconclusive", "error": "OSError", "stage": "connect"}))
+    assert "unverified" in f.remediation
+    assert "not known" in f.remediation
+    for phrase in ("contained", "containment holds", "no action"):
+        assert phrase not in f.remediation.lower(), (
+            f"an unverifiable control must not read as a pass ({phrase!r})")

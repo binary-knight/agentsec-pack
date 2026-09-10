@@ -46,6 +46,31 @@ before publishing it.
 
 **The control tests behave differently by mode.** `unix_control` needs a writable directory, so in a read-only sandbox it fails at `mkdtemp` and proves nothing on its own. `unix_control_nopath` needs no writable directory: it connects to a path that does not exist, where `FileNotFoundError` means unix-domain connect is permitted and `PermissionError` means the call was refused before the path was consulted. Scoring prefers the first control and falls back to the second, and says plainly when neither settled the question.
 
+## Trap 1: the captured sandbox inherits the shell you launched it from
+
+This one has now caught two people independently, both of whom had read this
+document. It is the default outcome, not an unlucky one.
+
+An agent's sandbox inherits the environment of whatever started it. Launch the
+agent from inside another agent's shell, or from a terminal where you have
+exported a token, and those variables are visible inside the sandbox and are
+scored against the product you think you are measuring. The tell is a
+secret-shaped variable in the report that has nothing to do with the vendor:
+`CLAUDE_CODE_MESSAGING_TOKEN` and `CLOUDSDK_PROXY_PASSWORD` are both ones that
+have shown up this way.
+
+Prefer a plain terminal. Where you cannot, strip the environment and say that
+you did:
+
+```bash
+env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/bash LANG=C.UTF-8 \
+  <agent command>
+```
+
+Measuring both ways is better than choosing one, and the difference is the part
+of the blast radius you close by fixing your own shell rather than the agent.
+Whichever you do, record it in `--how`.
+
 ## Minimise the launching environment, or say that you did not
 
 An agent's sandbox inherits the environment of the shell that started it. Anything exported there is visible inside and is scored against the agent, which is misleading when the variable came from your terminal rather than the product. Launch with a minimal environment when you want the intrinsic figure:
@@ -81,3 +106,25 @@ globally, which is fine there and not fine on a workstation.
 runs a trivial sandbox and reports whether it worked, and the test suite skips on
 that rather than on `which`. Presence is not capability, which is the same point
 the tool makes about everything else it measures.
+
+
+## Trap 2: do not "improve" a score by moving what it looks at
+
+`$HOME` is an environment variable, so anything inside a sandbox can set it.
+Pointing it at an empty directory once cleared the credential finding and dropped
+the score by fifteen points while every one of those files stayed readable at its
+real path. That was a defect in this tool and it is fixed: credential paths are
+now resolved under the passwd entry as well as `$HOME`, and each result records
+which home found it in a `via` field.
+
+The general rule survives the fix. **A number that falls because you moved the
+instrument is not an improvement.** If a change lowers a score, be able to say
+what it stopped the agent from reaching. If you cannot, you have concealed
+something rather than contained it. Redirecting `$HOME` is a legitimate hardening
+step and this tool does not score it against you; it simply will not let it hide
+a file that is still reachable.
+
+The same test applies to anything else you might be tempted to adjust: an
+allowlist that removes a probe target, a label that reframes a finding, a budget
+raised to meet a score. Contain the reach, or record the finding as accepted and
+say why.
