@@ -48,6 +48,23 @@ The last one exits 2 when the sandbox is looser than the budget, which is the CI
 gate. Set the budget to what you measured after hardening so the build fails when
 it drifts, rather than picking a round number.
 
+
+**When the question is narrower than a finding list**, use `assert`. It asks
+whether a sandbox can reach specific paths, and answers pass or fail per path
+with no score at all:
+
+```bash
+# can the graded child read the answer key it is being marked against?
+agentsec assert --kind docker --image grader:latest \
+  --not-readable /answers/key.json --not-writable /results --readable /workspace/input \
+  -- -v ./answers:/answers:ro
+```
+
+Exits 2 on any violated expectation, so it drops into a harness or a build the
+same way `--max-score` does. It reports **absent** and **present, denied**
+separately, because those are different sandbox designs and only one of them
+survives someone adding a mount later.
+
 **Measuring an agent's own sandbox is different.** You can wrap a container from
 outside. You cannot wrap an agent's sandbox, because the agent is already inside
 it. Ask the agent to run the probe and score what comes back with `agentsec

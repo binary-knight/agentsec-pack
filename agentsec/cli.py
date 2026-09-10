@@ -277,6 +277,36 @@ def cmd_ui(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_assert(args: argparse.Namespace) -> int:
+    """Answer a narrow question: can this sandbox reach these specific paths?
+
+    Exits 2 when any expectation is violated, so it drops into a grading harness
+    or a build the same way `--max-score` does.
+    """
+    from . import assertions
+
+    expectations: list[tuple[str, str]] = []
+    for kind in assertions.KINDS:
+        for path in getattr(args, kind.replace("-", "_")):
+            expectations.append((kind, path))
+    if not expectations:
+        print("nothing to check: pass at least one of "
+              + ", ".join("--" + k for k in assertions.KINDS), file=sys.stderr)
+        return 1
+
+    target, parsed = runner.run_script(
+        assertions.build_script(expectations), kind=args.kind, image=args.image,
+        flags=args.flags, template=args.template, python=args.python, timeout=args.timeout)
+    outcome = assertions.check(parsed.get("assertions", []), expectations)
+    print(assertions.render(outcome))
+    if args.out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
+        with open(args.out, "w") as f:
+            json.dump({"tool": "agentsec-pack", "test": "path-assertions", "schema_version": 1,
+                       "generated_at": int(time.time()), "target": target, **outcome}, f, indent=2, sort_keys=True)
+    return 2 if outcome["failed"] else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="agentsec", description="Adversarial tests for AI agent deployments (working name).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -344,6 +374,21 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--allow-remote-runs", action="store_true",
                    help="permit launching configurations from a console that is reachable off this machine")
     u.set_defaults(func=cmd_ui)
+
+    a = sub.add_parser("assert", help="check specific paths from inside a sandbox (pass/fail, no score)")
+    a.add_argument("--readable", action="append", default=[], metavar="PATH")
+    a.add_argument("--not-readable", action="append", default=[], metavar="PATH")
+    a.add_argument("--writable", action="append", default=[], metavar="PATH")
+    a.add_argument("--not-writable", action="append", default=[], metavar="PATH")
+    a.add_argument("--exists", action="append", default=[], metavar="PATH")
+    a.add_argument("--not-exists", action="append", default=[], metavar="PATH")
+    a.add_argument("--kind", choices=["local", "docker", "podman", "command"], default="local")
+    a.add_argument("--image")
+    a.add_argument("--template", help="launcher template containing {probe} (kind=command)")
+    a.add_argument("--python", default="python3")
+    a.add_argument("--timeout", type=int, default=runner.DEFAULT_TIMEOUT)
+    a.add_argument("--out", help="write the result as JSON to this file")
+    a.set_defaults(func=cmd_assert)
 
     c = sub.add_parser("compare", help="print scores side by side")
     c.add_argument("results", nargs="+")

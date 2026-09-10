@@ -165,3 +165,52 @@ def _probe_version() -> str:
         if line.startswith("PROBE_VERSION"):
             return line.split("=")[1].strip().strip('"\'')
     return "unknown"
+
+
+def run_script(script: str, *, kind: str = "local", image: str | None = None,
+               flags: list[str] | None = None, engine: str = "docker",
+               python: str = "python3", template: str | None = None,
+               timeout: int = DEFAULT_TIMEOUT) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run a generated stdlib-only script the same ways the probe can be run.
+
+    Used by `agentsec assert`, which asks a narrow question instead of producing
+    a finding list, but has to ask it from inside the sandbox for the same reason.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "agentsec_assert.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(script)
+        os.chmod(path, 0o644)
+
+        if kind == "local":
+            cmd = [sys.executable, path]
+            shown = [sys.executable, "<agentsec assert>"]
+        elif kind in ("docker", "podman"):
+            if not image:
+                raise ValueError(f"{kind} needs an image")
+            cmd = [kind, "run", "--rm", "-v", f"{path}:/agentsec_assert.py:ro"] + list(flags or []) \
+                + [image, python, "/agentsec_assert.py"]
+            shown = [kind, "run", "--rm", "-v", "<agentsec assert>:/agentsec_assert.py:ro"] \
+                + list(flags or []) + [image, python, "/agentsec_assert.py"]
+        elif kind == "command":
+            if not template or "{probe}" not in template:
+                raise ValueError("command kind needs a template containing {probe}")
+            cmd = shlex.split(template.replace("{probe}", path))
+            shown = shlex.split(template.replace("{probe}", "<agentsec assert>"))
+        else:
+            raise ValueError(f"unknown kind: {kind}")
+
+        rc, out, err = _run(cmd, timeout)
+        target = {"kind": kind, "command": shlex.join(shown)}
+        if image:
+            target["image"] = image
+            target["digest"] = image_digest(image, engine if kind == "docker" else kind)
+        if flags:
+            target["flags"] = list(flags)
+        try:
+            parsed = _parse(out, err, shlex.join(shown))
+        except ValueError:
+            raise
+        return target, parsed
