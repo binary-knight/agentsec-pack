@@ -8,6 +8,7 @@ verified against a fixture, not against promptfoo's red-team output.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -123,6 +124,12 @@ def test_assertion_runs_inside_real_promptfoo(tmp_path):
     env = dict(os.environ, AGENTSEC_REPORT=str(report), PROMPTFOO_DISABLE_TELEMETRY="1")
     p = subprocess.run(["npx", "-y", "promptfoo@0.122.2", "eval", "-c", str(cfg), "-o", str(out),
                         "--no-cache", "--no-progress-bar"], capture_output=True, text=True, timeout=600, env=env, cwd=tmp_path)
+    if not out.exists():
+        # Skip only on an observed failure to fetch the package, never on a guess
+        # that the network is down; any other failure is still a failure.
+        fetch = re.search(r"npm error code (E403|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT)", p.stderr)
+        if fetch:
+            pytest.skip("could not fetch promptfoo@0.122.2 from the npm registry (%s)" % fetch.group(1))
     assert out.exists(), p.stdout[-2000:] + p.stderr[-2000:]
     row = json.load(open(out))["results"]["results"][0]
     assert row["namedScores"]["blast_radius"] == 100

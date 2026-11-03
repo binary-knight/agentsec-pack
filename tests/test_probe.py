@@ -5,6 +5,8 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 from agentsec import runner
 from agentsec.probe import blast_probe
 from agentsec.scoring import summarize
@@ -62,6 +64,27 @@ def test_socket_finding_proves_reachability_not_just_permissions():
         assert "connected" in s, s
 
 
+def _unix_sockets_refused():
+    """True when this host refuses AF_UNIX socket() itself, as an agent sandbox can.
+
+    The two controls below assert behaviour on an unsandboxed host. Run inside a
+    sandbox with that filter, they observe the filter (correctly) and fail; that
+    is the environment, not the probe. Skip on the observed capability, the
+    same way the bwrap tests skip on whether bwrap can actually sandbox.
+    """
+    import socket as _s
+    try:
+        _s.socket(_s.AF_UNIX, _s.SOCK_STREAM).close()
+        return False
+    except PermissionError:
+        return True
+
+
+needs_unix_sockets = pytest.mark.skipif(_unix_sockets_refused(),
+                                        reason="this host refuses AF_UNIX socket(); the control is for an unsandboxed host")
+
+
+@needs_unix_sockets
 def test_control_unix_socket_connects_on_a_normal_host():
     """The control must succeed where nothing is blocking it, or it proves nothing."""
     from agentsec.probe.blast_probe import _control_unix_socket
@@ -71,6 +94,7 @@ def test_control_unix_socket_connects_on_a_normal_host():
     assert r["stage"] == "connect"
 
 
+@needs_unix_sockets
 def test_control_nopath_reports_connect_permitted_on_a_normal_host():
     from agentsec.probe.blast_probe import _control_unix_connect_nonexistent
     r = _control_unix_connect_nonexistent()
@@ -206,3 +230,17 @@ def test_credential_finding_says_it_reports_only_what_it_probed():
             assert "among those probed" in f.title
             assert "readable_of_those_probed" in f.evidence
             assert f.evidence.get("probed"), "say how many paths were tested"
+
+
+def test_proxy_variables_are_reported_by_name_never_by_value():
+    password = "PROXY-PASSWORD-MUST-NEVER-APPEAR-71c2"
+    env = {k: v for k, v in os.environ.items() if k.upper() not in blast_probe.PROXY_ENV_NAMES}
+    env.update(HTTPS_PROXY="http://u:%s@127.0.0.1:9" % password, http_proxy="http://127.0.0.1:9", ALL_PROXY="")
+    out = subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True, env=env, timeout=60).stdout
+    assert password not in out
+    data = json.loads(out.strip().splitlines()[-1])
+    assert data["network"]["proxy_env"] == ["HTTPS_PROXY", "http_proxy"]  # empty ALL_PROXY is not a proxy
+
+
+def test_proxy_names_ignore_unrelated_variables():
+    assert blast_probe.proxy_env_names({"NO_PROXY": "localhost", "GRPC_PROXY": "x", "PROXY": "x"}) == []
