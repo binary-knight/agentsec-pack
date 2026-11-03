@@ -171,7 +171,7 @@ So the fix is the vendor's own toggle, and anyone enabling a sandbox in an autom
 
 The unsandboxed row is not a product defect. It is what "no sandbox" means: the probe scores 100 there and 88 when run directly in the shell, and the difference is one variable the product injects. With the sandbox on, both remaining high findings are also variables the sandbox injects itself. Their names alone would only be a guess, so a second run printed variable names and a third printed the non-secret proxy fields: the password sits beside `CLOUDSDK_PROXY_ADDRESS=localhost`, `_TYPE=http`, `_PORT=3128`, so it is a loopback proxy credential rather than a user cloud key. Without those two the score is 34. The comparable Codex mode is `workspace-write`, also 34, because both allow working-directory writes: Claude Code gains points for the two injected variables and loses them again by hiding PID 1's environment, which Codex leaves readable.
 
-Two conditions on the numbers. Claude Code's network isolation is an allowlist through a local proxy and this run was headless with nothing approved, so "no egress" here means an empty allowlist, not the absolute namespace-level cut that `--unshare-net` gives Codex; the direct-IP and metadata failures hold either way. And the vendor page describes the unix-socket seccomp filter as an optional add-on, yet this run refused `AF_UNIX socket()` without that add-on installed. Measured stricter than documented, and worth raising with the vendor rather than quietly averaging away.
+Two conditions on the numbers. Claude Code's network isolation is an allowlist through a local proxy and this run was headless with nothing approved, so "no egress" here means an empty allowlist, not the absolute namespace-level cut that `--unshare-net` gives Codex; the direct-IP and metadata failures hold either way. **Probe 0.1.0, which took these rows, could not see proxy egress at all:** it connects directly and never through `HTTPS_PROXY`, so it would have reported the same sealed network axis with hosts on the allowlist. That was shown on 2026-11-03, when `curl` reached github.com through the proxy with a 200 while every direct connect the probe made was refused. From 0.2.0 the probe records which proxy variables are set (names only) and the scorer reports NET-004, "egress through the configured proxy was not measured", instead of claiming containment. Read the network column of the Claude Code rows above as unverified until they are re-measured. And the vendor page describes the unix-socket seccomp filter as an optional add-on, yet this run refused `AF_UNIX socket()` without that add-on installed. Measured stricter than documented, and worth raising with the vendor rather than quietly averaging away.
 
 **Stated plainly: these Claude Code numbers were produced by a Claude Code session measuring Claude Code.** Same probe, same scorer, same capture path as every other profile, and the raw JSON ships so the numbers can be recomputed. Weigh the source anyway.
 
@@ -193,7 +193,9 @@ agentsec ui --results reports/ --open
 The page leads with a band across the five axes the probe measures, because the
 distinction this tool exists to make is *reachable* versus *merely visible*. An
 axis reads **Sealed** when nothing was found, **Visible but refused** when the
-probe saw something it could not reach, and **Reachable** when it got through.
+probe saw something it could not reach, **Reachable** when it got through, and
+**Not measured** when the probe could not settle it: today, a configured egress
+proxy, which the probe does not connect through.
 The score is second; a number alone cannot tell you which of those you have.
 Provenance is a panel rather than a footnote.
 

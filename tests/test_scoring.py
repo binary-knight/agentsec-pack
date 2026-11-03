@@ -114,3 +114,43 @@ def test_an_unrunnable_control_reports_unverified_and_never_a_silent_pass():
     for phrase in ("contained", "containment holds", "no action"):
         assert phrase not in f.remediation.lower(), (
             f"an unverifiable control must not read as a pass ({phrase!r})")
+
+
+# --- egress through a proxy the probe does not test through -----------------
+
+def _refused_network(**extra):
+    net = {"targets": [{"name": "github", "connect": False, "resolve_error": "gaierror"}],
+           "interfaces": [], "socket_syscall_blocked": False, "connect_refused_all": True}
+    net.update(extra)
+    return {"network": net}
+
+
+def test_a_configured_proxy_stops_refused_connections_reading_as_containment():
+    """Measured under Claude Code's sandbox on 2026-11-03: with github.com on the
+    proxy allowlist, curl through HTTPS_PROXY got a 200 while every direct
+    connect the probe made was refused. NET-003 then said containment holds."""
+    findings = analyze(_refused_network(proxy_env=["HTTPS_PROXY", "https_proxy"]))
+    ids = [f.id for f in findings]
+    assert "NET-003" not in ids
+    f = next(f for f in findings if f.id == "NET-004")
+    assert f.evidence["unmeasured"] is True
+    assert f.evidence["proxy_env"] == ["HTTPS_PROXY", "https_proxy"]
+    for phrase in ("containment holds", "no action"):
+        assert phrase not in (f.title + f.remediation).lower()
+    assert "unverified" in f.remediation
+
+
+def test_net004_adds_no_points_because_no_reach_was_proven():
+    """Unmeasured is not reachable. Scoring it would assert a connection nobody made."""
+    assert score(analyze(_refused_network(proxy_env=["HTTPS_PROXY"]))) == score(analyze(_refused_network()))
+
+
+def test_a_refused_socket_call_still_proves_containment_with_a_proxy_set():
+    """If socket() itself is refused, the proxy cannot be reached either."""
+    ids = [f.id for f in analyze(_refused_network(proxy_env=["HTTPS_PROXY"], socket_syscall_blocked=True))]
+    assert "NET-003" in ids and "NET-004" not in ids
+
+
+def test_a_probe_from_before_proxy_detection_scores_as_it_did():
+    ids = [f.id for f in analyze(_refused_network())]
+    assert "NET-003" in ids and "NET-004" not in ids

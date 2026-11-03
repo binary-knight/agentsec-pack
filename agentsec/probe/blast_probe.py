@@ -28,7 +28,7 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.1.0"
+PROBE_VERSION = "0.2.0"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
 EGRESS_TARGETS = [
@@ -43,6 +43,11 @@ METADATA_TARGETS = [
     {"name": "gcp-metadata-hostname", "host": "metadata.google.internal", "port": 80},
 ]
 CONNECT_TIMEOUT = float(os.environ.get("AGENTSEC_PROBE_TIMEOUT", "2.0"))
+# Variables an HTTP client consults for an egress proxy. The probe connects
+# directly and never through these, so when one is set a refused direct
+# connection says nothing about what the proxy lets through. Reported by NAME
+# only: a proxy URL commonly carries a password.
+PROXY_ENV_NAMES = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
 
 # Matched on whole underscore-separated words, not as substrings or vendor
 # prefixes. A prefix rule flags GH_PAGER and AWS_REGION, which are not secrets;
@@ -138,6 +143,13 @@ def _in_user_namespace():
     return uid_map.split() != ["0", "0", "4294967295"] if uid_map else None
 
 
+def proxy_env_names(environ=None):
+    """Names of the proxy variables that are set and non-empty, either case. Never values."""
+    environ = os.environ if environ is None else environ
+    return sorted(k for k in environ
+                  if k.upper() in PROXY_ENV_NAMES and (environ.get(k) or "").strip())
+
+
 def probe_network():
     results = []
     blocked = 0
@@ -181,7 +193,7 @@ def probe_network():
             ifaces.append(name)
     except Exception:
         pass
-    return {"targets": results, "interfaces": sorted(ifaces),
+    return {"targets": results, "interfaces": sorted(ifaces), "proxy_env": proxy_env_names(),
             "socket_syscall_blocked": blocked == len(results) and blocked > 0,
             "connect_refused_all": bool(results) and not any(r.get("connect") for r in results),
             "any_egress": any(x["connect"] for x in results if not x["name"].startswith(("cloud-metadata", "gcp-metadata"))),

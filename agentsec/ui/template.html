@@ -83,6 +83,8 @@ h2{font-size:13.5px; font-weight:600; color:var(--muted); margin:0 0 10px}
   background:repeating-linear-gradient(135deg,var(--sealed) 0 4px,transparent 4px 8px);
 }
 .axis[data-state="inert"] .axis-state{color:var(--muted)}
+.axis[data-state="unmeasured"] .seal{background:transparent; border-top:1px dashed var(--muted)}
+.axis[data-state="unmeasured"] .axis-state{color:var(--muted); font-style:italic}
 .axis[data-state="breached"] .seal{background:var(--sev)}
 .axis[data-state="breached"] .axis-state{color:var(--sev)}
 .legend{display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-size:12.5px; color:var(--muted)}
@@ -200,6 +202,10 @@ function axisState(env, axis){
   var f = findings(env).filter(function(x){ return x.category === axis; });
   if(!f.length) return {state:"sealed", word:"Sealed", sev:null, n:0};
   var w = worst(f);
+  /* A finding can say the probe could not settle the axis (a proxy it does not
+     test through). That is neither sealed nor held, and must not count as contained. */
+  var open = f.some(function(x){ return x.evidence && x.evidence.unmeasured; });
+  if(open && (w === "info" || w === "low")) return {state:"unmeasured", word:"Not measured", sev:w, n:f.length};
   if(w === "info" || w === "low") return {state:"inert", word: w === "info" ? "Held" : "Visible, refused", sev:w, n:f.length};
   return {state:"breached", word:"Reachable", sev:w, n:f.length};
 }
@@ -208,7 +214,7 @@ function instrument(env){
   var s = env.summary || {};
   var capped = (s.raw_score || 0) > 100;
   var states = AXES.map(function(a){ return axisState(env, a); });
-  var sealedCount = states.filter(function(x){ return x.state !== "breached"; }).length;
+  var sealedCount = states.filter(function(x){ return x.state === "sealed" || x.state === "inert"; }).length;
 
   var band = el("div", {class:"band"}, states.map(function(st, i){
     var node = el("div", {class:"axis", "data-state":st.state}, [
@@ -237,7 +243,8 @@ function instrument(env){
     el("div", {class:"legend"}, [
       el("span", {}, [el("i", {style:"background:var(--sealed)"}), "Sealed: nothing found"]),
       el("span", {}, [el("i", {style:"background:repeating-linear-gradient(135deg,var(--sealed) 0 4px,transparent 4px 8px)"}), "Visible but refused"]),
-      el("span", {}, [el("i", {style:"background:var(--crit)"}), "Reachable: the probe got through"])
+      el("span", {}, [el("i", {style:"background:var(--crit)"}), "Reachable: the probe got through"]),
+      el("span", {}, [el("i", {style:"border-top:1px dashed var(--muted); height:0"}), "Not measured: the probe could not settle it"])
     ])
   ]);
 }

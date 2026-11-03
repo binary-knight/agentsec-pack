@@ -56,7 +56,20 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     res = probe.get("resources", {}) or {}
 
     # --- Network egress -----------------------------------------------------
-    if net.get("socket_syscall_blocked") or net.get("connect_refused_all"):
+    # The probe connects directly and never through a proxy. If a proxy is
+    # configured and socket() itself works, the agent's HTTP clients will use
+    # that proxy, so a refused direct connection proves nothing about egress.
+    # Only a refused socket() call also rules the proxy out.
+    proxy_env = net.get("proxy_env") or []
+    if net.get("connect_refused_all") and proxy_env and not net.get("socket_syscall_blocked"):
+        findings.append(_f("NET-004", "Direct connections refused; egress through the configured proxy was not measured",
+                           "info", "network", {"proxy_env": proxy_env, "unmeasured": True}, ["ASI02"],
+                           "Every direct connection the probe tried was refused, but " + ", ".join(proxy_env)
+                           + (" is" if len(proxy_env) == 1 else " are") + " set and "
+                           "the probe does not connect through a proxy, so what the proxy lets through is unknown. Treat the "
+                           "network axis as unverified, not as sealed: check the proxy's allowlist yourself and keep it to the "
+                           "hosts the agent needs. A host that accepts uploads, such as a code host, is an exfiltration route."))
+    elif net.get("socket_syscall_blocked") or net.get("connect_refused_all"):
         how = ("socket creation itself is refused" if net.get("socket_syscall_blocked")
                else "sockets can be created but every outbound connection and name lookup was refused")
         findings.append(_f("NET-003", "No network reachable from the sandbox (containment holds)", "info", "network",
