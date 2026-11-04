@@ -48,6 +48,25 @@ The last one exits 2 when the sandbox is looser than the budget, which is the CI
 gate. Set the budget to what you measured after hardening so the build fails when
 it drifts, rather than picking a round number.
 
+A budget only fails when the total crosses it, so drift underneath it goes
+through: a sandbox at 41 can lose its seccomp filter and gain a readable
+credential and still be under 45. `--baseline` fails on anything worse than a
+report you accepted, whatever the score:
+
+```bash
+agentsec blast-radius preset docker-hardened --image myagent:tag --label accepted   # once, then commit it
+agentsec blast-radius preset docker-hardened --image myagent:tag --baseline reports/accepted.json
+agentsec diff reports/accepted.json reports/latest.json    # when measuring and gating are separate steps
+```
+
+It exits 2 on a new finding, a higher severity, or wider evidence on an existing
+finding (one more readable credential, one more reachable host, one more writable
+path), and lists each. A finding that disappears is reported as fixed with a
+prompt to re-baseline, so the gate keeps what you gained. If the two runs used
+different probe versions it still fails, but says so: a new finding may be a new
+check rather than a looser sandbox. Take the baseline with the same `--redact`
+setting as the runs it gates.
+
 
 **When the question is narrower than a finding list**, use `assert`. It asks
 whether a sandbox can reach specific paths, and answers pass or fail per path
@@ -255,7 +274,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [ ] more agents as they become installable here; presets only where the argv can be captured live
 - [ ] verifier-integrity test class
 - [x] browser front end: static HTML report and a localhost console, sharing one template
-- [ ] history across runs and a CI gate that fails on a regression, not just on an absolute score
+- [x] a CI gate that fails on a regression against an accepted baseline, not just on an absolute score (`--baseline`, `agentsec diff`)
+- [ ] history across runs
 
 ## Reporting a problem
 
