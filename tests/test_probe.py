@@ -333,7 +333,9 @@ def test_rootless_and_desktop_sockets_are_looked_for_whatever_the_environment_sa
 @needs_unix_sockets
 def test_a_forwarded_ssh_agent_is_proven_reachable_and_reported_without_its_path(tmp_path):
     import socket as _s
-    path = str(tmp_path / "agent.sock")
+    import tempfile as _tf
+    # macOS caps a unix socket path at 104 bytes, and pytest's tmp_path is longer.
+    path = os.path.join(_tf.mkdtemp(prefix="asa", dir="/tmp"), "a.sock")
     srv = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
     srv.bind(path)
     srv.listen(1)
@@ -464,3 +466,30 @@ def test_the_full_probe_never_prints_the_proxy_password(tmp_path):
         px.close()
     assert pw not in out
     assert json.loads(out.strip().splitlines()[-1])["network"]["proxy"]["auth"] == "used"
+
+
+# --- macOS: run on the macos-latest leg of CI ----------------------------------
+
+macos_only = pytest.mark.skipif(sys.platform != "darwin", reason="macOS-specific probe paths")
+
+
+@macos_only
+def test_macos_reports_seatbelt_and_process_visibility_from_the_kernel():
+    _out, data = _run_probe({})
+    assert data["platform"] == "darwin"
+    assert data["identity"]["seatbelt"] == 0, "a plain test process runs under no Seatbelt profile"
+    assert data["process"]["method"] == "sysctl(KERN_PROC_ALL)"
+    assert data["process"]["visible_pid_count"] > 1
+    assert data["filesystem"]["root_rw"] is False, "the macOS system volume is sealed read-only"
+    assert data["network"]["interfaces"], "interfaces come from if_nameindex when /sys is absent"
+
+
+@macos_only
+def test_macos_sandbox_exec_is_seen_as_seatbelt():
+    import shutil
+    if not shutil.which("sandbox-exec"):
+        pytest.skip("sandbox-exec not present")
+    p = subprocess.run(["sandbox-exec", "-p", "(version 1)(allow default)", sys.executable, runner.probe_path()],
+                       capture_output=True, text=True, timeout=120)
+    data = json.loads(p.stdout.strip().splitlines()[-1])
+    assert data["identity"]["seatbelt"] == 1

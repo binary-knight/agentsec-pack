@@ -224,7 +224,8 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [x] egress measured through a configured proxy, with an allowlist control host and opt-in proxy credentials (probe 0.4.0)
 - [x] agents' own login credentials, a forwarded SSH agent, rootless container sockets, and writes that persist outside the sandbox (probe 0.3.0)
 - [x] PyPI release workflow for `agentsec-pack` (trusted publishing, on a version tag)
-- [ ] macOS: the probe reads `/proc` and assumes Linux
+- [x] the probe runs on macOS, with Seatbelt where Linux has seccomp, and CI tests it on `macos-latest`
+- [ ] macOS measurements: Seatbelt presets, and the macOS sandboxes of Claude Code and Codex
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
 - [ ] verifier-integrity test class
 - [x] browser front end: static HTML report and a localhost console, sharing one template

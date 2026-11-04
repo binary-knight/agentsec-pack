@@ -6,6 +6,8 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- Probe **0.6.0** runs on macOS. It reads Seatbelt confinement through `sandbox_check()`, process visibility through `sysctl`, and a read-only root through `statvfs`, and it skips the Linux-only checks. PRIV-006 reports a process under no Seatbelt profile. `~/Library/LaunchAgents` and `/opt/homebrew/bin` are checked. CI runs the suite on `macos-latest`, and `macos-measure.yml` runs the probe on a macOS runner when started by hand.
+
 ## 0.2.0 — 2026-11-04
 
 Probe **0.5.0**. Reports from probe 0.4.0 still score the same, and the new paths only add findings where those files exist.

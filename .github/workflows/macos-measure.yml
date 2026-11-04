@@ -1,0 +1,38 @@
+name: macos-measure
+
+# Run the probe on a GitHub-hosted macOS runner and keep the reports, so the
+# macOS paths are checked against a real Mac. Started by hand only, so it never
+# runs on someone else's pull request.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - name: Describe the runner
+        run: |
+          sw_vers
+          uname -a
+          echo "user: $(id -un), home entries: $(ls -A ~ | wc -l | tr -d ' ')"
+      - name: Probe with no sandbox
+        run: |
+          agentsec probe --label macos-runner-no-sandbox --out reports \
+            --how "GitHub-hosted macos-latest runner, agentsec probe run directly by the workflow, no sandbox" || true
+      - name: Probe under sandbox-exec with an allow-default profile
+        run: |
+          sandbox-exec -p '(version 1)(allow default)' python -m agentsec.cli probe --label macos-runner-seatbelt-allow-default --out reports \
+            --how "GitHub-hosted macos-latest runner, sandbox-exec -p '(version 1)(allow default)'" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-reports
+          path: reports/

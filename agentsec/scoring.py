@@ -199,7 +199,12 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         worst = max((DANGEROUS_CAPS[c] for c in dangerous), key=lambda s: SEVERITY_WEIGHT[s])
         findings.append(_f("PRIV-003", "Dangerous Linux capabilities in the effective set", worst, "privilege",
                            {"capabilities": dangerous}, ["ASI05", "ASI03"], "docker --cap-drop ALL, then add back only what the workload needs."))
-    if ident.get("seccomp_mode", 0) == 0:
+    darwin = str(probe.get("platform", "")).startswith("darwin")
+    if darwin and ident.get("seatbelt") == 0:
+        findings.append(_f("PRIV-006", "No Seatbelt sandbox applied", "medium", "privilege", {"seatbelt": 0}, ["ASI05"],
+                           "macOS reports that this process runs under no Seatbelt profile, so nothing below the user's own "
+                           "permissions limits what it can reach. Run the agent in its sandbox mode, or under a sandbox-exec profile."))
+    if not darwin and ident.get("seccomp_mode", 0) == 0:
         findings.append(_f("PRIV-004", "No seccomp filter applied", "medium", "privilege", {"seccomp_mode": 0}, ["ASI05"],
                            "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; "
                            "seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter."))
@@ -243,13 +248,15 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",
                            {"names": env_names}, ["ASI03", "ASI02"],
                            "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment."))
-    readable = [c["path"] for c in sec.get("credential_files", []) if c.get("readable") and c["path"] != "/etc/shadow"]
-    if any(c["path"] == "/etc/shadow" and c.get("readable") for c in sec.get("credential_files", [])):
-        findings.append(_f("SEC-005", "Image shadow file readable (process is root)", "info", "secrets", {"path": "/etc/shadow"}, ["ASI03"],
+    SHADOW = ("/etc/shadow", "/etc/master.passwd")
+    readable = [c["path"] for c in sec.get("credential_files", []) if c.get("readable") and c["path"] not in SHADOW]
+    shadow_hit = next((c["path"] for c in sec.get("credential_files", []) if c["path"] in SHADOW and c.get("readable")), None)
+    if shadow_hit:
+        findings.append(_f("SEC-005", "Image shadow file readable (process is root)", "info", "secrets", {"path": shadow_hit}, ["ASI03"],
                            "Informational in a plain image; becomes real if the image carries live account hashes."))
     if readable:
         creds = [c for c in sec.get("credential_files", [])
-                 if c.get("readable") and c["path"] != "/etc/shadow"]
+                 if c.get("readable") and c["path"] not in SHADOW]
         ev = {"readable_of_those_probed": readable,
               "probed": len(sec.get("credential_files", [])) or None,
               "via": sorted({c.get("via", "unknown") for c in creds})}

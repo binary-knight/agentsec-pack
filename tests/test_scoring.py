@@ -282,3 +282,23 @@ def test_every_agent_credential_the_probe_looks_for_is_named_as_one():
     from agentsec.scoring import AGENT_CREDENTIALS
     agentish = {p for p in CREDENTIAL_PATHS if p.startswith(("~/.claude", "~/.codex", "~/.gemini"))}
     assert agentish == AGENT_CREDENTIALS
+
+
+# --- macOS --------------------------------------------------------------------
+
+def test_macos_is_scored_on_seatbelt_and_never_on_seccomp():
+    """macOS has no seccomp; reporting its absence there is noise. Seatbelt is the equivalent."""
+    plain = {"platform": "darwin", "identity": {"seatbelt": 0}}
+    ids = [f.id for f in analyze(plain)]
+    assert "PRIV-006" in ids and "PRIV-004" not in ids
+    sandboxed = {"platform": "darwin", "identity": {"seatbelt": 1}}
+    assert not {"PRIV-004", "PRIV-006"} & {f.id for f in analyze(sandboxed)}
+
+
+def test_an_unknown_seatbelt_state_is_not_a_finding():
+    assert "PRIV-006" not in [f.id for f in analyze({"platform": "darwin", "identity": {"seatbelt": None}})]
+
+
+def test_linux_still_reports_a_missing_seccomp_filter():
+    assert "PRIV-004" in [f.id for f in analyze({"platform": "linux", "identity": {"seccomp_mode": 0}})]
+    assert "PRIV-004" in [f.id for f in analyze({"identity": {"seccomp_mode": 0}})], "old reports had no platform key"

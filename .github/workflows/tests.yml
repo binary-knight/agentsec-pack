@@ -7,11 +7,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          # macOS: no /proc, Seatbelt where Linux has seccomp. One Python is enough
+          # to keep the darwin paths honest.
+          - os: macos-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v7
 
@@ -24,6 +30,7 @@ jobs:
       # sandbox. Lift the restriction where we are allowed to; where we are not,
       # the suite detects the missing capability and skips rather than failing.
       - name: Install sandbox tools
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update && sudo apt-get install -y bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
