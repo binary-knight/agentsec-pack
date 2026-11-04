@@ -33,6 +33,11 @@ jobs:
             exit 1
           fi
 
+      - name: The changelog must have a section for this version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -q "^## ${v} " CHANGELOG.md || { echo "CHANGELOG.md has no '## ${v} ' section" >&2; exit 1; }
+
       - name: Build
         run: |
           python -m pip install --upgrade pip build twine
@@ -74,3 +79,21 @@ jobs:
           path: dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    # After PyPI has the files: a GitHub Release whose notes are this
+    # version's section of CHANGELOG.md, so the two never say different things.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create the release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## " v " " {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          test -s notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "agentsec-pack $v" --notes-file notes.md
