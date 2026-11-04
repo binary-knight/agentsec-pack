@@ -68,6 +68,23 @@ check rather than a looser sandbox. Take the baseline with the same `--redact`
 setting as the runs it gates.
 
 
+**In GitHub Actions**, the same gates are one step. The action installs agentsec
+from its own checkout, so the version you pin is the version that measures:
+
+```yaml
+- uses: binary-knight/agentsec-pack@v0.2.0     # the first release that ships the action
+  with:
+    image: myagent:${{ github.sha }}
+    preset: docker-hardened                    # or leave out and pass `flags:` instead
+    max-score: 15                              # what you measured after hardening
+    baseline: security/agentsec-accepted.json  # optional: fail on anything worse
+```
+
+It fails the job with the same exit code as the CLI, writes the score to the job
+summary and to `steps.<id>.outputs.score`, and uploads the JSON, Markdown and HTML
+reports as an artifact, also when the gate fails. The inputs are listed in
+`action.yml`.
+
 **When the question is narrower than a finding list**, use `assert`. It asks
 whether a sandbox can reach specific paths, and answers pass or fail per path
 with no score at all:
