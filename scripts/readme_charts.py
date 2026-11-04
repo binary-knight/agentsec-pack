@@ -55,7 +55,13 @@ def groups():
              chart.row_from_envelope(load("examples/agents/codex-cli-0.164.0-macos-sandbox-read-only.json"),
                                      "Codex CLI 0.164.0, read-only"),
              chart.row_from_envelope(load("examples/agents/codex-cli-0.164.0-macos-sandbox-workspace-write.json"),
-                                     "Codex CLI 0.164.0, workspace-write")]
+                                     "Codex CLI 0.164.0, workspace-write"),
+             chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-no-sandbox.json"),
+                                     "Claude Code 2.1.318, no sandbox"),
+             chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-sandbox.json"),
+                                     "Claude Code 2.1.318, sandbox on"),
+             chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-sandbox-denyread.json"),
+                                     "Claude Code 2.1.318, sandbox + denyRead")]
     return agents, launchers, macos
 
 
@@ -70,10 +76,10 @@ def outputs():
             [("", launchers)], "python:3.12-slim under eleven launchers",
             "Docker, Podman and bubblewrap configurations on one Linux host, probe 0.4.0.", theme)
         out[f"docs/img/macos-{theme}.svg"] = chart.render_svg(
-            [("", macos)], "macOS: Seatbelt and Codex's sandbox",
-            "A GitHub-hosted macOS 26.6 machine, probe 0.6.0. Codex measured through codex sandbox.", theme)
+            [("", macos)], "macOS: Seatbelt, Codex and Claude Code",
+            "A GitHub-hosted macOS 26.6 machine, probe 0.6.0. Codex through codex sandbox, Claude Code in headless sessions.", theme)
     table = chart.render_markdown([("Coding agents' own sandboxes", agents), ("python:3.12-slim under eleven launchers", launchers),
-                                   ("macOS: Seatbelt and Codex's sandbox", macos)])
+                                   ("macOS: Seatbelt, Codex and Claude Code", macos)])
     readme = (ROOT / "README.md").read_text()
     start, end = "<!-- results-table:start -->", "<!-- results-table:end -->"
     a, b = readme.index(start) + len(start), readme.index(end)

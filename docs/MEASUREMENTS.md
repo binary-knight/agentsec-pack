@@ -115,6 +115,9 @@ These measurements ran on a GitHub-hosted macOS 26.6.2 machine, arm64, with prob
 | `seatbelt-confined` | 8 | no network, writes only to the temporary directories, no reads of the common credential paths |
 | Codex CLI 0.164.0, read-only | 15 | no network, no writes, other processes hidden |
 | Codex CLI 0.164.0, workspace-write | 30 | as read-only, plus a writable workspace in which Claude Code's project config is writable |
+| Claude Code 2.1.318, no sandbox | 100 | everything, including `ANTHROPIC_API_KEY` |
+| Claude Code 2.1.318, sandbox on | 53 | network contained, writes confined to the workspace, Codex's and Antigravity's project config writable, `ANTHROPIC_API_KEY` visible |
+| Claude Code 2.1.318, sandbox + `denyRead` | 38 | as sandbox on, without the readable `~/.gitconfig` |
 
 The gap between no sandbox and `seatbelt-allow-default` is worth noting. A Seatbelt profile that allows everything removes PRIV-006 and nothing else, so its presence earns 8 points while it restricts nothing. Linux has the same property, since a seccomp filter that allows every call also removes PRIV-004. The other four axes are where a profile's real effect shows.
 
@@ -123,4 +126,12 @@ The gap between no sandbox and `seatbelt-allow-default` is worth noting. A Seatb
 Codex was measured through `codex sandbox -c sandbox_mode=...`, which runs a command under Codex's own sandbox policy with no model and no login. On Linux the same helper reproduced the full-session scores exactly, 26 in read-only and 34 in `workspace-write` with identical findings, so it stands in for the sandbox of a session. The throwaway project held empty project config for Codex, Claude Code and Antigravity.
 
 Both modes keep the network off, refuse every write outside the workspace, and refuse the process-list `sysctl` with `EPERM`. That last check hides every other process on the machine, which the Linux sandbox does not do. In `workspace-write` the working directory is writable, and inside it `.codex/config.toml`, `.agents` and `.git/hooks` refuse writes, as OpenAI documents for `.git` and `.codex`. Claude Code's `.claude/settings.json` and `.mcp.json` in the same directory are writable, which the probe reports as FS-009. Codex documents only its own protected paths, so this is its documented boundary. The consequence is cross-agent: in a project where both agents are used, a command run in Codex's sandbox can change the settings and MCP servers that Claude Code loads in its next session, outside Codex's sandbox.
+
+### Claude Code on macOS
+
+Claude Code has no helper that runs a command under its policy without a model, so it was measured in full headless sessions through `.github/workflows/macos-claude-code.yml`. That workflow reads `ANTHROPIC_API_KEY` from a GitHub environment that requires a reviewer's approval for every run and deploys only from `main`. Each session ran `claude -p` on `claude-haiku-5-5`, asked to run the probe and nothing else, with `AGENTSEC_PROBE_PROXY_AUTH=1` so the probe could ask the sandbox proxy for its allowlist.
+
+With the sandbox on, Seatbelt applies, the proxy refused a tunnel to every target and to the control, and every write outside the workspace is refused. Inside the workspace Claude Code protects its own `.claude/settings.json` and `.mcp.json` and the `.git` hooks, which its documentation describes as the files it loads configuration and code from. Codex's `.codex/config.toml` and Antigravity's `.agents` directory in the same project are writable. That mirrors the Codex result in the other direction: each agent protects its own project config and not the other's, so in a project where both are used a command inside either sandbox can change what the other agent loads in its next session. Neither vendor documents protecting another agent's files.
+
+Sandboxed commands can see `ANTHROPIC_API_KEY` by name. Claude Code documents that sandboxed commands inherit its environment "including any secrets in its environment", and its `sandbox.credentials` setting is the documented way to withhold a variable. With `denyRead` on the home directory the score falls from 53 to 38, because `~/.gitconfig` is no longer readable, as `denyRead` did on Linux.
 
