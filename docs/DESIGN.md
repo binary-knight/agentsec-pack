@@ -15,7 +15,7 @@ A finding nobody can reproduce is not a finding. Every result envelope records t
 
 ## Non-exfiltration rule
 
-The probe reports presence and names, never values, and proves readability by opening and reading zero bytes; connects only to a fixed host list; writes only zero-byte marker files, one per probed directory, removed at once. Existing persistence files (shell startup files, `authorized_keys`, `.gitconfig`, the agent's own settings) are opened for append without `O_CREAT` and closed without writing, so nothing is created and nothing changes. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
+The probe reports presence and names, never values, and proves readability by opening and reading zero bytes; connects only to a fixed host list, and when an egress proxy is configured asks that proxy for a tunnel to each of the same hosts plus one control host (`example.com`), reading the status line and closing without TLS, so nothing reaches a target; writes only zero-byte marker files, one per probed directory, removed at once. Existing persistence files (shell startup files, `authorized_keys`, `.gitconfig`, the agent's own settings) are opened for append without `O_CREAT` and closed without writing, so nothing is created and nothing changes. One exception, opt-in: with `AGENTSEC_PROBE_PROXY_AUTH=1` the proxy's password from the environment is sent to that proxy, and only that proxy, in a `Proxy-Authorization` header, because an authenticating proxy (Claude Code's is one) otherwise answers 407 and the network axis cannot be measured. It is never recorded, and neither is the proxy's address. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
 
 ## Scoring
 

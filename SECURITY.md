@@ -20,8 +20,12 @@ The parts of this project that touch a trust boundary:
   is stdlib-only and non-exfiltrating by construction: it reports the **names**
   of secret-looking environment variables and the **paths** of credential files,
   never their contents. Its network checks resolve and connect to a fixed list
-  of hosts, send nothing, and close. Anything that makes it read, transmit or
-  persist a secret value is in scope.
+  of hosts, send nothing, and close; a configured egress proxy is sent only a
+  CONNECT request for those hosts and one control host. Anything that makes it
+  read, transmit or persist a secret value is in scope, with one documented,
+  opt-in exception: with `AGENTSEC_PROBE_PROXY_AUTH=1` the proxy's own password
+  is sent to that proxy and nowhere else. Sending it anywhere else, sending it
+  without the opt-in, or recording it is in scope.
 * **`agentsec/ui/server.py`** — the local console. Its threat model is written at
   the top of the module. Anything that lets a web page reach the API without the
   token, defeat the `Host` check, or cause a command outside the shipped presets
