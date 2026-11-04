@@ -5,6 +5,18 @@ launcher you can spell as a command. An agent's own sandbox is different: it is
 entered by the agent, on the agent's terms. You cannot wrap it from outside, so
 you ask the agent to run the probe and you score what comes back.
 
+If `agentsec` is installed where the agent's commands can run it (`pip install
+agentsec-pack`, or a checkout's `.venv`), one command does all of it:
+
+```bash
+<agent> "run: agentsec probe --label 'vendor-agent 1.2.3 workspace-write' --how '<the exact command, date, host>'"
+```
+
+It runs the probe in the environment the agent's command actually gets, scores
+it, and writes the report; in a read-only sandbox it prints the report on stdout
+instead. When the package cannot be installed inside the sandbox, use the
+three steps below, which need only `python3`.
+
 ```bash
 # 1. put the probe somewhere the agent can reach
 cp agentsec/probe/blast_probe.py /tmp/probe.py
@@ -86,7 +98,8 @@ measured** (NET-004). The password is usually already in the proxy variable, and
 the probe will send it to that proxy, and nowhere else, only if you say so:
 
 ```bash
-AGENTSEC_PROBE_PROXY_AUTH=1 python3 /tmp/probe.py > /tmp/out.json
+agentsec probe --proxy-auth --label ... --how ...         # one step
+AGENTSEC_PROBE_PROXY_AUTH=1 python3 /tmp/probe.py > /tmp/out.json   # three-step form
 ```
 
 That is your decision to make, not the agent's: an agent following `AGENTS.md`

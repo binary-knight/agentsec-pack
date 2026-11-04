@@ -86,9 +86,10 @@ survives someone adding a mount later.
 
 **Measuring an agent's own sandbox is different.** You can wrap a container from
 outside. You cannot wrap an agent's sandbox, because the agent is already inside
-it. Ask the agent to run the probe and score what comes back with `agentsec
-score`; `docs/CAPTURING.md` covers the details, including what to do when the
-sandbox is read-only and the result has to come back through a transcript.
+it. Ask the agent to run `agentsec probe --label ... --how ...`, which measures
+and scores the sandbox that command runs in, in one step. `docs/CAPTURING.md`
+covers the details, including what to do when the package cannot be installed
+inside the sandbox and the result has to come back through a transcript.
 
 ### By pointing an agent at this repository
 

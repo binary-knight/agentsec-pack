@@ -97,6 +97,27 @@ def run_local(timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
             "probe": _parse(out, err, sys.executable + " " + probe_path())}
 
 
+PROXY_AUTH_ENV = "AGENTSEC_PROBE_PROXY_AUTH"
+
+
+def run_self(timeout: int = DEFAULT_TIMEOUT, proxy_auth: bool = False) -> dict[str, Any]:
+    """Run the probe as a child of this process, in this process's environment.
+
+    The point is the sandbox you are standing in: an agent running this from its
+    own shell tool measures that tool's sandbox. The proxy password is sent only
+    when `proxy_auth` is set, or the environment already opts in, and the target
+    records which.
+    """
+    env = dict(os.environ)
+    if proxy_auth:
+        env[PROXY_AUTH_ENV] = "1"
+    p = subprocess.run([sys.executable, probe_path()], capture_output=True, text=True, timeout=timeout, env=env)
+    return {"target": {"kind": "self", "python": sys.executable,
+                       "proxy_auth": env.get(PROXY_AUTH_ENV) == "1"},
+            "rc": p.returncode, "stderr": p.stderr[-2000:],
+            "probe": _parse(p.stdout, p.stderr, sys.executable + " " + probe_path())}
+
+
 def image_digest(image: str, engine: str = "docker") -> str | None:
     """The image's repo digest, so a published score stays reproducible when the tag moves."""
     try:
