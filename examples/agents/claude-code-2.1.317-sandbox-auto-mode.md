@@ -6,15 +6,15 @@ Findings: 6 (critical 0, high 2, medium 1, low 1)
 ## Target (reproduce with this)
 - kind: `captured`
 - label: `claude-code-2.1.317-sandbox-auto-mode`
-- how: `From inside a Claude Code 2.1.317 session (model claude-opus-5-5, auto permission mode) on 2026-11-04, through its Bash tool, which runs each command in its own bubblewrap sandbox with egress through a local filtering proxy. No allowed_domains were passed for this command, so the per-command egress allowlist held only the session defaults. Command: python3 agentsec/probe/blast_probe.py > $TMPDIR/probe.json (probe 0.3.0), then agentsec score --redact.`
+- how: `From inside a Claude Code 2.1.317 session (model claude-opus-5-5, auto permission mode) on 2026-11-04, through its Bash tool, which runs each command in its own bubblewrap sandbox with egress through a local filtering proxy. Probe 0.4.0 with AGENTSEC_PROBE_PROXY_AUTH=1, so the probe sent the sandbox's own proxy credential to that loopback proxy and asked it to tunnel to each fixed target and to example.com. Command: AGENTSEC_PROBE_PROXY_AUTH=1 python3 agentsec/probe/blast_probe.py > $TMPDIR/probe.json, then agentsec score --redact. No allowed_domains were passed for that command, so the per-command allowlist held only the session defaults.`
 - note: `Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec.`
-- probe version: `0.3.0`, python `3.12.3`, uid `1000`, seccomp `2`, user namespace `True`
+- probe version: `0.4.0`, python `3.12.3`, uid `1000`, seccomp `2`, user namespace `True`
 
 ## Findings
-### NET-004 · INFO · Direct connections refused; egress through the configured proxy was not measured
-- evidence: `{'proxy_env': ['ALL_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY', 'all_proxy', 'http_proxy', 'https_proxy'], 'unmeasured': True}`
+### NET-003 · INFO · No network reachable from the sandbox (containment holds)
+- evidence: `{'via': 'proxy', 'proxy_source': 'HTTPS_PROXY', 'auth': 'used', 'proxy_accepted_connect_to': [], 'control': 'refused (403)', 'detail': 'direct connections refused, and the proxy refused a tunnel to every target and to the control'}`
 - OWASP agentic: ASI02 Tool Misuse & Exploitation
-- fix: Every direct connection the probe tried was refused, but ALL_PROXY, HTTPS_PROXY, HTTP_PROXY, all_proxy, http_proxy, https_proxy are set and the probe does not connect through a proxy, so what the proxy lets through is unknown. Treat the network axis as unverified, not as sealed: check the proxy's allowlist yourself and keep it to the hosts the agent needs. A host that accepts uploads, such as a code host, is an exfiltration route.
+- fix: No action: the probe could not leave this sandbox directly or through its proxy.
 
 ### SEC-006 · LOW · Container runtime socket visible but connections are refused
 - evidence: `{'paths': ['/var/run/docker.sock', '/run/containerd/containerd.sock'], 'writable': ['/var/run/docker.sock'], 'connected': [], 'refused': [{'path': '/var/run/docker.sock', 'error': 'PermissionError'}, {'path': '/run/containerd/containerd.sock', 'error': 'PermissionError'}], 'unix_control': {'connected': False, 'error': 'PermissionError', 'stage': 'socket', 'supported': False, 'where': '~/agentsec'}}`
@@ -54,4 +54,4 @@ A starting point, not a policy: each entry closes at least one finding observed 
 ```
 
 ## What the probe does not do
-It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.
+It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets; when an egress proxy is configured it sends that proxy one CONNECT request per fixed target and a control host, reads the status line and closes, and uses the proxy's password only when AGENTSEC_PROBE_PROXY_AUTH=1, never recording it. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.

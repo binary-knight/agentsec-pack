@@ -10,7 +10,12 @@ Non-exfiltrating by construction:
     home-directory paths are reported unexpanded so a report carries no
     operator username;
   * network probes connect only to the fixed list below, send nothing, and
-    close immediately;
+    close immediately. When an egress proxy is configured, the probe also
+    sends that proxy one CONNECT request per fixed target (plus PROXY_CANARY),
+    reads the status line and closes: no TLS, nothing reaches the target;
+  * the proxy's password is used only when AGENTSEC_PROBE_PROXY_AUTH=1, and
+    then only in a Proxy-Authorization header to the proxy it came from. It
+    is never recorded, and neither is the proxy's URL or host;
   * unix sockets are connected to and closed with nothing sent, to prove
     reachability rather than infer it from permission bits;
   * the only writes are zero-byte marker files, one per probed directory
@@ -36,7 +41,7 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.3.0"
+PROBE_VERSION = "0.4.0"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
 EGRESS_TARGETS = [
@@ -51,11 +56,18 @@ METADATA_TARGETS = [
     {"name": "gcp-metadata-hostname", "host": "metadata.google.internal", "port": 80},
 ]
 CONNECT_TIMEOUT = float(os.environ.get("AGENTSEC_PROBE_TIMEOUT", "2.0"))
-# Variables an HTTP client consults for an egress proxy. The probe connects
-# directly and never through these, so when one is set a refused direct
-# connection says nothing about what the proxy lets through. Reported by NAME
-# only: a proxy URL commonly carries a password.
+# Variables an HTTP client consults for an egress proxy. When one is set, a
+# refused direct connection says nothing about what the proxy lets through, so
+# the probe also asks the proxy. Reported by NAME only: a proxy URL commonly
+# carries a password.
 PROXY_ENV_NAMES = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
+# A host no egress allowlist has a reason to contain. A proxy that accepts it
+# accepts anything; one that refuses it while accepting a target is filtering.
+PROXY_CANARY = {"name": "canary-example.com", "host": "example.com", "port": 443}
+# The proxy password is sent to the proxy it came from ONLY when this is set to
+# 1. Without it, a proxy that demands authentication answers 407 and the
+# network axis is reported as not measured. Never recorded either way.
+PROXY_AUTH_OPT_IN = "AGENTSEC_PROBE_PROXY_AUTH"
 
 # Matched on whole underscore-separated words, not as substrings or vendor
 # prefixes. A prefix rule flags GH_PAGER and AWS_REGION, which are not secrets;
@@ -207,6 +219,118 @@ def proxy_env_names(environ=None):
                   if k.upper() in PROXY_ENV_NAMES and (environ.get(k) or "").strip())
 
 
+def _proxy_url(environ):
+    """(variable name, url) of the proxy an HTTPS client would use, or (None, None)."""
+    for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy"):
+        v = (environ.get(name) or "").strip()
+        if v:
+            return name, v
+    return None, None
+
+
+def _no_proxy_matches(host, no_proxy):
+    """Would a client send `host` direct, bypassing the proxy, under NO_PROXY?"""
+    import ipaddress
+    for entry in (e.strip().lower() for e in (no_proxy or "").split(",")):
+        if not entry:
+            continue
+        if entry == "*":
+            return True
+        try:
+            if ipaddress.ip_address(host) in ipaddress.ip_network(entry, strict=False):
+                return True
+            continue
+        except ValueError:
+            pass
+        e = entry.lstrip(".")
+        if host == e or host.endswith("." + e):
+            return True
+    return False
+
+
+def _connect_via_proxy(phost, pport, host, port, auth_header):
+    """Ask the proxy to open a tunnel to host:port. Send the CONNECT request and
+    nothing else, read the status line, close. No TLS, no bytes to the target."""
+    r = {"status": None}
+    try:
+        s = socket.create_connection((phost, pport), timeout=CONNECT_TIMEOUT)
+    except Exception as e:
+        r["error"] = _err(e)
+        return r
+    try:
+        s.settimeout(CONNECT_TIMEOUT)
+        req = "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n" % (host, port, host, port)
+        if auth_header:
+            req += "Proxy-Authorization: " + auth_header + "\r\n"
+        s.sendall((req + "\r\n").encode("ascii"))
+        buf = b""
+        while b"\r\n" not in buf and len(buf) < 1024:
+            chunk = s.recv(256)
+            if not chunk:
+                break
+            buf += chunk
+        line = buf.split(b"\r\n", 1)[0].decode("latin-1")
+        parts = line.split()
+        if len(parts) >= 2 and parts[0].startswith("HTTP/") and parts[1].isdigit():
+            r["status"] = int(parts[1])
+        else:
+            r["error"] = "no HTTP status line"
+    except Exception as e:
+        r["error"] = _err(e)
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+    return r
+
+
+def probe_proxy(environ=None, targets=None):
+    """What the configured egress proxy agrees to tunnel to.
+
+    Records the variable name, the scheme, whether the proxy is on loopback,
+    and a status code per fixed target. Never the proxy's URL, host or
+    credentials.
+    """
+    import base64
+    from urllib.parse import urlsplit, unquote
+    environ = os.environ if environ is None else environ
+    var, url = _proxy_url(environ)
+    if not var:
+        return {"configured": False}
+    out = {"configured": True, "source": var, "measured": False}
+    try:
+        u = urlsplit(url if "://" in url else "http://" + url)
+        scheme, phost, pport = (u.scheme or "http").lower(), u.hostname, u.port or 80
+    except ValueError:
+        out["reason"] = "proxy URL could not be parsed"
+        return out
+    out["scheme"] = scheme
+    if scheme != "http" or not phost:
+        out["reason"] = "only http:// proxies are measured; this one is %s://" % scheme
+        return out
+    out["proxy_loopback"] = phost in ("localhost", "::1") or phost.startswith("127.")
+    has_creds = u.username is not None
+    use_auth = has_creds and environ.get(PROXY_AUTH_OPT_IN) == "1"
+    out["auth"] = "used" if use_auth else ("available, not used" if has_creds else "none")
+    header = None
+    if use_auth:
+        cred = "%s:%s" % (unquote(u.username or ""), unquote(u.password or ""))
+        header = "Basic " + base64.b64encode(cred.encode("utf-8")).decode("ascii")
+    no_proxy = environ.get("NO_PROXY") or environ.get("no_proxy") or ""
+    results = []
+    for t in (targets if targets is not None else EGRESS_TARGETS + METADATA_TARGETS + [PROXY_CANARY]):
+        r = {"name": t["name"], "host": t["host"], "port": t["port"]}
+        if _no_proxy_matches(t["host"], no_proxy):
+            r["bypassed"] = "NO_PROXY"  # a client goes direct; the direct test covers it
+        else:
+            r.update(_connect_via_proxy(phost, pport, t["host"], t["port"], header))
+        results.append(r)
+    out["targets"] = results
+    out["measured"] = True
+    return out
+
+
 def probe_network():
     results = []
     blocked = 0
@@ -251,6 +375,7 @@ def probe_network():
     except Exception:
         pass
     return {"targets": results, "interfaces": sorted(ifaces), "proxy_env": proxy_env_names(),
+            "proxy": probe_proxy(),
             "socket_syscall_blocked": blocked == len(results) and blocked > 0,
             "connect_refused_all": bool(results) and not any(r.get("connect") for r in results),
             "any_egress": any(x["connect"] for x in results if not x["name"].startswith(("cloud-metadata", "gcp-metadata"))),

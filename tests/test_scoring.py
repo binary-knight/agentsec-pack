@@ -228,3 +228,49 @@ def test_masked_or_refused_persistence_paths_are_not_findings():
         {"path": "./.mcp.json", "kind": "agent-config", "writable": True, "masked": True, "host_backed": False},
         {"path": "~/.bashrc", "kind": "shell-startup", "writable": False, "error": "EROFS", "host_backed": True}))]
     assert not {"FS-008", "FS-009", "FS-010"} & set(ids)
+
+
+# --- probe 0.4.0: verdicts from the proxy ------------------------------------
+
+def _proxied(statuses, canary=403, auth="used"):
+    targets = [{"name": n, "host": h, "port": 443, "status": statuses.get(h, 403)}
+               for n, h in (("dns-google", "dns.google"), ("pypi", "pypi.org"), ("github", "github.com"))]
+    targets.append({"name": "gcp-metadata-hostname", "host": "metadata.google.internal", "port": 80,
+                    "status": statuses.get("metadata.google.internal", 403)})
+    targets.append({"name": "canary-example.com", "host": "example.com", "port": 443, "status": canary})
+    return _refused_network(proxy_env=["HTTPS_PROXY"],
+                            proxy={"configured": True, "measured": True, "source": "HTTPS_PROXY", "auth": auth,
+                                   "targets": targets})
+
+
+def test_a_proxy_that_refuses_everything_including_the_control_is_proven_containment():
+    f = {x.id: x for x in analyze(_proxied({}))}
+    assert "NET-003" in f and "NET-004" not in f
+    assert "control" in f["NET-003"].evidence["detail"]
+
+
+def test_a_proxy_that_accepts_the_control_forwards_anywhere():
+    f = {x.id: x for x in analyze(_proxied({"github.com": 200}, canary=200))}
+    assert f["NET-001"].severity == "high" and f["NET-001"].evidence["via"] == "proxy"
+
+
+def test_an_allowlisting_proxy_names_what_it_lets_through():
+    """Measured 2026-11-04 in Claude Code 2.1.317 with github.com allowed for one command."""
+    f = {x.id: x for x in analyze(_proxied({"github.com": 200}))}
+    assert f["NET-005"].severity == "medium"
+    assert f["NET-005"].evidence["proxy_accepted_connect_to"] == ["github.com"]
+    assert "NET-001" not in f and "NET-003" not in f
+
+
+def test_a_proxy_demanding_auth_the_probe_withheld_stays_unmeasured_and_says_how_to_measure():
+    f = {x.id: x for x in analyze(_proxied({h: 407 for h in ("dns.google", "pypi.org", "github.com",
+                                                                "metadata.google.internal")},
+                                             canary=407, auth="available, not used"))}
+    assert f["NET-004"].evidence["unmeasured"] is True
+    assert "AGENTSEC_PROBE_PROXY_AUTH=1" in f["NET-004"].remediation
+    assert "NET-003" not in f
+
+
+def test_metadata_through_the_proxy_is_critical():
+    f = {x.id: x for x in analyze(_proxied({"metadata.google.internal": 200}))}
+    assert f["NET-002"].severity == "critical"

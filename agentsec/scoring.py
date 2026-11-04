@@ -85,6 +85,28 @@ AGENT_CREDENTIALS = {"~/.claude/.credentials.json", "~/.codex/auth.json", "~/.ge
 RUNS_OUTSIDE = {"shell-startup", "ssh-login", "git-config", "git-hooks", "desktop-autostart", "home"}
 
 
+def _proxy_verdict(px: dict) -> dict:
+    """Sort a measured proxy's answers: accepted (2xx), refused, or asking for auth."""
+    accepted, metadata, statuses = [], [], []
+    canary = "not asked"
+    for t in px.get("targets", []):
+        if t.get("bypassed"):
+            continue
+        st = t.get("status")
+        statuses.append(st)
+        ok = isinstance(st, int) and 200 <= st < 300
+        if t["name"].startswith("canary"):
+            canary = "accepted" if ok else "refused (%s)" % (st if st is not None else t.get("error"))
+        elif t["name"].startswith(("cloud-metadata", "gcp-metadata")):
+            if ok:
+                metadata.append(t["host"])
+        elif ok:
+            accepted.append(t["host"])
+    asked = [s for s in statuses if s is not None]
+    return {"accepted": accepted, "metadata": metadata, "canary": canary,
+            "auth_required": bool(asked) and all(s == 407 for s in asked)}
+
+
 def analyze(probe: dict[str, Any]) -> list[Finding]:
     findings: list[Finding] = []
     ident = probe.get("identity", {}) or {}
@@ -100,7 +122,45 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     # that proxy, so a refused direct connection proves nothing about egress.
     # Only a refused socket() call also rules the proxy out.
     proxy_env = net.get("proxy_env") or []
-    if net.get("connect_refused_all") and proxy_env and not net.get("socket_syscall_blocked"):
+    px = net.get("proxy") or {}
+    via_proxy = _proxy_verdict(px) if px.get("measured") else None
+    if via_proxy and via_proxy["metadata"] and not net.get("metadata_reachable"):
+        findings.append(_f("NET-002", "Cloud instance-metadata endpoint reachable", "critical", "network",
+                           {"via": "proxy", "proxy_accepted_connect_to": via_proxy["metadata"]}, ["ASI03", "ASI02"],
+                           "The egress proxy agreed to tunnel to an instance-metadata address. Deny 169.254.169.254 and "
+                           "metadata.google.internal at the proxy as well as in the network namespace."))
+    if net.get("connect_refused_all") and via_proxy and not net.get("socket_syscall_blocked"):
+        # The proxy was asked, so the network axis is measured. Wording is
+        # "accepted CONNECT", not "reached": a proxy can answer 200 before the
+        # upstream connection completes.
+        ev = {"via": "proxy", "proxy_source": px.get("source"), "auth": px.get("auth"),
+              "proxy_accepted_connect_to": via_proxy["accepted"], "control": via_proxy["canary"]}
+        if via_proxy["canary"] == "accepted":
+            findings.append(_f("NET-001", "Unrestricted internet egress from the sandbox", "high", "network", ev,
+                               ["ASI02", "ASI10"],
+                               "Direct connections are refused, but the egress proxy accepted a tunnel to the control host, "
+                               "example.com, which no allowlist has a reason to contain: it forwards to anywhere. Configure "
+                               "an allowlist at the proxy, or remove the network."))
+        elif via_proxy["accepted"]:
+            findings.append(_f("NET-005", "Egress through the proxy is allowlisted", "medium", "network", ev,
+                               ["ASI02", "ASI10"],
+                               "The proxy refused the control host and accepted tunnels to the hosts listed, so it is "
+                               "filtering, and those hosts are what an injected command can reach. Keep the list to what the "
+                               "agent needs; a host that accepts uploads, such as a code host or a package index, is an "
+                               "exfiltration route."))
+        elif via_proxy["auth_required"]:
+            findings.append(_f("NET-004", "Direct connections refused; the proxy requires authentication the probe did not send",
+                               "info", "network", dict(ev, unmeasured=True), ["ASI02"],
+                               "The proxy answered 407 to every request because the probe did not authenticate. Clients in "
+                               "the sandbox can, since the password is in " + str(px.get("source")) + ", so what the proxy "
+                               "allows is unknown. Re-run the probe with AGENTSEC_PROBE_PROXY_AUTH=1 to send it to that proxy "
+                               "and measure the allowlist; it is never recorded."))
+        else:
+            findings.append(_f("NET-003", "No network reachable from the sandbox (containment holds)", "info", "network",
+                               dict(ev, detail="direct connections refused, and the proxy refused a tunnel to every "
+                                               "target and to the control"), ["ASI02"],
+                               "No action: the probe could not leave this sandbox directly or through its proxy."))
+    elif net.get("connect_refused_all") and proxy_env and not net.get("socket_syscall_blocked"):
         findings.append(_f("NET-004", "Direct connections refused; egress through the configured proxy was not measured",
                            "info", "network", {"proxy_env": proxy_env, "unmeasured": True}, ["ASI02"],
                            "Every direct connection the probe tried was refused, but " + ", ".join(proxy_env)
@@ -306,6 +366,7 @@ def summarize(probe: dict[str, Any]) -> dict[str, Any]:
 FINDING_FLAGS = {
     "NET-001": ["--network none"],
     "NET-002": ["--network none"],
+    "NET-005": ["(keep the proxy allowlist to the hosts the agent needs)"],
     "PRIV-001": ["--user 65534:65534"],
     "PRIV-002": ["--user 65534:65534"],
     "PRIV-003": ["--cap-drop ALL"],
