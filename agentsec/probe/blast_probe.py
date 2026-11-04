@@ -92,7 +92,7 @@ CREDENTIAL_PATHS = [
     "~/.config/gcloud/application_default_credentials.json", "~/.azure/accessTokens.json",
     "~/.git-credentials", "~/.gitconfig", "~/.config/gh/hosts.yml",
     "/run/secrets", "/var/run/secrets/kubernetes.io/serviceaccount/token",
-    "/etc/shadow",
+    "/etc/shadow", "/etc/master.passwd",  # the account hash file on Linux and on macOS
     # Coding agents' own login credentials. For a tool about agent sandboxes,
     # the credential the agent itself runs on is the one most likely present.
     # Each path is cited to the vendor's docs or source, read 2026-11-03:

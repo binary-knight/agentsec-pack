@@ -40,12 +40,13 @@ def test_a_readable_file_satisfies_readable_and_fails_not_readable(tmp_path):
 def test_absent_and_denied_are_reported_differently():
     """'Not there' and 'there but denied' are different sandbox designs, and a
     reader deciding whether containment holds needs to know which."""
-    exp = [("not-readable", "/etc/shadow"), ("not-readable", "/no/such/path/at/all")]
+    shadow = "/etc/master.passwd" if sys.platform == "darwin" else "/etc/shadow"  # root-only on each
+    exp = [("not-readable", shadow), ("not-readable", "/no/such/path/at/all")]
     rows = assertions.check(_run_local(exp), exp)["rows"]
     observed = {r["path"]: r["observed"] for r in rows}
     assert observed["/no/such/path/at/all"] == "absent"
     if os.geteuid() != 0:
-        assert observed["/etc/shadow"] == "present, denied"
+        assert observed[shadow] == "present, denied"
 
 
 def test_a_missing_file_counts_as_not_reachable(tmp_path):
@@ -88,7 +89,7 @@ def test_cli_refuses_to_run_with_no_expectations():
 
 def test_cli_writes_a_machine_readable_result(tmp_path):
     out = tmp_path / "r.json"
-    main(["assert", "--readable", "/etc/hostname", "--out", str(out)])
+    main(["assert", "--readable", "/etc/hosts", "--out", str(out)])  # present on Linux and macOS
     d = json.loads(out.read_text())
     assert d["test"] == "path-assertions"
     assert d["target"]["kind"] == "local"

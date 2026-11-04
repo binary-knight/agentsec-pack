@@ -248,13 +248,15 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",
                            {"names": env_names}, ["ASI03", "ASI02"],
                            "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment."))
-    readable = [c["path"] for c in sec.get("credential_files", []) if c.get("readable") and c["path"] != "/etc/shadow"]
-    if any(c["path"] == "/etc/shadow" and c.get("readable") for c in sec.get("credential_files", [])):
-        findings.append(_f("SEC-005", "Image shadow file readable (process is root)", "info", "secrets", {"path": "/etc/shadow"}, ["ASI03"],
+    SHADOW = ("/etc/shadow", "/etc/master.passwd")
+    readable = [c["path"] for c in sec.get("credential_files", []) if c.get("readable") and c["path"] not in SHADOW]
+    shadow_hit = next((c["path"] for c in sec.get("credential_files", []) if c["path"] in SHADOW and c.get("readable")), None)
+    if shadow_hit:
+        findings.append(_f("SEC-005", "Image shadow file readable (process is root)", "info", "secrets", {"path": shadow_hit}, ["ASI03"],
                            "Informational in a plain image; becomes real if the image carries live account hashes."))
     if readable:
         creds = [c for c in sec.get("credential_files", [])
-                 if c.get("readable") and c["path"] != "/etc/shadow"]
+                 if c.get("readable") and c["path"] not in SHADOW]
         ev = {"readable_of_those_probed": readable,
               "probed": len(sec.get("credential_files", [])) or None,
               "via": sorted({c.get("via", "unknown") for c in creds})}

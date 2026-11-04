@@ -333,7 +333,9 @@ def test_rootless_and_desktop_sockets_are_looked_for_whatever_the_environment_sa
 @needs_unix_sockets
 def test_a_forwarded_ssh_agent_is_proven_reachable_and_reported_without_its_path(tmp_path):
     import socket as _s
-    path = str(tmp_path / "agent.sock")
+    import tempfile as _tf
+    # macOS caps a unix socket path at 104 bytes, and pytest's tmp_path is longer.
+    path = os.path.join(_tf.mkdtemp(prefix="asa", dir="/tmp"), "a.sock")
     srv = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
     srv.bind(path)
     srv.listen(1)
