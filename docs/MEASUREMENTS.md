@@ -102,3 +102,25 @@ Network allowlisting applies to one command at a time, so a repeat run can permi
 These Claude Code figures come from a Claude Code session that measured Claude Code itself by running the same probe under the same capture method and scorer as every other profile. Raw JSON output ships alongside the profile results so every figure can be recomputed from the captured data. You should still weigh the source of the session when you evaluate the scores from that measurement.
 
 Complete reports with full provenance for every sandbox measurement covered in this section reside in the `examples/agents/` directory. Each entry in `agentsec/data/measured_profiles.json` is added exclusively from a direct measurement accompanied by citations to the vendor's documentation. Any sandbox measurement that conflicts with the vendor's documentation is reported to that vendor prior to publication of the profile.
+
+## macOS
+
+These measurements ran on a GitHub-hosted macOS 26.6.2 machine, arm64, with probe 0.6.0, through `.github/workflows/macos-measure.yml`. Each measurement was launched with `env -i`. The machine's home directory holds no personal credentials, so the credential findings score lower here than they would on a developer's own Mac. The reports are in `examples/macos/` and `examples/agents/`.
+
+| Configuration | Score | What changed |
+|---|---:|---|
+| no sandbox | 76 | everything the account can reach, including `~/Library/LaunchAgents`, `.git/hooks` and the user-owned `/opt/homebrew/bin` |
+| `seatbelt-allow-default` | 68 | only PRIV-006, because a profile that allows everything still counts as a sandbox |
+| `seatbelt-deny-network` | 53 | no network and no unix sockets, while writes and credential reads stay open |
+| `seatbelt-confined` | 8 | no network, writes only to the temporary directories, no reads of the common credential paths |
+| Codex CLI 0.164.0, read-only | 15 | no network, no writes, other processes hidden |
+| Codex CLI 0.164.0, workspace-write | 30 | as read-only, plus a writable workspace in which Claude Code's project config is writable |
+
+The gap between no sandbox and `seatbelt-allow-default` is worth noting. A Seatbelt profile that allows everything removes PRIV-006 and nothing else, so its presence earns 8 points while it restricts nothing. Linux has the same property, since a seccomp filter that allows every call also removes PRIV-004. The other four axes are where a profile's real effect shows.
+
+### Codex CLI on macOS
+
+Codex was measured through `codex sandbox -c sandbox_mode=...`, which runs a command under Codex's own sandbox policy with no model and no login. On Linux the same helper reproduced the full-session scores exactly, 26 in read-only and 34 in `workspace-write` with identical findings, so it stands in for the sandbox of a session. The throwaway project held empty project config for Codex, Claude Code and Antigravity.
+
+Both modes keep the network off, refuse every write outside the workspace, and refuse the process-list `sysctl` with `EPERM`. That last check hides every other process on the machine, which the Linux sandbox does not do. In `workspace-write` the working directory is writable, and inside it `.codex/config.toml`, `.agents` and `.git/hooks` refuse writes, as OpenAI documents for `.git` and `.codex`. Claude Code's `.claude/settings.json` and `.mcp.json` in the same directory are writable, which the probe reports as FS-009. Codex documents only its own protected paths, so this is its documented boundary. The consequence is cross-agent: in a project where both agents are used, a command run in Codex's sandbox can change the settings and MCP servers that Claude Code loads in its next session, outside Codex's sandbox.
+

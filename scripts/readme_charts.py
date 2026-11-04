@@ -48,11 +48,19 @@ def groups():
         agents.append(row)
     matrix = json.loads((ROOT / "examples/matrix_slim.json").read_text())
     launchers = sorted(chart.rows_from_matrix(matrix), key=lambda r: -r["score"])
-    return agents, launchers
+    load = lambda rel: json.loads((ROOT / rel).read_text())
+    seatbelt = {r["label"]: r for r in chart.rows_from_matrix(load("examples/macos/seatbelt-presets.json"))}
+    macos = [chart.row_from_envelope(load("examples/macos/no-sandbox.json"), "No sandbox"),
+             seatbelt["seatbelt-allow-default"], seatbelt["seatbelt-deny-network"], seatbelt["seatbelt-confined"],
+             chart.row_from_envelope(load("examples/agents/codex-cli-0.164.0-macos-sandbox-read-only.json"),
+                                     "Codex CLI 0.164.0, read-only"),
+             chart.row_from_envelope(load("examples/agents/codex-cli-0.164.0-macos-sandbox-workspace-write.json"),
+                                     "Codex CLI 0.164.0, workspace-write")]
+    return agents, launchers, macos
 
 
 def outputs():
-    agents, launchers = groups()
+    agents, launchers, macos = groups()
     out = {}
     for theme in ("light", "dark"):
         out[f"docs/img/agents-{theme}.svg"] = chart.render_svg(
@@ -61,7 +69,11 @@ def outputs():
         out[f"docs/img/launchers-{theme}.svg"] = chart.render_svg(
             [("", launchers)], "python:3.12-slim under eleven launchers",
             "Docker, Podman and bubblewrap configurations on one Linux host, probe 0.4.0.", theme)
-    table = chart.render_markdown([("Coding agents' own sandboxes", agents), ("python:3.12-slim under eleven launchers", launchers)])
+        out[f"docs/img/macos-{theme}.svg"] = chart.render_svg(
+            [("", macos)], "macOS: Seatbelt and Codex's sandbox",
+            "A GitHub-hosted macOS 26.6 machine, probe 0.6.0. Codex measured through codex sandbox.", theme)
+    table = chart.render_markdown([("Coding agents' own sandboxes", agents), ("python:3.12-slim under eleven launchers", launchers),
+                                   ("macOS: Seatbelt and Codex's sandbox", macos)])
     readme = (ROOT / "README.md").read_text()
     start, end = "<!-- results-table:start -->", "<!-- results-table:end -->"
     a, b = readme.index(start) + len(start), readme.index(end)

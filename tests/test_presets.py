@@ -36,7 +36,7 @@ def test_requirement_and_lookup():
 def test_named_presets_cite_a_source_not_a_vendor_claim():
     # A preset named after a third-party agent must cite that agent's own source.
     for name, p in presets.load_all().items():
-        if name.split("-")[0] not in ("docker", "podman", "bwrap"):
+        if name.split("-")[0] not in ("docker", "podman", "bwrap", "seatbelt"):
             assert "http" in p["source"], f"{name} names a third party without a source URL"
 
 

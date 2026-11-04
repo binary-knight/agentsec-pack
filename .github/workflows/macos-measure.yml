@@ -1,14 +1,20 @@
 name: macos-measure
 
-# Run the probe on a GitHub-hosted macOS runner and keep the reports, so the
-# macOS paths are checked against a real Mac. Started by hand only, so it never
-# runs on someone else's pull request.
+# Measure sandboxes on a GitHub-hosted macOS runner and keep the reports:
+# the runner with and without Seatbelt, the seatbelt-* presets, and Codex's
+# own sandbox through `codex sandbox`.
+# Started by hand only, so it never runs on someone else's pull request.
+# Every command that runs a probe ends in `|| true` so one failure does not
+# hide the others; the report files are the record of what ran.
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  CODEX_VERSION: "0.164.0"
 
 jobs:
   measure:
@@ -19,19 +25,52 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install .
+
       - name: Describe the runner
         run: |
           sw_vers
           uname -a
           echo "user: $(id -un), home entries: $(ls -A ~ | wc -l | tr -d ' ')"
+
       - name: Probe with no sandbox
         run: |
-          agentsec probe --label macos-runner-no-sandbox --out reports \
-            --how "GitHub-hosted macos-latest runner, agentsec probe run directly by the workflow, no sandbox" || true
-      - name: Probe under sandbox-exec with an allow-default profile
+          # The macOS account on these machines is named "runner", which --redact scrubs as a
+          # username wherever it appears, so labels and descriptions avoid the word.
+          env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 \
+            agentsec probe --label macos-gha-no-sandbox --out reports --redact \
+            --how "GitHub-hosted macos-latest machine, agentsec probe launched with env -i, no sandbox" || true
+
+      - name: Seatbelt presets
         run: |
-          sandbox-exec -p '(version 1)(allow default)' python -m agentsec.cli probe --label macos-runner-seatbelt-allow-default --out reports \
-            --how "GitHub-hosted macos-latest runner, sandbox-exec -p '(version 1)(allow default)'" || true
+          env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 \
+            agentsec matrix --presets seatbelt-allow-default,seatbelt-deny-network,seatbelt-confined \
+            --label macos-seatbelt-presets --out reports --redact || true
+
+      - name: Install Codex
+        run: npm install -g "@openai/codex@${CODEX_VERSION}"
+
+      - name: Prepare a throwaway project
+        run: |
+          # Each agent's project-level config, so the persistence check can ask whether the
+          # sandbox lets a command rewrite what an agent loads in its next session.
+          mkdir -p /tmp/proj/.codex /tmp/proj/.agents /tmp/proj/.claude
+          cd /tmp/proj && git init -q && : > .codex/config.toml
+          echo '{}' > .claude/settings.json && echo '{}' > .mcp.json
+          cp "$GITHUB_WORKSPACE/agentsec/probe/blast_probe.py" /tmp/proj/probe.py
+
+      - name: Codex sandbox, read-only and workspace-write
+        working-directory: /tmp/proj
+        run: |
+          PY="$(command -v python)"
+          for mode in read-only workspace-write; do
+            env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 \
+              codex sandbox -c "sandbox_mode=\"$mode\"" "$PY" probe.py > "codex-$mode.json" 2> "codex-$mode.err" || true
+            tail -3 "codex-$mode.err"
+            agentsec score "codex-$mode.json" --label "codex-cli-${CODEX_VERSION}-macos-sandbox-$mode" --redact \
+              --out "$GITHUB_WORKSPACE/reports" \
+              --how "codex ${CODEX_VERSION}: codex sandbox -c sandbox_mode=\"$mode\" python probe.py, from a throwaway git repository holding empty project config files for Codex, Claude Code and Antigravity, launched with env -i, GitHub-hosted macos-latest machine. The helper runs a command under Codex's sandbox policy with no model; it is not a full agent session." || true
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos-reports
