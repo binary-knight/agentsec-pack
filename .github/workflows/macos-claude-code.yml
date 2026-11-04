@@ -1,0 +1,69 @@
+name: macos-claude-code
+
+# Measure Claude Code's own sandbox on a GitHub-hosted macOS machine, in full
+# headless sessions. Needs ANTHROPIC_API_KEY in the claude-measure
+# environment, which requires a reviewer's approval for every run and deploys
+# only from main. Started by hand only. Each session uses the smallest model
+# and is asked to run the probe and nothing else.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CLAUDE_CODE_VERSION: "2.1.318"
+  MODEL: claude-haiku-5-5
+
+jobs:
+  measure:
+    runs-on: macos-latest
+    environment: claude-measure
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+
+      - name: Install Claude Code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
+
+      - name: Prepare a throwaway project
+        run: |
+          mkdir -p /tmp/proj/.codex /tmp/proj/.agents /tmp/proj/.claude
+          cd /tmp/proj && git init -q && : > .codex/config.toml
+          echo '{}' > .claude/settings.json && echo '{}' > .mcp.json
+          cp "$GITHUB_WORKSPACE/agentsec/probe/blast_probe.py" /tmp/proj/probe.py
+          echo '{"sandbox": {"enabled": true, "failIfUnavailable": true}}' > /tmp/s-sandbox.json
+          echo '{"sandbox": {"enabled": true, "failIfUnavailable": true, "filesystem": {"denyRead": ["~/"], "allowRead": ["."]}}}' > /tmp/s-sandbox-denyread.json
+          echo '{"sandbox": {"enabled": false}}' > /tmp/s-no-sandbox.json
+
+      - name: Headless sessions
+        working-directory: /tmp/proj
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # The system Python, because denyRead ["~/"] makes the home directory
+          # unreadable and setup-python installs its interpreter inside it.
+          for cfg in sandbox sandbox-denyread no-sandbox; do
+            env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 \
+              ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" AGENTSEC_PROBE_PROXY_AUTH=1 \
+              claude -p --model "$MODEL" --settings "/tmp/s-$cfg.json" --allowedTools Bash \
+              "Run exactly this one Bash command and nothing else, then reply DONE: /usr/bin/python3 probe.py > out-$cfg.json" \
+              < /dev/null > "claude-$cfg.txt" 2> "claude-$cfg.err" || true
+            echo "== $cfg: $(tail -c 200 claude-$cfg.txt)"; tail -3 "claude-$cfg.err"
+            # Names of secret-shaped variables the command saw. Names only, never values.
+            python -c "import json,sys; d=json.load(open(sys.argv[1])); print('secret-shaped names:', [e['name'] for e in d['secrets']['env_secret_names']])" "out-$cfg.json" || true
+            agentsec score "out-$cfg.json" --label "claude-code-${CLAUDE_CODE_VERSION}-macos-$cfg" --redact \
+              --out "$GITHUB_WORKSPACE/reports" \
+              --how "claude ${CLAUDE_CODE_VERSION} -p --model ${MODEL} --allowedTools Bash --settings $(cat /tmp/s-$cfg.json), asked to run /usr/bin/python3 probe.py > out.json and nothing else, from a throwaway git repository holding empty project config for Codex, Claude Code and Antigravity. Launched with env -i plus ANTHROPIC_API_KEY and AGENTSEC_PROBE_PROXY_AUTH=1, on a GitHub-hosted macos-latest machine." || true
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-macos-reports
+          path: reports/
