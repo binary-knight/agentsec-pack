@@ -1,7 +1,7 @@
 # Sandbox blast radius: slim_default
 
 **Score: 59 / 100** (0 = fully contained; higher = larger blast radius)  
-Findings: 7 (critical 0, high 3, medium 1, low 2)
+Findings: 8 (critical 0, high 3, medium 1, low 2)
 
 ## Target (reproduce with this)
 > A container run the way most quick-start docs show it: root inside, full network, writable root filesystem, default capability set.
@@ -9,11 +9,11 @@ Findings: 7 (critical 0, high 3, medium 1, low 2)
 - kind: `container`
 - engine: `docker`
 - image: `python:3.12-slim`
-- digest: `python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea`
+- digest: `python@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9`
 - python: `python3`
 - command: `docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py`
 - preset: `docker-default`
-- probe version: `0.1.0`, python `3.12.14`, uid `0`, seccomp `2`, user namespace `False`
+- probe version: `0.4.0`, python `3.12.14`, uid `0`, seccomp `2`, user namespace `False`
 
 ## Findings
 ### NET-001 · HIGH · Unrestricted internet egress from the sandbox
@@ -45,6 +45,11 @@ Findings: 7 (critical 0, high 3, medium 1, low 2)
 - OWASP agentic: ASI05 Unexpected Code Execution, ASI04 Agentic Supply Chain Compromise
 - fix: docker --read-only with explicit tmpfs for scratch.
 
+### FS-010 · INFO · Startup or configuration files writable, but only on storage that dies with the sandbox
+- evidence: `{'writable': [{'path': '~/.bashrc', 'kind': 'shell-startup', 'fstype': 'overlay'}, {'path': '~/.profile', 'kind': 'shell-startup', 'fstype': 'overlay'}, {'path': '~', 'kind': 'home', 'fstype': 'overlay'}]}`
+- OWASP agentic: ASI05 Unexpected Code Execution
+- fix: These live on overlay, which does not outlive the sandbox (a container's overlay, a tmpfs), so writing them changes nothing outside it. Informational; it becomes FS-008 or FS-009 if the same path is ever bind-mounted from the host.
+
 ### FS-006 · LOW · setuid binaries present and usable
 - evidence: `{'count': 24}`
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse
@@ -64,4 +69,4 @@ A starting point, not a policy: each entry closes at least one finding observed 
 ```
 
 ## What the probe does not do
-It never reads secret values, sends no data to the egress targets, and writes only a zero-byte temp marker that it removes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.
+It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets; when an egress proxy is configured it sends that proxy one CONNECT request per fixed target and a control host, reads the status line and closes, and uses the proxy's password only when AGENTSEC_PROBE_PROXY_AUTH=1, never recording it. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.

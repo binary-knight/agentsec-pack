@@ -1,7 +1,7 @@
 # Sandbox blast radius: bwrap_ro_root
 
-**Score: 86 / 100** (0 = fully contained; higher = larger blast radius)  
-Findings: 6 (critical 1, high 3, medium 2, low 0)
+**Score: 71 / 100** (0 = fully contained; higher = larger blast radius)  
+Findings: 5 (critical 1, high 2, medium 2, low 0)
 
 ## Target (reproduce with this)
 > A common lightweight pattern: the whole host filesystem read-only, own PID namespace, network still shared. Shows what read-only alone does and does not buy. No named agent is claimed to use this; it is a configuration, not a citation.
@@ -10,7 +10,7 @@ Findings: 6 (critical 1, high 3, medium 2, low 0)
 - template: `bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 {probe}`
 - command: `bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 <agentsec probe>`
 - preset: `bwrap-ro-root`
-- probe version: `0.1.0`, python `3.12.3`, uid `1000`, seccomp `0`, user namespace `True`
+- probe version: `0.4.0`, python `3.12.3`, uid `1000`, seccomp `0`, user namespace `True`
 
 ## Findings
 ### NET-001 · HIGH · Unrestricted internet egress from the sandbox
@@ -24,19 +24,14 @@ Findings: 6 (critical 1, high 3, medium 2, low 0)
 - fix: Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.
 
 ### SEC-001 · CRITICAL · Container runtime socket reachable from the sandbox
-- evidence: `{'paths': ['/var/run/docker.sock', '/run/docker.sock', '/run/containerd/containerd.sock'], 'writable': ['/var/run/docker.sock', '/run/docker.sock'], 'connected': ['/var/run/docker.sock', '/run/docker.sock']}`
+- evidence: `{'paths': ['/var/run/docker.sock', '/run/containerd/containerd.sock'], 'writable': ['/var/run/docker.sock'], 'connected': ['/var/run/docker.sock'], 'refused': [{'path': '/run/containerd/containerd.sock', 'error': 'PermissionError'}]}`
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse, ASI05 Unexpected Code Execution, ASI10 Rogue Agents
-- fix: Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, and a read-only root filesystem does not take it away.
+- fix: Never expose the Docker/containerd/podman socket to an agent sandbox: a socket that answers is root on the host, and a read-only root filesystem does not take it away.
 
-### SEC-002 · HIGH · Secret-looking environment variables visible to the agent
-- evidence: `{'names': ['<redacted>']}`
-- OWASP agentic: ASI03 Agent Identity & Privilege Abuse, ASI02 Tool Misuse & Exploitation
-- fix: Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.
-
-### SEC-003 · HIGH · Credential files readable from the sandbox
-- evidence: `{'paths': ['~/.ssh/config', '~/.gitconfig', '~/.config/gh/hosts.yml']}`
+### SEC-003 · HIGH · Credential files readable among those probed
+- evidence: `{'readable_of_those_probed': ['~/.ssh/config', '~/.gitconfig', '~/.config/gh/hosts.yml', '~/.claude/.credentials.json', '~/.codex/auth.json'], 'probed': 6, 'via': ['HOME'], 'agent_credentials': ['~/.claude/.credentials.json', '~/.codex/auth.json']}`
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse
-- fix: Do not mount home-directory credentials into the sandbox.
+- fix: Do not mount home-directory credentials into the sandbox. Among them is a coding agent's own login credential. A sandboxed command that can open it can put the token in its output, and from there in a transcript or a commit; the agent process needs it, the commands it runs do not.
 
 ### SEC-004 · MEDIUM · PID 1 environment readable (host or supervisor secrets exposed)
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse
@@ -52,10 +47,9 @@ A starting point, not a policy: each entry closes at least one finding observed 
 --network none
 (do not disable the engine's default seccomp profile)
 (remove the container socket mount)
-(inject secrets through a broker, not the environment)
 (remove the credential mount)
 (own PID namespace: avoid --pid=host)
 ```
 
 ## What the probe does not do
-It never reads secret values, sends no data to the egress targets, and writes only a zero-byte temp marker that it removes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.
+It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets; when an egress proxy is configured it sends that proxy one CONNECT request per fixed target and a control host, reads the status line and closes, and uses the proxy's password only when AGENTSEC_PROBE_PROXY_AUTH=1, never recording it. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.

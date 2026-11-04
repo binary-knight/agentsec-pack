@@ -39,7 +39,7 @@ record why each remaining finding is still open.
 Two more things it does:
 
 ```bash
-agentsec matrix python:3.12-slim              # all ten configurations, one table
+agentsec matrix python:3.12-slim              # all eleven configurations, one table
 agentsec ui --results reports/ --open         # the same results in a browser
 agentsec blast-radius preset docker-hardened --image myagent:latest --max-score 15
 ```
@@ -123,17 +123,18 @@ environment variables. Pass `--redact` to scrub those while leaving every score,
 finding and flag intact; the examples in this repo were generated that way.
 `reports/` is git-ignored; `examples/` holds the reports from the demos below.
 
-## What it found on the first run
+## What it found
 
-Ten sandbox configurations, one image (`python:3.12-slim`), measured on one Linux host:
+Eleven sandbox configurations, one image (`python:3.12-slim`), measured on one Linux host with probe 0.4.0 on 2026-11-04, launched with a minimal environment (`env -i`):
 
 | Configuration | Score | Worst finding |
 |---|---:|---|
-| `bwrap-ro-root` | 86 | container runtime socket reachable |
-| `bwrap-unshare-all` | 71 | container runtime socket reachable |
-| `bwrap-workdir-net` | 69 | unrestricted internet egress |
+| `bwrap-ro-root` | 71 | container runtime socket reachable |
 | `docker-default` | 59 | unrestricted internet egress |
+| `bwrap-unshare-all` | 56 | container runtime socket reachable |
 | `bwrap-unshare-all-clearenv` | 56 | container runtime socket reachable |
+| `bwrap-workdir-net` | 54 | unrestricted internet egress |
+| `codex-cli-0.153.4-bwrap-layer` | 48 | container runtime socket reachable |
 | `podman-rootless-default` | 47 | unrestricted internet egress |
 | `docker-no-network` | 44 | runs as real root |
 | `docker-readonly` | 44 | unrestricted internet egress |
@@ -142,7 +143,9 @@ Ten sandbox configurations, one image (`python:3.12-slim`), measured on one Linu
 
 The result worth arguing about is the top row. The lightweight "read-only host root" bubblewrap pattern scores **worse than a plain Docker container**, because a read-only root filesystem still hands the agent the host's container socket and every credential file in the home directory. Read-only is not containment. Scores for host-binding sandboxes depend on the host; container rows depend only on the image and flags.
 
-Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`. These rows were taken with probe 0.1.0 and have not been re-run with 0.3.0; the checks added since look for files and sockets a stock image does not carry, so they are not expected to move, but that is an expectation, not a measurement.
+**What moved since the first run, and why.** The container rows are identical to the probe 0.1.0 figures; probe 0.4.0 adds only an informational FS-010 to them, because their startup files are writable but live on the container's own overlay and die with it. The three bubblewrap rows that keep the environment each fell by exactly 15 (86 to 71, 71 to 56, 69 to 54): the first run was launched from a shell that had a secret-shaped variable exported, and SEC-002 scored it against the sandbox. The row that clears the environment (`bwrap-unshare-all-clearenv`) did not move. That is Trap 1 in `docs/CAPTURING.md` showing up in this project's own headline table, which is why these rows now record their launching environment.
+
+Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`.
 
 ## Measuring an agent's own sandbox
 
@@ -161,6 +164,8 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 **Aider is the first open-source target here, and it ships no sandbox at all.** `aider --help` offers no sandbox, container or isolation option, and `aider/run_cmd.py:62` runs commands with `subprocess.Popen(shell=True)` on the host with the inherited environment. The probe was run through that exact call shape, so 100 is not an accusation: the project does not claim to contain anything, and the number simply says what you take on by running it. That is also the case for the hardening presets in this repository, which is the point of measuring it.
 
 **The launcher is part of the blast radius, so the environment is part of the measurement.** The sandbox inherits the shell it was started from. Launched from a shell with a token exported, both scores rise by 15 points for a secret that has nothing to do with Codex. The first two rows minimise the environment with `env -i` and are the intrinsic figures; the third row is the same sandbox started the way people actually start it. Shipping the pair is the point: a single number would have hidden which half you can fix by changing your own shell.
+
+**Re-measured with probe 0.4.0: Codex CLI 0.164.0, 2026-11-04.** Same host, same flags, launched with `env -i`, from a throwaway git repository holding an empty `.codex/config.toml`, and with the probe's output taken from Codex's own `--json` event stream rather than retyped by the model. The scores are unchanged, **26** read-only and **34** workspace-write, and the new checks answer the question a writable workspace raises: can the agent leave something behind that runs outside the sandbox later? In Codex it cannot. In `workspace-write` the working directory is writable, but `.git/hooks` and the project's `.codex/config.toml` refuse writes (`EROFS`), and so do every shell startup file, `authorized_keys`, `.gitconfig`, the home directory and both agents' user settings. That is the documented boundary working as written: the vendor's page says "`<writable_root>/.git` is protected as read-only" and "`<writable_root>/.codex` is protected as read-only", recursively. What remains is read access, which the mode is documented to allow, and it includes Codex's own login, `~/.codex/auth.json`. Reports: `examples/agents/codex-cli-0.164.0-read-only.md`, `examples/agents/codex-cli-0.164.0-workspace-write.md`.
 
 **This is a design boundary, not a vulnerability, and the report says so.** The vendor documents read-only mode as "the agent can inspect files", so an agent reading your `gh` credentials file is the boundary working as written. The number is useful anyway: it says that on the write and network axes this sandbox is genuinely strong, and that what remains inside the blast radius is *read* access to whatever secrets live in the home directory of the user who launched it. That distinction matters because no filesystem or network sandbox can constrain what an agent does with what it has already read: whatever the agent can read can appear in the text it produces. This tool does not measure that path, and makes no claim about any particular product's handling of it.
 
@@ -201,6 +206,8 @@ Two conditions on the numbers. Claude Code's network isolation is an allowlist t
 | credentials | **readable**: `~/.ssh/config`, `~/.gitconfig`, `~/.config/gh/hosts.yml`, and the agent's own login, `~/.claude/.credentials.json` (another agent's, `~/.codex/auth.json`, too), each proven by opening it |
 
 The last row is new, and it is the one to read carefully. The vendor documents that file as where Claude Code keeps its login on Linux; a sandboxed command that can open it can print the token into a transcript or write it into the working tree. **This is documented behaviour, not a discovered flaw.** The sandboxing page states the default as "read access to the entire computer, except certain denied directories. This default still allows reading credential files", says "There is no built-in credential deny list", and lists `.credentials.json` among the paths protected from *writes* only. The vendor's own remedy is `sandbox.filesystem.denyRead` (its example denies `~/` and re-allows `.`) or `sandbox.credentials` entries in `deny` mode, and anyone running this sandbox with a login on the machine should set one. Re-measuring with that set would show what it buys; this run did not. Report and provenance: `examples/agents/claude-code-2.1.317-sandbox-auto-mode.md`.
+
+**What the documented remedy buys: Claude Code 2.1.318 with `denyRead`.** Measured headless on 2026-11-04 with `--settings` carrying the vendor's own example, `sandbox.filesystem.denyRead: ["~/"]` with `allowRead: ["."]`, plus `failIfUnavailable` so a sandbox that cannot start fails the run instead of running it unsandboxed, launched with `env -i`. Inside the sandbox the home directory is an **empty tmpfs**: none of the credential files the default exposes is visible, including Claude Code's own `~/.claude/.credentials.json`. SEC-003 is gone and the score is **26**, against 41 for the default. Writes to `~` succeed but land on that tmpfs and vanish with the sandbox, which the probe scores as informational (FS-010), not as persistence. What remains is the two variables the sandbox injects (SEC-002) and the working-directory bind mounts. If you run Claude Code's sandbox with a login on the machine, this is the setting to add. Report: `examples/agents/claude-code-2.1.318-sandbox-denyread.md`.
 
 **The allowlist is per command, and it shows.** Re-run with `github.com` allowed for that one command, the way a user approves a domain: the proxy accepts a tunnel to `github.com` (200) and still refuses the control and everything else, so the probe reports NET-005, *egress through the proxy is allowlisted*, and the score is **49**. The sandbox is filtering as designed; what it lets through is whatever has been approved, and a code host accepts uploads. `examples/agents/claude-code-2.1.317-sandbox-auto-mode-github-allowed.md`.
 
@@ -283,7 +290,7 @@ Read the probe before you run it somewhere you care about. It reports the names 
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
 - [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
 - [x] measured profiles of named agents' sandboxes, captured by running the probe inside them
-- [x] three agents (Claude Code, Codex CLI, Aider) measured across nine configurations; a preset reproducing Codex's bubblewrap layer, with the seccomp gap measured rather than assumed
+- [x] three agents (Claude Code, Codex CLI, Aider) measured across twelve configurations; a preset reproducing Codex's bubblewrap layer, with the seccomp gap measured rather than assumed
 - [x] egress measured through a configured proxy, with an allowlist control host and opt-in proxy credentials (probe 0.4.0)
 - [x] agents' own login credentials, a forwarded SSH agent, rootless container sockets, and writes that persist outside the sandbox (probe 0.3.0)
 - [x] PyPI release workflow for `agentsec-pack` (trusted publishing, on a version tag)

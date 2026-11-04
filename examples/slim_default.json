@@ -1,8 +1,8 @@
 {
-  "generated_at": 1788885131,
+  "generated_at": 1793774317,
   "label": "slim_default",
   "probe": {
-    "duration_ms": 2236,
+    "duration_ms": 2318,
     "filesystem": {
       "bind_mounts": [
         {
@@ -15,12 +15,6 @@
           "fstype": "ext4",
           "rw": true,
           "source": "/dev/nvme1n1p1",
-          "target": "/etc/resolv.conf"
-        },
-        {
-          "fstype": "ext4",
-          "rw": true,
-          "source": "/dev/nvme1n1p1",
           "target": "/etc/hostname"
         },
         {
@@ -28,9 +22,45 @@
           "rw": true,
           "source": "/dev/nvme1n1p1",
           "target": "/etc/hosts"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/resolv.conf"
         }
       ],
+      "cwd_writable": true,
       "host_root_visible": false,
+      "persistence": [
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bashrc",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.profile",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": true,
+          "kind": "home",
+          "path": "~",
+          "via": "HOME",
+          "writable": true
+        }
+      ],
       "proc_sysrq_writable": false,
       "root_rw": true,
       "setuid_binaries": [
@@ -143,16 +173,22 @@
     },
     "network": {
       "any_egress": true,
+      "connect_refused_all": false,
       "interfaces": [
         "eth0",
         "lo"
       ],
       "metadata_reachable": false,
+      "proxy": {
+        "configured": false
+      },
+      "proxy_env": [],
+      "socket_syscall_blocked": false,
       "targets": [
         {
           "connect": true,
           "host": "dns.google",
-          "ms": 32,
+          "ms": 44,
           "name": "dns-google",
           "port": 443,
           "resolved": "8.8.8.8"
@@ -160,7 +196,7 @@
         {
           "connect": true,
           "host": "pypi.org",
-          "ms": 82,
+          "ms": 46,
           "name": "pypi",
           "port": 443,
           "resolved": "151.101.128.223"
@@ -168,15 +204,15 @@
         {
           "connect": true,
           "host": "github.com",
-          "ms": 63,
+          "ms": 101,
           "name": "github",
           "port": 443,
-          "resolved": "140.82.112.4"
+          "resolved": "140.82.114.4"
         },
         {
           "connect": true,
           "host": "1.1.1.1",
-          "ms": 20,
+          "ms": 32,
           "name": "cloudflare-dns-ip",
           "port": 53,
           "resolved": "1.1.1.1"
@@ -185,7 +221,7 @@
           "connect": false,
           "connect_error": "TimeoutError",
           "host": "169.254.169.254",
-          "ms": 2002,
+          "ms": 2001,
           "name": "cloud-metadata-169.254.169.254",
           "port": 80,
           "resolved": "169.254.169.254"
@@ -202,7 +238,7 @@
       ]
     },
     "platform": "linux",
-    "probe_version": "0.1.0",
+    "probe_version": "0.4.0",
     "process": {
       "pid1_cmdline": "<redacted>",
       "pid1_is_self": true,
@@ -221,19 +257,39 @@
       "container_sockets": [],
       "credential_files": [
         {
+          "access_bits": true,
           "is_dir": false,
           "mode": "0o640",
           "path": "/etc/shadow",
           "readable": true,
           "resolved_under_home": false,
-          "size": 474
+          "size": 474,
+          "via": "absolute"
         }
       ],
       "env_secret_names": [],
       "env_var_count": 7,
-      "pid1_environ_readable": true
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": true,
+      "unix_control": {
+        "connected": true,
+        "stage": "connect",
+        "supported": true,
+        "where": "/tmp"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
     },
-    "timestamp": 1788885128
+    "timestamp": 1793774315
   },
   "probe_stderr": "",
   "rc": 0,
@@ -242,11 +298,11 @@
     "by_severity": {
       "critical": 0,
       "high": 3,
-      "info": 1,
+      "info": 2,
       "low": 2,
       "medium": 1
     },
-    "finding_count": 7,
+    "finding_count": 8,
     "findings": [
       {
         "category": "network",
@@ -352,6 +408,35 @@
       {
         "category": "filesystem",
         "evidence": {
+          "writable": [
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.bashrc"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.profile"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "home",
+              "path": "~"
+            }
+          ]
+        },
+        "id": "FS-010",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "These live on overlay, which does not outlive the sandbox (a container's overlay, a tmpfs), so writing them changes nothing outside it. Informational; it becomes FS-008 or FS-009 if the same path is ever bind-mounted from the host.",
+        "severity": "info",
+        "title": "Startup or configuration files writable, but only on storage that dies with the sandbox"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
           "count": 24
         },
         "id": "FS-006",
@@ -376,7 +461,7 @@
   },
   "target": {
     "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' python:3.12-slim python3 /agentsec_probe.py",
-    "digest": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "digest": "python@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9",
     "engine": "docker",
     "flags": [],
     "image": "python:3.12-slim",

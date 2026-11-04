@@ -1,0 +1,278 @@
+{
+  "generated_at": 1793774323,
+  "label": "slim_hardened_online",
+  "probe": {
+    "duration_ms": 2208,
+    "filesystem": {
+      "bind_mounts": [
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+          "target": "/agentsec_probe.py"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hostname"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hosts"
+        },
+        {
+          "fstype": "ext4",
+          "rw": false,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/resolv.conf"
+        }
+      ],
+      "cwd_writable": false,
+      "host_root_visible": false,
+      "persistence": [],
+      "proc_sysrq_writable": false,
+      "root_rw": false,
+      "setuid_binaries": [
+        "/bin/chage",
+        "/bin/chfn",
+        "/bin/chsh",
+        "/bin/expiry",
+        "/bin/gpasswd",
+        "/bin/mount",
+        "/bin/newgrp",
+        "/bin/passwd",
+        "/bin/sg",
+        "/bin/su",
+        "/bin/umount",
+        "/sbin/unix_chkpwd",
+        "/usr/bin/chage",
+        "/usr/bin/chfn",
+        "/usr/bin/chsh",
+        "/usr/bin/expiry",
+        "/usr/bin/gpasswd",
+        "/usr/bin/mount",
+        "/usr/bin/newgrp",
+        "/usr/bin/passwd",
+        "/usr/bin/sg",
+        "/usr/bin/su",
+        "/usr/bin/umount",
+        "/usr/sbin/unix_chkpwd"
+      ],
+      "writable_dirs": [
+        "/tmp",
+        "/dev/shm"
+      ]
+    },
+    "identity": {
+      "capabilities": {
+        "CapAmb": [],
+        "CapBnd": [],
+        "CapEff": [],
+        "CapInh": [],
+        "CapPrm": []
+      },
+      "cgroup": "<redacted>",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": true
+      },
+      "cwd": "<redacted>",
+      "euid": 65534,
+      "gid": 65534,
+      "hostname": "<redacted>",
+      "in_user_namespace": false,
+      "no_new_privs": 1,
+      "pid": 1,
+      "ptrace_scope": "1",
+      "seccomp_mode": 2,
+      "uid": 65534
+    },
+    "network": {
+      "any_egress": true,
+      "connect_refused_all": false,
+      "interfaces": [
+        "eth0",
+        "lo"
+      ],
+      "metadata_reachable": false,
+      "proxy": {
+        "configured": false
+      },
+      "proxy_env": [],
+      "socket_syscall_blocked": false,
+      "targets": [
+        {
+          "connect": true,
+          "host": "dns.google",
+          "ms": 34,
+          "name": "dns-google",
+          "port": 443,
+          "resolved": "8.8.4.4"
+        },
+        {
+          "connect": true,
+          "host": "pypi.org",
+          "ms": 42,
+          "name": "pypi",
+          "port": 443,
+          "resolved": "151.101.64.223"
+        },
+        {
+          "connect": true,
+          "host": "github.com",
+          "ms": 66,
+          "name": "github",
+          "port": 443,
+          "resolved": "140.82.114.4"
+        },
+        {
+          "connect": true,
+          "host": "1.1.1.1",
+          "ms": 23,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": false,
+          "connect_error": "TimeoutError",
+          "host": "169.254.169.254",
+          "ms": 2002,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "linux",
+    "probe_version": "0.4.0",
+    "process": {
+      "pid1_cmdline": "<redacted>",
+      "pid1_is_self": true,
+      "visible_pid_count": 1,
+      "visible_uids": [
+        65534
+      ]
+    },
+    "python": "3.12.14",
+    "resources": {
+      "cpu_max": "max 100000",
+      "memory_max": "536870912",
+      "pids_max": "256"
+    },
+    "secrets": {
+      "container_sockets": [],
+      "credential_files": [
+        {
+          "access_bits": false,
+          "is_dir": false,
+          "mode": "0o640",
+          "path": "/etc/shadow",
+          "read_error": "EACCES",
+          "readable": false,
+          "resolved_under_home": false,
+          "size": 474,
+          "via": "absolute"
+        }
+      ],
+      "env_secret_names": [],
+      "env_var_count": 7,
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": true,
+      "unix_control": {
+        "connected": true,
+        "stage": "connect",
+        "supported": true,
+        "where": "/tmp"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
+    },
+    "timestamp": 1793774321
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 0,
+      "high": 1,
+      "info": 0,
+      "low": 0,
+      "medium": 0
+    },
+    "finding_count": 1,
+    "findings": [
+      {
+        "category": "network",
+        "evidence": {
+          "reached": [
+            "dns-google",
+            "pypi",
+            "github",
+            "cloudflare-dns-ip"
+          ]
+        },
+        "id": "NET-001",
+        "owasp": [
+          "ASI02",
+          "ASI10"
+        ],
+        "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+        "severity": "high",
+        "title": "Unrestricted internet egress from the sandbox"
+      }
+    ],
+    "raw_score": 15,
+    "recommended_flags": [
+      "--network none"
+    ],
+    "score": 15
+  },
+  "target": {
+    "command": "docker run --rm -v '<agentsec probe>:/agentsec_probe.py:ro' --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --tmpfs /tmp --pids-limit 256 --memory 512m python:3.12-slim python3 /agentsec_probe.py",
+    "digest": "python@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9",
+    "engine": "docker",
+    "flags": [
+      "--read-only",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--user",
+      "65534:65534",
+      "--tmpfs",
+      "/tmp",
+      "--pids-limit",
+      "256",
+      "--memory",
+      "512m"
+    ],
+    "image": "python:3.12-slim",
+    "kind": "container",
+    "python": "python3"
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}
