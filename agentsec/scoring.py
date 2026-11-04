@@ -80,7 +80,8 @@ def _unix_refusal_detail(sec: dict, ev: dict) -> str:
 
 
 # Credential files a coding agent itself logs in with (see CREDENTIAL_PATHS in the probe).
-AGENT_CREDENTIALS = {"~/.claude/.credentials.json", "~/.codex/auth.json", "~/.gemini/oauth_creds.json"}
+AGENT_CREDENTIALS = {"~/.claude/.credentials.json", "~/.codex/auth.json", "~/.gemini/oauth_creds.json",
+                     "~/.gemini/antigravity-cli/antigravity-oauth-token"}
 # Persistence kinds: writing one runs code outside the sandbox later.
 RUNS_OUTSIDE = {"shell-startup", "ssh-login", "git-config", "git-hooks", "desktop-autostart", "home"}
 
