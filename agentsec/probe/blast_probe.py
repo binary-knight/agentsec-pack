@@ -41,7 +41,7 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.4.0"
+PROBE_VERSION = "0.5.0"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
 EGRESS_TARGETS = [
@@ -101,7 +101,13 @@ CREDENTIAL_PATHS = [
     #     "Codex caches login details locally in a plaintext file at ~/.codex/auth.json"
     #   github.com/google-gemini/gemini-cli packages/core/src/config/storage.ts
     #     OAUTH_FILE = 'oauth_creds.json' under the global .gemini directory
+    #   Antigravity CLI (agy): https://antigravity.google/docs/install/ says it keeps
+    #     tokens in the OS keyring; its changelog (v1.1.3, 2026-07-16) says it "bypasses
+    #     the keyring when no D-Bus session bus is present", and v1.4.7 that such tokens
+    #     go to "the CLI's private secrets file". agy 1.4.12 keeps that file at the path
+    #     below (observed on the measuring host, 2026-11-04; no doc names it).
     "~/.claude/.credentials.json", "~/.codex/auth.json", "~/.gemini/oauth_creds.json",
+    "~/.gemini/antigravity-cli/antigravity-oauth-token",
 ]
 # Container runtime sockets. A socket that answers is root on the host (or the
 # user's whole container estate, for a rootless engine).
@@ -131,15 +137,25 @@ PERSISTENCE_FILES = [
     #     project .codex/config.toml, loaded only for trusted projects)
     #   gemini-cli packages/core/src/config/storage.ts  (~/.gemini/settings.json,
     #     <workspace>/.gemini/settings.json)
+    #   https://antigravity.google/docs/settings?app=cli  (~/.gemini/antigravity-cli/settings.json)
+    #   https://antigravity.google/docs/sandbox?tab=cli and the hooks/MCP docs it links:
+    #     global ~/.gemini/config/hooks.json and mcp_config.json, workspace
+    #     <workspace>/.agents/hooks.json and mcp_config.json
     ("~/.claude/settings.json", "agent-config"), ("~/.codex/config.toml", "agent-config"),
     ("~/.gemini/settings.json", "agent-config"),
     ("./.claude/settings.json", "agent-config"), ("./.claude/settings.local.json", "agent-config"),
     ("./.mcp.json", "agent-config"), ("./.codex/config.toml", "agent-config"),
     ("./.gemini/settings.json", "agent-config"),
+    ("~/.gemini/antigravity-cli/settings.json", "agent-config"),
+    ("~/.gemini/config/hooks.json", "agent-config"), ("~/.gemini/config/mcp_config.json", "agent-config"),
+    ("./.agents/hooks.json", "agent-config"), ("./.agents/mcp_config.json", "agent-config"),
 ]
 # Directories where a NEW file runs outside the sandbox. Tested the same way as
 # WRITE_PROBE_DIRS: one zero-byte marker, created and removed at once.
-PERSISTENCE_DIRS = [("~", "home"), ("./.git/hooks", "git-hooks"), ("~/.config/autostart", "desktop-autostart")]
+PERSISTENCE_DIRS = [("~", "home"), ("./.git/hooks", "git-hooks"), ("~/.config/autostart", "desktop-autostart"),
+                    # Where an agent's hook and MCP files are created if they do not exist
+                    # yet (Antigravity, global and workspace; Codex also protects .agents).
+                    ("~/.gemini/config", "agent-config"), ("./.agents", "agent-config")]
 # Filesystems whose contents do not outlive the sandbox. A write there is not a
 # way out: a container's own /root/.bashrc lives on its overlay and dies with it.
 EPHEMERAL_FSTYPES = ("overlay", "tmpfs", "ramfs", "devtmpfs")

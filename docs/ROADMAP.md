@@ -48,7 +48,10 @@ measurement tool whose own tables are stale undermines the one thing it sells.
   from an agent sandbox.*
 - **Gemini CLI:** the probe already checks its credential and settings paths,
   but it is not installed here. *Needs the maintainer to install it and
-  approve its use.*
+  approve its use.* Google's Antigravity CLI, which is installed, was measured
+  instead on 2026-11-04. Its sandbox cannot start on stock Ubuntu, so only the
+  unsandboxed result is published. Measuring the sandbox itself needs a host
+  that allows unprivileged user namespaces.
 
 Any result that contradicts a vendor's documentation is raised with the
 vendor before or at the time it is published (SECURITY.md).

@@ -274,3 +274,11 @@ def test_a_proxy_demanding_auth_the_probe_withheld_stays_unmeasured_and_says_how
 def test_metadata_through_the_proxy_is_critical():
     f = {x.id: x for x in analyze(_proxied({"metadata.google.internal": 200}))}
     assert f["NET-002"].severity == "critical"
+
+
+def test_every_agent_credential_the_probe_looks_for_is_named_as_one():
+    """A login file added to the probe must also be called out as an agent's own credential."""
+    from agentsec.probe.blast_probe import CREDENTIAL_PATHS
+    from agentsec.scoring import AGENT_CREDENTIALS
+    agentish = {p for p in CREDENTIAL_PATHS if p.startswith(("~/.claude", "~/.codex", "~/.gemini"))}
+    assert agentish == AGENT_CREDENTIALS
