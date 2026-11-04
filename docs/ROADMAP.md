@@ -97,7 +97,10 @@ nothing.
 `not applicable on darwin` rather than a finding; the network, credential,
 socket and persistence checks, which are portable, run there; Seatbelt
 confinement is detected; and Claude Code and Codex are measured on a Mac.
-*Needs a Mac.*
+*Needs a Mac.* A GitHub-hosted macOS runner serves for most of it. The probe
+runs on macOS from probe 0.6.0 and CI tests it on `macos-latest`. What is
+left is the Seatbelt presets and the agents' macOS sandboxes, measured on a
+runner through `macos-measure.yml`.
 
 ### 7. Hosted agent sandboxes
 
