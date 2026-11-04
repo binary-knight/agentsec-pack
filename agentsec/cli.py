@@ -10,7 +10,10 @@
   agentsec matrix python:3.12-slim
   agentsec compare reports/*.json
 
-Exit codes: 0 ok, 1 error, 2 --max-score exceeded.
+  agentsec blast-radius docker myagent:tag --baseline reports/accepted.json
+  agentsec diff reports/accepted.json reports/latest.json
+
+Exit codes: 0 ok, 1 error, 2 --max-score exceeded or a regression against --baseline.
 """
 from __future__ import annotations
 
@@ -48,6 +51,26 @@ def _budget(score: int, max_score: int | None) -> int:
         return EXIT_OVER_BUDGET
     print(f"OK: score {score} within --max-score {max_score}")
     return 0
+
+
+def _against_baseline(env: dict, baseline_path: str | None) -> int:
+    """Exit 2 if this run is worse than the saved baseline in any way, whatever the score."""
+    if not baseline_path:
+        return 0
+    from . import baseline as bl
+    with open(baseline_path) as f:
+        base = json.load(f)
+    result = bl.compare(base, env)
+    out = sys.stderr if result["regressions"] else sys.stdout
+    print(bl.render(result, baseline_path), file=out)
+    return EXIT_OVER_BUDGET if result["regressions"] else 0
+
+
+def _gate(score: int, args: argparse.Namespace, env: dict) -> int:
+    """Both gates run, so one failing does not hide what the other would say."""
+    a = _budget(score, args.max_score)
+    b = _against_baseline(env, getattr(args, "baseline", None))
+    return a or b
 
 
 def cmd_presets(args: argparse.Namespace) -> int:
@@ -91,7 +114,7 @@ def cmd_blast(args: argparse.Namespace) -> int:
             print(f"  [{f['severity']:<8}] {f['id']} {f['title']}")
         if summary.get("recommended_flags"):
             print("  suggested: " + " ".join(summary["recommended_flags"]))
-    return _budget(summary["score"], args.max_score)
+    return _gate(summary["score"], args, env)
 
 
 def cmd_matrix(args: argparse.Namespace) -> int:
@@ -205,7 +228,14 @@ def cmd_score(args: argparse.Namespace) -> int:
     print(f"{args.label}: score {summary['score']}/100, {summary['finding_count']} findings -> {mp}")
     for f in summary["findings"]:
         print(f"  [{f['severity']:<8}] {f['id']} {f['title']}")
-    return _budget(summary["score"], args.max_score)
+    return _gate(summary["score"], args, env)
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Compare two saved reports. For CI that measures in one step and gates in another."""
+    with open(args.current) as f:
+        current = json.load(f)
+    return _against_baseline(current, args.baseline)
 
 
 def cmd_combine(args: argparse.Namespace) -> int:
@@ -326,6 +356,8 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--label")
     b.add_argument("--print-findings", action="store_true")
     b.add_argument("--max-score", type=int, help="exit 2 if the score exceeds this (CI gate)")
+    b.add_argument("--baseline", metavar="REPORT_JSON",
+                   help="exit 2 if anything is worse than this saved report: a new finding, a higher severity, wider evidence")
     b.add_argument("--redact", action="store_true", help="scrub hostname, working directory and secret-variable names before writing (for reports you intend to publish)")
     b.set_defaults(func=cmd_blast)
 
@@ -345,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
     sc.add_argument("--how", required=True, help="exactly how the probe was run, recorded in the report so a reader can repeat it")
     sc.add_argument("--out", default="reports")
     sc.add_argument("--max-score", type=int)
+    sc.add_argument("--baseline", metavar="REPORT_JSON",
+                    help="exit 2 if anything is worse than this saved report")
     sc.add_argument("--redact", action="store_true")
     sc.add_argument("--print-findings", action="store_true",
                     help="accepted for symmetry with blast-radius; score always prints its findings")
@@ -389,6 +423,11 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--timeout", type=int, default=runner.DEFAULT_TIMEOUT)
     a.add_argument("--out", help="write the result as JSON to this file")
     a.set_defaults(func=cmd_assert)
+
+    d = sub.add_parser("diff", help="exit 2 if a report is worse than a baseline report in any way")
+    d.add_argument("baseline", help="the accepted report JSON")
+    d.add_argument("current", help="the report JSON to check")
+    d.set_defaults(func=cmd_diff)
 
     c = sub.add_parser("compare", help="print scores side by side")
     c.add_argument("results", nargs="+")
