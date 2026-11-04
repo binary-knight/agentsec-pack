@@ -1,10 +1,10 @@
 # agentsec-pack
 
-Measures the **blast radius** of an AI agent's sandbox: what the agent could reach from inside the environment you run it in, if it were prompt-injected or simply wrong. Network, secrets, host filesystem, privileges, sibling processes. It answers a question a transcript cannot: not what the agent did, but what it *could* have done.
+Installed with `pip install agentsec-pack`, the `agentsec` command measures what an AI agent could reach from inside its sandbox across the network, secrets, the host filesystem, privileges and the other processes on the machine. The sandbox sets the limit on damage because a prompt-injected or mistaken agent can do whatever its sandbox allows. A transcript shows what the agent did, and this tool measures what the sandbox would have let it do.
 
-A small probe runs inside the sandbox and reports what it actually reached, separating **reachable** from **merely visible**: a refused connection is not a breach. A scorer turns that into findings and a 0–100 score, and gates turn the score into a CI check. It installs as `agentsec-pack` and runs as `agentsec`.
+A small standard-library Python probe inside the sandbox opens credential files, connects to hosts and sockets, writes zero-byte marker files, and reports secret names and paths without values. Refused connections count as contained, and a control test checks whether refusals apply to the entire system call or one path. A scorer turns results into findings with fixed weights and a score from 0 to 100, where 0 means the probe reached nothing. The `--max-score` flag fails a CI build above a budget, `--baseline` fails when anything got worse than an accepted report, and both exit with code 2.
 
-A second test class, verifier integrity (did the agent pass CI by editing the tests?), is on the [roadmap](docs/ROADMAP.md) and not built yet.
+A second test class, verifier integrity, will check whether an agent passed CI by editing the tests. It is listed in [`docs/ROADMAP.md`](docs/ROADMAP.md) and is not built yet.
 
 ## How to use this tool
 
@@ -12,10 +12,10 @@ A second test class, verifier integrity (did the agent pass CI by editing the te
 
 ```bash
 pip install agentsec-pack   # or, from a checkout: uv venv .venv && uv pip install -e '.[dev]'
-agentsec presets            # what this host can actually run, not just what is installed
+agentsec presets            # which configurations this host can run right now
 ```
 
-The loop is measure, harden, measure again. Never one measurement.
+Hardening an image takes at least two measurements, one of the image as it runs today and one after applying the flags the report recommends.
 
 ```bash
 # 1. what you run today
@@ -30,12 +30,9 @@ agentsec blast-radius docker myagent:latest --label hardened --print-findings --
 agentsec compare reports/*.json
 ```
 
-On a stock `python:3.12-slim` that reads 59, then 15. Adding `--network none`
-reaches 0, and an agent that cannot reach its model provider does not work, so
-**0 is not the target.** Aim for the lowest score your workload survives and
-record why each remaining finding is still open.
+The hardening flags drop a stock `python:3.12-slim` image from 59 on the initial measurement to 15 on the second run. Passing the `--network none` flag with those hardening options in the command reduces the measurement to a score of 0. An agent must connect to its model provider to function, so a working agent usually stays above a score of 0. You should work toward the lowest score that still lets the workload run and record why each remaining finding stays open.
 
-Two more things it does:
+Three more commands cover a full comparison, a browser view and the CI gate.
 
 ```bash
 agentsec matrix python:3.12-slim              # all eleven configurations, one table
@@ -43,14 +40,9 @@ agentsec ui --results reports/ --open         # the same results in a browser
 agentsec blast-radius preset docker-hardened --image myagent:latest --max-score 15
 ```
 
-The last one exits 2 when the sandbox is looser than the budget, which is the CI
-gate. Set the budget to what you measured after hardening so the build fails when
-it drifts, rather than picking a round number.
+Passing `--max-score 15` in that command establishes a CI gate by setting a budget on the measured sandbox score. Any scan whose total finishes above that budget causes `--max-score` to return exit code 2 to the build. Match that budget to the score you record after hardening the sandbox, so any later drift breaks the build.
 
-A budget only fails when the total crosses it, so drift underneath it goes
-through: a sandbox at 41 can lose its seccomp filter and gain a readable
-credential and still be under 45. `--baseline` fails on anything worse than a
-report you accepted, whatever the score:
+A round number chosen in advance gives a hardened sandbox room to drift before the score gate trips. Budget checks fail a run only once the total crosses that ceiling, so drift beneath the limit passes. For example, a sandbox scoring 26 against a budget of 45 might add a writable host mount under `FS-003` worth 8 points and drop `no_new_privs` under `PRIV-005` worth 3 points. Those two changes bring the measured total score to 37, so the run still passes the budget check. The `--baseline` commands below fail when a run gets worse at any score by comparing it against an earlier accepted report.
 
 ```bash
 agentsec blast-radius preset docker-hardened --image myagent:tag --label accepted   # once, then commit it
@@ -58,17 +50,9 @@ agentsec blast-radius preset docker-hardened --image myagent:tag --baseline repo
 agentsec diff reports/accepted.json reports/latest.json    # when measuring and gating are separate steps
 ```
 
-It exits 2 on a new finding, a higher severity, or wider evidence on an existing
-finding (one more readable credential, one more reachable host, one more writable
-path), and lists each. A finding that disappears is reported as fixed with a
-prompt to re-baseline, so the gate keeps what you gained. If the two runs used
-different probe versions it still fails, but says so: a new finding may be a new
-check rather than a looser sandbox. Take the baseline with the same `--redact`
-setting as the runs it gates.
+Both `--baseline` and `agentsec diff` exit with code 2 and list each finding that is new or rises in severity. The check also lists and fails on any existing finding whose evidence widens by one additional writable path, reachable host, or readable credential. Disappearing findings are marked as fixed alongside a prompt to record a fresh baseline, so the gate retains the improvement. New informational findings scored at 0 points appear as noted and let the check pass, unless the finding reports an unmeasured axis. Mismatched probe versions across the two runs make the tool report the difference and fail, because an added check can produce a new finding in an unchanged sandbox. Record the baseline with the same `--redact` setting that you use on the runs you compare against it.
 
-
-**In GitHub Actions**, the same gates are one step. The action installs agentsec
-from its own checkout, so the version you pin is the version that measures:
+GitHub Actions runs the same gate checks in one workflow step by installing `agentsec` from the action's own checkout, so the version pinned in the workflow is the version that measures.
 
 ```yaml
 - uses: binary-knight/agentsec-pack@v0.2.0     # the first release that ships the action
@@ -79,14 +63,9 @@ from its own checkout, so the version you pin is the version that measures:
     baseline: security/agentsec-accepted.json  # optional: fail on anything worse
 ```
 
-It fails the job with the same exit code as the CLI, writes the score to the job
-summary and to `steps.<id>.outputs.score`, and uploads the JSON, Markdown and HTML
-reports as an artifact, also when the gate fails. The inputs are listed in
-`action.yml`.
+The action fails the workflow job by returning the same exit code that `agentsec` produces on the command line. Every execution of the step records the measured score in the workflow job summary as well as in `steps.<id>.outputs.score`. Workflow runs upload the JSON, Markdown, and HTML report files as a workflow artifact including when a gate check fails. The inputs are listed in `action.yml`.
 
-**When the question is narrower than a finding list**, use `assert`. It asks
-whether a sandbox can reach specific paths, and answers pass or fail per path
-with no score at all:
+The `assert` command narrows the focus from a finding list to test whether a sandbox can reach specific paths. Each target path tested against the sandbox receives a pass or fail result from the command without a score.
 
 ```bash
 # can the graded child read the answer key it is being marked against?
@@ -95,50 +74,22 @@ agentsec assert --kind docker --image grader:latest \
   -- -v ./answers:/answers:ro
 ```
 
-Exits 2 on any violated expectation, so it drops into a harness or a build the
-same way `--max-score` does. It reports **absent** and **present, denied**
-separately, because those are different sandbox designs and only one of them
-survives someone adding a mount later.
+Any violated expectation causes the command to exit with code 2, so it works in builds or grading harnesses just like `--max-score`. Results from the command separate `absent` from `present, denied` into two distinct answers for every path it checks. An `absent` status means the sandbox lacks the target path, so that result continues to hold when someone adds a mount later. With `present, denied`, the path exists inside the sandbox under a rule that refuses it, so the result depends on that rule remaining in place.
 
-**Measuring an agent's own sandbox is different.** You can wrap a container from
-outside. You cannot wrap an agent's sandbox, because the agent is already inside
-it. Ask the agent to run `agentsec probe --label ... --how ...`, which measures
-and scores the sandbox that command runs in, in one step. `docs/CAPTURING.md`
-covers the details, including what to do when the package cannot be installed
-inside the sandbox and the result has to come back through a transcript.
+An agent's own sandbox cannot be measured from the outside by wrapping it the way a container can, because the agent is already running inside that sandbox when it executes commands. Ask the agent to run `agentsec probe --label ... --how ...`, which in one step measures and scores the sandbox where that command executes. The guide in `docs/CAPTURING.md` explains the details, such as what to do when the package cannot be installed inside the sandbox and the result has to come back through the agent's reply.
 
 ### By pointing an agent at this repository
 
-`AGENTS.md` is a brief written for an agent rather than a person. Clone the repo,
-point your agent at it, and say something like:
+To hand this repository to an agent, clone it, point the agent at `AGENTS.md`, a brief written for an agent, and give it a prompt like this one:
 
 > Read AGENTS.md in this repository and carry out Task A, then report what you
 > found. Do not change any host settings.
 
-Task A has the agent measure the sandbox it is itself running in, which is the
-measurement you cannot easily take yourself. Task B has it measure and harden an
-image you name. Task C adds the CI gate.
+Task A directs the agent to evaluate its own running sandbox, because a user cannot easily measure that environment on their own. When you name a target image, Task B instructs the agent to measure that image and harden it. In Task C, the agent adds the CI gate.
 
-**Read `AGENTS.md` yourself first.** It is under 100 lines, it contains no `sudo`, no
-network fetches beyond installing this package, and nothing that writes outside
-the working directory and a temp path. That matters more here than in most repos:
-pointing an agent at a file and letting it follow the instructions inside is
-exactly the pattern this tool exists to worry about. A repository is data, not
-authority, and the brief says so to the agent as well.
+You should review `AGENTS.md` before passing it over. The brief stays under 100 lines and runs without `sudo`. Network traffic in the brief stops at installing this package, while writes stay inside the working directory and a temp path. Having an agent execute instructions from a file is the pattern this tool addresses, so that brief instructs the agent to treat any repository as data with no authority. The agent returns a score and the sealing status across the five axes along with whether findings were proven reachable or only seen. Both `--label` and `--how` are mandatory flags, so any number reported without an account of its capture came from outside the tool.
 
-Expect the agent to come back with a score, which of the five axes are sealed,
-and, importantly, whether anything was proven **reachable** rather than merely
-visible. Those are different findings and the tool separates them. If your agent
-reports a number without saying how it captured it, the tool refused to produce
-that number and the agent made it up: `--label` and `--how` are required.
-
-Each run writes `reports/<label>.json` (machine-readable, schema_version 1) and
-`reports/<label>.md`. The JSON records the exact image and flags, so anyone can
-reproduce the number. Review a report before publishing it: it carries the
-sandbox's hostname, working directory and the *names* of secret-looking
-environment variables. Pass `--redact` to scrub those while leaving every score,
-finding and flag intact; the examples in this repo were generated that way.
-`reports/` is git-ignored; `examples/` holds the reports from the demos below.
+Every measurement run writes a machine-readable file to `reports/<label>.json` under `schema_version` 1 alongside a companion report at `reports/<label>.md`. That JSON output captures the specific image and flags from the run, so anyone can reproduce the resulting number. A generated report includes the sandbox hostname and working directory along with secret-looking environment variable names, so you should review it before publishing. Passing `--redact` strips those host and environment details while preserving every score and finding alongside the recorded flags. The reports in `examples/`, which this README cites, were made that way, and git ignores `reports/`.
 
 ## What it found
 
@@ -158,9 +109,9 @@ Eleven sandbox configurations, one image (`python:3.12-slim`), measured on one L
 | `docker-hardened` | **0** | none |
 | `podman-rootless-hardened` | **0** | none |
 
-The result worth arguing about is the top row. The lightweight "read-only host root" bubblewrap pattern scores **worse than a plain Docker container**, because a read-only root filesystem still hands the agent the host's container socket and every credential file in the home directory. Read-only is not containment. Scores for host-binding sandboxes depend on the host; container rows depend only on the image and flags.
+In the top row, `bwrap-ro-root`, the lightweight bubblewrap setup that mounts the host root read-only, scores 71, a wider blast radius than a plain `docker-default` container at 59. A read-only host root only blocks writes, so the agent can still read every home credential file and connect to the host's Docker socket, which gives it root on the host. Bubblewrap rows depend on what lives on the host, such as sockets and credentials in the home directory. Container rows depend only on the image and the flags, so they score the same on any host.
 
-**What moved since the first run, and why.** The container rows are identical to the probe 0.1.0 figures; probe 0.4.0 adds only an informational FS-010 to them, because their startup files are writable but live on the container's own overlay and die with it. The three bubblewrap rows that keep the environment each fell by exactly 15 (86 to 71, 71 to 56, 69 to 54): the first run was launched from a shell that had a secret-shaped variable exported, and SEC-002 scored it against the sandbox. The row that clears the environment (`bwrap-unshare-all-clearenv`) did not move. That is Trap 1 in `docs/CAPTURING.md` showing up in this project's own headline table, which is why these rows now record their launching environment.
+Since the first run, container rows keep the same scores under probe 0.4.0 that they had under probe 0.1.0. Probe 0.4.0 adds the informational `FS-010` finding at 0 points because writable startup files live on the container overlay and vanish on exit. The three bubblewrap rows that keep the environment each fell by 15, from 86 to 71, 71 to 56, and 69 to 54. The first run's shell exported a secret-shaped variable that those sandboxes inherited, so `SEC-002` scored it against them. Clearing the environment in `bwrap-unshare-all-clearenv` blocked that inherited variable, so its score stayed at 56 across both runs. This project's own table fell into Trap 1 of `docs/CAPTURING.md`, so those rows are now measured with `env -i` and record their launching environment.
 
 Reproduce: `agentsec matrix python:3.12-slim`. Full table in `examples/matrix_slim.md`.
 
@@ -177,7 +128,6 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 | the same two, launched from a developer shell | 41 / 49 | as above | as above, plus one secret-shaped environment variable the shell had already exported |
 | Aider 0.86.2, default (its only mode) | 100 | nothing | everything the invoking user can reach, including a connectable Docker socket |
 
-
 **Aider is the first open-source target here, and it ships no sandbox at all.** `aider --help` offers no sandbox, container or isolation option, and `aider/run_cmd.py:62` runs commands with `subprocess.Popen(shell=True)` on the host with the inherited environment. The probe was run through that exact call shape, so 100 is not an accusation: the project does not claim to contain anything, and the number simply says what you take on by running it. That is also the case for the hardening presets in this repository, which is the point of measuring it.
 
 **The launcher is part of the blast radius, so the environment is part of the measurement.** The sandbox inherits the shell it was started from. Launched from a shell with a token exported, both scores rise by 15 points for a secret that has nothing to do with Codex. The first two rows minimise the environment with `env -i` and are the intrinsic figures; the third row is the same sandbox started the way people actually start it. Shipping the pair is the point: a single number would have hidden which half you can fix by changing your own shell.
@@ -187,7 +137,6 @@ Measured on Ubuntu 24.04 with bubblewrap 0.9.0 present, 8-9 September 2026:
 **This is a design boundary, not a vulnerability, and the report says so.** The vendor documents read-only mode as "the agent can inspect files", so an agent reading your `gh` credentials file is the boundary working as written. The number is useful anyway: it says that on the write and network axes this sandbox is genuinely strong, and that what remains inside the blast radius is *read* access to whatever secrets live in the home directory of the user who launched it. That distinction matters because no filesystem or network sandbox can constrain what an agent does with what it has already read: whatever the agent can read can appear in the text it produces. This tool does not measure that path, and makes no claim about any particular product's handling of it.
 
 **Why the socket finding is only informational here.** Both Codex modes show `/var/run/docker.sock` in the filesystem and refuse every connection to it. Permission bits alone cannot tell you whether that refusal is a rule about those paths or a filter on the call itself, so the probe runs a control. It binds a unix socket it created itself and connects to it, and, where there is no writable directory, it connects to a path that does not exist: `PermissionError` instead of `FileNotFoundError` means the call was refused before the path was ever consulted. Under Codex both controls are refused, so the visible socket paths are inert and the report says that rather than guessing.
-
 
 **Which layer is doing the work.** Codex's sandbox is two layers, and the live process argv shows both: `bwrap --as-pid-1 --new-session --die-with-parent --ro-bind / / --dev /dev --unshare-user --unshare-pid --unshare-ipc --unshare-net --proc /proc --cap-drop ALL`, and then its own helper re-execs the command with `--apply-seccomp-then-exec` under a permission profile. The `codex-cli-0.153.4-bwrap-layer` preset reproduces the first layer only, so running it measures what the second one contributes:
 
@@ -232,14 +181,13 @@ The last row is new, and it is the one to read carefully. The vendor documents t
 
 Full reports with provenance: `examples/agents/`. Entries in `agentsec/data/measured_profiles.json` may only be added from an actual measurement, never from documentation, and each cites the vendor's own docs. Before publishing anything that contradicts a vendor's documentation, tell the vendor first.
 
-
 ## Seeing it
 
-Two commands, one page.
+Two commands render the same page.
 
 ```bash
 # a self-contained HTML file: keep it as a CI artifact, mail it, open it offline
-agentsec report reports/ --html blast-radius.html
+agentsec report reports/ --out blast-radius.html
 
 # a console on localhost, with the runs you have already saved loaded in
 agentsec ui --results reports/ --open
@@ -303,13 +251,13 @@ Read the probe before you run it somewhere you care about. It reports the names 
 
 ## Status
 
-What is built, and what is open. The prioritized plan, with what each item needs, is [`docs/ROADMAP.md`](docs/ROADMAP.md).
+The list below shows what is built and what is still open. [`docs/ROADMAP.md`](docs/ROADMAP.md) gives the prioritized plan and what each open item needs.
 
 - [x] blast-radius probe, runner (docker / podman / local / command template), scorer, JSON + Markdown reports
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
 - [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
 - [x] measured profiles of named agents' sandboxes, captured by running the probe inside them
-- [x] three agents (Claude Code, Codex CLI, Aider) measured across twelve configurations; a preset reproducing Codex's bubblewrap layer, with the seccomp gap measured rather than assumed
+- [x] three agents (Claude Code, Codex CLI, Aider) measured across twelve configurations, and a preset that reproduces Codex's bubblewrap layer to measure what its seccomp layer adds
 - [x] egress measured through a configured proxy, with an allowlist control host and opt-in proxy credentials (probe 0.4.0)
 - [x] agents' own login credentials, a forwarded SSH agent, rootless container sockets, and writes that persist outside the sandbox (probe 0.3.0)
 - [x] PyPI release workflow for `agentsec-pack` (trusted publishing, on a version tag)
@@ -317,15 +265,13 @@ What is built, and what is open. The prioritized plan, with what each item needs
 - [ ] more agents as they become installable here; presets only where the argv can be captured live
 - [ ] verifier-integrity test class
 - [x] browser front end: static HTML report and a localhost console, sharing one template
-- [x] a CI gate that fails on a regression against an accepted baseline, not just on an absolute score (`--baseline`, `agentsec diff`)
+- [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
 - [ ] history across runs
 
 ## Reporting a problem
 
-Security issues in this tool: `SECURITY.md`, which also states the rule this
-project holds itself to when it measures somebody else's software. Anything
-else: an issue. Working on it: `CONTRIBUTING.md`.
+Report a security issue in this tool through `SECURITY.md`, which also states the rule this project follows when it measures someone else's software. Open an issue for anything else, and read `CONTRIBUTING.md` before working on the code.
 
 ## License
 
-MIT.
+MIT, in `LICENSE`.
