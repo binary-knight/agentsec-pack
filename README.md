@@ -279,6 +279,8 @@ Read the probe before you run it somewhere you care about. It reports the names 
 
 ## Status
 
+What is built, and what is open. The prioritized plan, with what each item needs, is [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 - [x] blast-radius probe, runner (docker / podman / local / command template), scorer, JSON + Markdown reports
 - [x] ten launcher presets, `matrix` comparison table, `--max-score` CI gate, recommended-flag output, image digests
 - [x] promptfoo integration: containment assertion, `combine` report, OWASP category overlap
