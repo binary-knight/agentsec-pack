@@ -7,7 +7,7 @@ that is not the implementer's to make.
 The rule that governs every measurement item still applies: a number goes in
 only from a run that was actually made, and says how it was made.
 
-Last revised 2026-11-04, after 0.1.0.
+Last revised 2026-11-04, after 0.1.0. Item 8 added the same day.
 
 ## Now: toward 0.2.0
 
@@ -106,15 +106,50 @@ into: devcontainers, E2B, Modal, Daytona, Docker's own sandboxes. Each preset
 must say what it does not reproduce, and each recipe must come from a live
 run.
 
+### 8. A community benchmark from opt-in submissions
+
+**Why:** every number in this repository comes from one machine. Results that
+other people capture on their own hosts would show how agents and sandbox
+settings behave in practice, and the chart code in `agentsec chart` can already
+draw a leaderboard from them.
+
+**What it ranks:** agents, sandbox modes and settings, and hosts. Blast radius
+is a property of the sandbox, and every measured profile records that the model
+choice does not change it. Ranking models needs a behavioral test, such as how
+often a model is prompt-injected or tries to leave its sandbox, which belongs
+with the promptfoo integration and item 10.
+
+**Done when:**
+- `agentsec submit <report>` sends a result only when a person runs it. Nothing
+  is sent automatically, and the probe's rule that it never transmits what it
+  finds stays true.
+- The command prints the exact record before sending and asks for confirmation.
+  The record holds the agent and version, the sandbox mode and settings, the OS
+  family, the probe version, the axis states, the finding ids and the score. It
+  never holds a hostname, a path, a variable name or a mount point, because
+  those carry usernames and project names.
+- The first version needs no server. The command opens a pre-filled issue in a
+  public dataset repository, where every submission is visible and can be
+  moderated. A hosted endpoint waits until volume calls for one, along with the
+  privacy policy, abuse protection and hosting cost it brings.
+- Published figures are aggregates, and a configuration appears only after
+  enough independent submissions that no single one can be picked out of it.
+- Results reproduced by the maintainer or a known harness are shown apart from
+  community submissions, and every figure states how many runs it rests on, so
+  that one person cannot move a vendor's ranking with invented reports.
+
+*Needs the maintainer to decide on the dataset repository and its license, and
+on the threshold for publishing a configuration.*
+
 ## Later
 
-### 8. History across runs
+### 9. History across runs
 
 Score and findings per image or agent over time, so drift is visible before
 it crosses a gate. The `--baseline` gate covers the CI case; this is the
 trend view.
 
-### 9. Verifier integrity
+### 10. Verifier integrity
 
 The second test class from `docs/DESIGN.md`: did the agent pass CI by editing
 the tests, the fixtures or the grader? Run a verifier the agent never saw on
