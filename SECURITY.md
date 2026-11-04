@@ -78,27 +78,27 @@ you share it.
 
 ## What is switched on
 
-Enabled now:
+This repository is public. Checked against the repository's settings on
+2026-11-04:
 
+* **Private vulnerability reporting**, which the advisory link at the top of
+  this file depends on.
+* **Secret scanning and push protection.** GitHub scans the repository and its
+  history, and refuses a push that carries a recognised credential.
+* **CodeQL code scanning**, from `.github/workflows/codeql.yml`.
 * **Dependabot alerts** and **Dependabot security updates**, so a vulnerable
-  dependency raises a pull request.
-* **Dependabot version updates** for pip and for the GitHub Actions these
-  workflows pin.
-* **Secret scanning, dependency audit and a security lint in CI.** GitHub's own
-  secret scanning and code scanning require a public repository or a purchased
-  Advanced Security licence, and neither applies here yet, so the `security` job
-  runs the free equivalents on every push: `detect-secrets` against an audited
-  baseline, `pip-audit`, and `bandit` at high severity. The baseline holds five
-  audited false positives and is quoted in the file; anything new fails the
-  build.
+  dependency raises a pull request, and **Dependabot version updates** for pip
+  and for the GitHub Actions these workflows pin.
+* **Secret scanning, dependency audit and a security lint in CI**, kept beside
+  GitHub's own because they also run on forks and fail the build rather than
+  raise an alert: `detect-secrets` against an audited baseline, `pip-audit`,
+  and `bandit` at high severity. The baseline holds five audited false
+  positives, all planted test values, and is quoted in the file; anything new
+  fails the build.
 * **A leak check as its own job**, which walks every tracked file and fails on an
-  operator's home path. That has been needed twice.
+  operator's home path. That has been needed twice. It checks the current tree,
+  not history; history was searched by hand on 2026-11-04 and holds the
+  maintainer's username in a few scrubbed paths and no credentials.
 
-To switch on at the moment this repository becomes public, none of which can be
-enabled while it is private:
-
-1. **Secret scanning and push protection** (Settings, Code security).
-2. **Private vulnerability reporting**, which is what the advisory link at the
-   top of this file depends on.
-3. **CodeQL code scanning.** The workflow is already written and gated on
-   visibility, so it starts by itself; confirm the first run succeeded.
+Releases publish to PyPI from `.github/workflows/release.yml` through trusted
+publishing, with no stored token; `CONTRIBUTING.md` lists the setup.

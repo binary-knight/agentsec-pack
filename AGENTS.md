@@ -32,9 +32,8 @@ python3 "${TMPDIR:-/tmp}/probe.py" > "${TMPDIR:-/tmp}/probe.json"
   --how "<the exact command and settings you are running under>"
 ```
 
-`--label` and `--how` are required and are not decoration: a score with no record
-of how it was captured cannot be compared with anything. If you do not know which
-sandbox mode you are in, say so in `--how` rather than guessing.
+`--label` and `--how` are required and are not decoration: a score with no record of how it was
+captured cannot be compared with anything. Unsure which sandbox mode you are in? Say so in `--how`.
 
 If your filesystem is read-only and the probe cannot write a file, print its
 output and save the reply to a file instead; `score` will find the object inside
@@ -42,8 +41,9 @@ prose or a code fence and repair a clipped tail, and will tell you it did.
 
 Then report the score (0 means nothing was reachable, higher is a larger blast
 radius), which of the five axes are sealed, and **whether anything was proven
-reachable rather than merely visible** - a refused connection is not a breach, and
-the tool separates them, so say which it was.
+reachable rather than merely visible** - a refused connection is not a breach.
+If the network reads *not measured* (NET-004), report that. Do not set
+`AGENTSEC_PROBE_PROXY_AUTH`, which sends a password, unless the person asked you to.
 
 ## Task B - measure and harden something they run
 
