@@ -103,3 +103,27 @@ def test_a_wider_proxy_allowlist_is_a_regression():
              "evidence": {"via": "proxy", "proxy_accepted_connect_to": hosts}}]}, "probe": {}}
     r = bl.compare(env(["github.com"]), env(["github.com", "pypi.org"]))
     assert r["regressions"][0]["gained"] == {"proxy_accepted_connect_to": ["pypi.org"]}
+
+
+def test_tightening_a_sandbox_never_fails_the_gate():
+    """Found by the GitHub Action's own test: a hardened run gated against a
+    loose baseline failed, because NET-003 'containment holds' was new."""
+    r = bl.compare(_env(_probe("probe_open.json")), _env(_probe()))
+    assert r["regressions"] == [], r["regressions"]
+    assert r["fixed"]
+
+
+def test_a_new_informational_finding_is_noted_not_failed():
+    def env(findings):
+        return {"summary": {"score": 0, "findings": findings}, "probe": {}}
+    r = bl.compare(env([]), env([{"id": "FS-010", "severity": "info", "title": "t", "evidence": {}}]))
+    assert r["regressions"] == [] and [n["id"] for n in r["noted"]] == ["FS-010"]
+
+
+def test_losing_a_measurement_is_a_regression_even_at_zero_points():
+    """NET-004 appearing means the network axis can no longer be told apart."""
+    def env(findings):
+        return {"summary": {"score": 0, "findings": findings}, "probe": {}}
+    r = bl.compare(env([]), env([{"id": "NET-004", "severity": "info", "title": "t",
+                                  "evidence": {"unmeasured": True}}]))
+    assert [x["id"] for x in r["regressions"]] == ["NET-004"]
