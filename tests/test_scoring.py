@@ -302,3 +302,80 @@ def test_an_unknown_seatbelt_state_is_not_a_finding():
 def test_linux_still_reports_a_missing_seccomp_filter():
     assert "PRIV-004" in [f.id for f in analyze({"platform": "linux", "identity": {"seccomp_mode": 0}})]
     assert "PRIV-004" in [f.id for f in analyze({"identity": {"seccomp_mode": 0}})], "old reports had no platform key"
+
+
+# --- a proxy that gives no clear answer has not proven containment -------------
+
+def _answers(answers, canary):
+    """answers: {host: status int, or error string}. canary the same."""
+    def row(name, host, a):
+        r = {"name": name, "host": host, "port": 443}
+        r.update({"status": a} if isinstance(a, int) else {"status": None, "error": a})
+        return r
+    targets = [row("github", h, a) for h, a in answers.items()] + [row("canary-example.com", "example.com", canary)]
+    return _refused_network(proxy_env=["HTTPS_PROXY"],
+                            proxy={"configured": True, "measured": True, "source": "HTTPS_PROXY", "auth": "none",
+                                   "targets": targets})
+
+
+def _unsettled(probe):
+    f = {x.id: x for x in analyze(probe)}
+    assert "NET-003" not in f, "no clear answer must never read as containment"
+    assert f["NET-004"].evidence["unmeasured"] is True
+    assert "containment holds" not in (f["NET-004"].title + f["NET-004"].remediation).lower()
+    return f["NET-004"]
+
+
+def test_a_proxy_that_times_out_has_not_proven_containment():
+    n = _unsettled(_answers({"github.com": "TimeoutError", "pypi.org": "TimeoutError"}, "TimeoutError"))
+    assert {"host": "github.com", "answer": "TimeoutError"} in n.evidence["unsettled"]
+
+
+def test_a_proxy_that_cannot_be_reached_has_not_proven_containment():
+    _unsettled(_answers({"github.com": "ECONNREFUSED"}, "ECONNREFUSED"))
+
+
+def test_a_gateway_error_means_the_proxy_tried_and_is_not_a_refusal():
+    n = _unsettled(_answers({"github.com": 502, "pypi.org": 403}, 403))
+    assert n.evidence["unsettled"] == [{"host": "github.com", "answer": 502}]
+
+
+def test_one_unanswered_target_is_enough_to_withhold_containment():
+    _unsettled(_answers({"github.com": 403, "pypi.org": "TimeoutError"}, 403))
+
+
+def test_an_unanswered_control_withholds_containment():
+    n = _unsettled(_answers({"github.com": 403}, "TimeoutError"))
+    assert not n.evidence["control"].startswith("refused")
+
+
+def test_a_proxy_without_connect_support_has_not_refused_anything():
+    """405 says CONNECT is unsupported; the same proxy may still forward plain HTTP."""
+    _unsettled(_answers({"github.com": 405}, 405))
+
+
+def test_a_mix_of_407_and_403_is_not_reported_as_containment():
+    _unsettled(_answers({"github.com": 407, "pypi.org": 403}, 403))
+
+
+def test_every_target_and_the_control_refused_is_still_containment():
+    f = {x.id: x for x in analyze(_answers({"github.com": 403, "pypi.org": 403}, 403))}
+    assert "NET-003" in f and "NET-004" not in f
+    assert f["NET-003"].evidence["control"] == "refused (403)"
+
+
+def test_an_accepted_host_is_still_reported_when_the_control_has_no_answer():
+    """Proven reach stays a finding, but it must not claim the control was refused."""
+    f = {x.id: x for x in analyze(_answers({"github.com": 200}, "TimeoutError"))}
+    assert f["NET-005"].evidence["proxy_accepted_connect_to"] == ["github.com"]
+    assert not f["NET-005"].evidence["control"].startswith("refused")
+    assert "refused the control" not in f["NET-005"].remediation
+
+
+def test_targets_all_bypassing_the_proxy_rest_on_the_direct_result():
+    probe = _refused_network(proxy_env=["HTTPS_PROXY"], proxy={
+        "configured": True, "measured": True, "source": "HTTPS_PROXY", "auth": "none",
+        "targets": [{"name": "github", "host": "github.com", "port": 443, "bypassed": "NO_PROXY"}]})
+    f = {x.id: x for x in analyze(probe)}
+    assert "NET-003" in f
+    assert "proxy refused" not in f["NET-003"].evidence["detail"]

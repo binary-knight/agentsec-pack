@@ -93,7 +93,11 @@ The probe sees the proxy variables and asks the proxy for a tunnel to each fixed
 target and to `example.com`, a control no allowlist has a reason to contain, and
 records only the status codes.
 
-If the proxy wants a password, it answers 407 and the network axis reads **not
+The axis reads **contained** only when the proxy clearly refuses every destination it was
+asked about. A timeout, a failed connection or a gateway error reads **not measured**
+(NET-004), and the evidence lists which destinations got no clear answer.
+
+If the proxy wants a password, it answers 407 and the network axis also reads **not
 measured** (NET-004). The password is usually already in the proxy variable, and
 the probe will send it to that proxy, and nowhere else, only if you say so:
 
