@@ -1,8 +1,8 @@
 {
-  "generated_at": 1788885133,
+  "generated_at": 1793774321,
   "label": "bwrap_ro_root",
   "probe": {
-    "duration_ms": 2166,
+    "duration_ms": 2201,
     "filesystem": {
       "bind_mounts": [
         {
@@ -42,7 +42,130 @@
           "target": "/data"
         }
       ],
+      "cwd_writable": false,
       "host_root_visible": false,
+      "persistence": [
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bashrc",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bash_profile",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.profile",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EACCES",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.zshrc",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EACCES",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.zprofile",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "ssh-login",
+          "path": "~/.ssh/authorized_keys",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "git-config",
+          "path": "~/.gitconfig",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "~/.claude/settings.json",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "~/.codex/config.toml",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": true,
+          "kind": "home",
+          "path": "~",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": true,
+          "kind": "git-hooks",
+          "path": "./.git/hooks",
+          "via": "cwd",
+          "writable": false
+        },
+        {
+          "error": "EROFS",
+          "fstype": "ext4",
+          "host_backed": true,
+          "is_dir": true,
+          "kind": "desktop-autostart",
+          "path": "~/.config/autostart",
+          "via": "HOME",
+          "writable": false
+        }
+      ],
       "proc_sysrq_writable": false,
       "root_rw": false,
       "setuid_binaries": [
@@ -124,28 +247,52 @@
     },
     "network": {
       "any_egress": true,
+      "connect_refused_all": false,
       "interfaces": [
+        "br-0f95668e8358",
+        "br-1054ad81f644",
+        "br-1d083a00c55f",
+        "br-1dcdaa2fe119",
         "br-2b363bdd7f5f",
         "br-2b549af745cd",
+        "br-3e7b4090d1d9",
+        "br-3f0c3954109d",
+        "br-44589692f379",
+        "br-50944392508d",
         "br-5543b7c30767",
+        "br-558801f26b88",
+        "br-5b5acefd4cc0",
         "br-6571c3cc8aa8",
+        "br-70a3f3283426",
         "br-94f74f3c44e0",
+        "br-c6fdf4f42a00",
+        "br-cdca2d8d8349",
         "br-d89c352d3ff7",
+        "br-de0777159c28",
+        "br-e1e7e9848b23",
+        "br-e51bdafbf40d",
         "docker0",
         "enp47s0",
         "lo",
         "tailscale0",
+        "veth02faa2a",
+        "veth18a4759",
         "wlp49s0"
       ],
       "metadata_reachable": false,
+      "proxy": {
+        "configured": false
+      },
+      "proxy_env": [],
+      "socket_syscall_blocked": false,
       "targets": [
         {
           "connect": true,
           "host": "dns.google",
-          "ms": 27,
+          "ms": 19,
           "name": "dns-google",
           "port": 443,
-          "resolved": "8.8.8.8"
+          "resolved": "8.8.4.4"
         },
         {
           "connect": true,
@@ -158,15 +305,15 @@
         {
           "connect": true,
           "host": "github.com",
-          "ms": 53,
+          "ms": 58,
           "name": "github",
           "port": 443,
-          "resolved": "140.82.112.4"
+          "resolved": "140.82.114.3"
         },
         {
           "connect": true,
           "host": "1.1.1.1",
-          "ms": 20,
+          "ms": 27,
           "name": "cloudflare-dns-ip",
           "port": 53,
           "resolved": "1.1.1.1"
@@ -175,7 +322,7 @@
           "connect": false,
           "connect_error": "TimeoutError",
           "host": "169.254.169.254",
-          "ms": 2002,
+          "ms": 2001,
           "name": "cloud-metadata-169.254.169.254",
           "port": 80,
           "resolved": "169.254.169.254"
@@ -192,7 +339,7 @@
       ]
     },
     "platform": "linux",
-    "probe_version": "0.1.0",
+    "probe_version": "0.4.0",
     "process": {
       "pid1_cmdline": "<redacted>",
       "pid1_is_self": false,
@@ -207,65 +354,108 @@
       "container_sockets": [
         {
           "connected": true,
+          "is_socket": true,
+          "kind": "container",
           "path": "/var/run/docker.sock",
-          "writable": true
-        },
-        {
-          "connected": true,
-          "path": "/run/docker.sock",
+          "via": "absolute",
           "writable": true
         },
         {
           "connect_error": "PermissionError",
           "connected": false,
+          "is_socket": true,
+          "kind": "container",
           "path": "/run/containerd/containerd.sock",
+          "via": "absolute",
           "writable": false
         }
       ],
       "credential_files": [
         {
+          "access_bits": true,
           "is_dir": false,
           "mode": "0o600",
           "path": "~/.ssh/config",
           "readable": true,
           "resolved_under_home": true,
-          "size": 81
+          "size": 81,
+          "via": "HOME"
         },
         {
+          "access_bits": true,
           "is_dir": false,
           "mode": "0o664",
           "path": "~/.gitconfig",
           "readable": true,
           "resolved_under_home": true,
-          "size": 3102
+          "size": 3102,
+          "via": "HOME"
         },
         {
+          "access_bits": true,
           "is_dir": false,
           "mode": "0o600",
           "path": "~/.config/gh/hosts.yml",
           "readable": true,
           "resolved_under_home": true,
-          "size": 218
+          "size": 218,
+          "via": "HOME"
         },
         {
+          "access_bits": false,
           "is_dir": false,
           "mode": "0o640",
           "path": "/etc/shadow",
+          "read_error": "EACCES",
           "readable": false,
           "resolved_under_home": false,
-          "size": 1255
-        }
-      ],
-      "env_secret_names": [
+          "size": 1255,
+          "via": "absolute"
+        },
         {
-          "length": 32,
-          "name": "<redacted>"
+          "access_bits": true,
+          "is_dir": false,
+          "mode": "0o600",
+          "path": "~/.claude/.credentials.json",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 1855,
+          "via": "HOME"
+        },
+        {
+          "access_bits": true,
+          "is_dir": false,
+          "mode": "0o600",
+          "path": "~/.codex/auth.json",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 3940,
+          "via": "HOME"
         }
       ],
-      "env_var_count": 43,
-      "pid1_environ_readable": true
+      "env_secret_names": [],
+      "env_var_count": 7,
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": true,
+      "unix_control": {
+        "connected": true,
+        "stage": "connect",
+        "supported": true,
+        "where": "/tmp"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
     },
-    "timestamp": 1788885131
+    "timestamp": 1793774318
   },
   "probe_stderr": "",
   "rc": 0,
@@ -273,12 +463,12 @@
   "summary": {
     "by_severity": {
       "critical": 1,
-      "high": 3,
+      "high": 2,
       "info": 0,
       "low": 0,
       "medium": 2
     },
-    "finding_count": 6,
+    "finding_count": 5,
     "findings": [
       {
         "category": "network",
@@ -316,17 +506,20 @@
         "category": "secrets",
         "evidence": {
           "connected": [
-            "/var/run/docker.sock",
-            "/run/docker.sock"
+            "/var/run/docker.sock"
           ],
           "paths": [
             "/var/run/docker.sock",
-            "/run/docker.sock",
             "/run/containerd/containerd.sock"
           ],
+          "refused": [
+            {
+              "error": "PermissionError",
+              "path": "/run/containerd/containerd.sock"
+            }
+          ],
           "writable": [
-            "/var/run/docker.sock",
-            "/run/docker.sock"
+            "/var/run/docker.sock"
           ]
         },
         "id": "SEC-001",
@@ -335,42 +528,36 @@
           "ASI05",
           "ASI10"
         ],
-        "remediation": "Never expose the Docker/containerd/podman socket to an agent sandbox: a writable socket is root on the host, and a read-only root filesystem does not take it away.",
+        "remediation": "Never expose the Docker/containerd/podman socket to an agent sandbox: a socket that answers is root on the host, and a read-only root filesystem does not take it away.",
         "severity": "critical",
         "title": "Container runtime socket reachable from the sandbox"
       },
       {
         "category": "secrets",
         "evidence": {
-          "names": [
-            "<redacted>"
-          ]
-        },
-        "id": "SEC-002",
-        "owasp": [
-          "ASI03",
-          "ASI02"
-        ],
-        "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
-        "severity": "high",
-        "title": "Secret-looking environment variables visible to the agent"
-      },
-      {
-        "category": "secrets",
-        "evidence": {
-          "paths": [
+          "agent_credentials": [
+            "~/.claude/.credentials.json",
+            "~/.codex/auth.json"
+          ],
+          "probed": 6,
+          "readable_of_those_probed": [
             "~/.ssh/config",
             "~/.gitconfig",
-            "~/.config/gh/hosts.yml"
+            "~/.config/gh/hosts.yml",
+            "~/.claude/.credentials.json",
+            "~/.codex/auth.json"
+          ],
+          "via": [
+            "HOME"
           ]
         },
         "id": "SEC-003",
         "owasp": [
           "ASI03"
         ],
-        "remediation": "Do not mount home-directory credentials into the sandbox.",
+        "remediation": "Do not mount home-directory credentials into the sandbox. Among them is a coding agent's own login credential. A sandboxed command that can open it can put the token in its output, and from there in a transcript or a commit; the agent process needs it, the commands it runs do not.",
         "severity": "high",
-        "title": "Credential files readable from the sandbox"
+        "title": "Credential files readable among those probed"
       },
       {
         "category": "secrets",
@@ -384,16 +571,15 @@
         "title": "PID 1 environment readable (host or supervisor secrets exposed)"
       }
     ],
-    "raw_score": 86,
+    "raw_score": 71,
     "recommended_flags": [
       "--network none",
       "(do not disable the engine's default seccomp profile)",
       "(remove the container socket mount)",
-      "(inject secrets through a broker, not the environment)",
       "(remove the credential mount)",
       "(own PID namespace: avoid --pid=host)"
     ],
-    "score": 86
+    "score": 71
   },
   "target": {
     "command": "bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-pid --die-with-parent python3 <agentsec probe>",
