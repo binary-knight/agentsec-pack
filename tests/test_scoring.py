@@ -154,3 +154,77 @@ def test_a_refused_socket_call_still_proves_containment_with_a_proxy_set():
 def test_a_probe_from_before_proxy_detection_scores_as_it_did():
     ids = [f.id for f in analyze(_refused_network())]
     assert "NET-003" in ids and "NET-004" not in ids
+
+
+# --- probe 0.3.0 findings ----------------------------------------------------
+
+def _sec(**secrets):
+    base = {"unix_control": {"supported": True, "connected": True, "stage": "connect"}}
+    base.update(secrets)
+    return {"secrets": base}
+
+
+def test_a_reachable_ssh_agent_is_high_and_never_mistaken_for_a_container_socket():
+    f = {x.id: x for x in analyze(_sec(container_sockets=[
+        {"path": "$SSH_AUTH_SOCK", "kind": "ssh-agent", "is_socket": True, "connected": True}]))}
+    assert f["SEC-007"].severity == "high"
+    assert "SEC-001" not in f and "SEC-006" not in f
+
+
+def test_a_refused_ssh_agent_is_low_and_explains_the_refusal():
+    f = {x.id: x for x in analyze(_sec(container_sockets=[
+        {"path": "$SSH_AUTH_SOCK", "kind": "ssh-agent", "is_socket": True, "connected": False,
+         "connect_error": "PermissionError"}]))}
+    assert f["SEC-008"].severity == "low" and "path-scoped" in f["SEC-008"].remediation
+
+
+def test_a_masked_socket_path_is_not_a_socket_finding():
+    ids = [x.id for x in analyze(_sec(container_sockets=[
+        {"path": "/var/run/docker.sock", "kind": "container", "is_socket": False, "masked": True, "connected": False}]))]
+    assert not {"SEC-001", "SEC-006"} & set(ids)
+
+
+def test_masked_credentials_are_not_counted_and_agent_credentials_are_named():
+    f = {x.id: x for x in analyze(_sec(credential_files=[
+        {"path": "~/.ssh/id_ed25519", "masked": True, "readable": False, "via": "HOME"},
+        {"path": "~/.claude/.credentials.json", "readable": True, "via": "HOME"}]))}
+    ev = f["SEC-003"].evidence
+    assert ev["readable_of_those_probed"] == ["~/.claude/.credentials.json"]
+    assert ev["agent_credentials"] == ["~/.claude/.credentials.json"]
+
+
+def _fs(*entries):
+    return {"filesystem": {"persistence": list(entries)}}
+
+
+def test_writable_startup_files_on_the_host_are_a_way_out():
+    f = {x.id: x for x in analyze(_fs({"path": "~/.bashrc", "kind": "shell-startup", "writable": True,
+                                        "host_backed": True, "fstype": "ext4"}))}
+    assert f["FS-008"].severity == "high"
+    assert f["FS-008"].evidence["writable"][0]["fstype"] == "ext4", "the fstype is what makes the call checkable"
+
+
+def test_a_writable_agent_config_is_its_own_finding():
+    f = {x.id: x for x in analyze(_fs({"path": "./.claude/settings.json", "kind": "agent-config", "writable": True,
+                                        "host_backed": True, "fstype": "ext4"}))}
+    assert f["FS-009"].severity == "high" and "FS-008" not in f
+
+
+def test_container_local_writes_are_informational_and_score_nothing():
+    probe = _fs({"path": "~/.bashrc", "kind": "shell-startup", "writable": True, "host_backed": False, "fstype": "overlay"})
+    f = {x.id: x for x in analyze(probe)}
+    assert "FS-008" not in f and f["FS-010"].severity == "info"
+    assert score(analyze(probe)) == score(analyze(_fs()))
+
+
+def test_an_unresolved_mount_counts_rather_than_hides_a_write():
+    ids = [x.id for x in analyze(_fs({"path": "~/.bashrc", "kind": "shell-startup", "writable": True,
+                                      "host_backed": None, "fstype": None}))]
+    assert "FS-008" in ids
+
+
+def test_masked_or_refused_persistence_paths_are_not_findings():
+    ids = [x.id for x in analyze(_fs(
+        {"path": "./.mcp.json", "kind": "agent-config", "writable": True, "masked": True, "host_backed": False},
+        {"path": "~/.bashrc", "kind": "shell-startup", "writable": False, "error": "EROFS", "host_backed": True}))]
+    assert not {"FS-008", "FS-009", "FS-010"} & set(ids)

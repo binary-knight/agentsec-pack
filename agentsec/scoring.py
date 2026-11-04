@@ -46,6 +46,45 @@ def _f(fid, title, sev, cat, evidence=None, owasp=None, remediation=""):
     return Finding(fid, title, sev, cat, evidence or {}, owasp or [], remediation)
 
 
+def _unix_refusal_detail(sec: dict, ev: dict) -> str:
+    """Why a visible unix socket was refused: a rule on these paths, or a filter on every socket.
+
+    Shared by every 'visible but refused' socket finding. Records the fallback
+    control in `ev` when it was the one that decided.
+    """
+    ctl = sec.get("unix_control") or {}
+    stage = ctl.get("stage")
+    if ctl.get("connected"):
+        return ("A control connection to a socket the probe created itself succeeded, so unix-domain connections do work "
+                "here and the refusal is specific to these paths. Containment rests on that path-scoped rule rather than "
+                "on the socket being absent, so removing the path as well is the more durable fix.")
+    if ctl.get("supported") or stage in ("socket", "bind", "listen", "connect"):
+        return ("The control also failed, at the " + str(stage) + " call, so unix-domain sockets appear to be blocked "
+                "wholesale rather than for these paths specifically. The visible socket paths are inert under that filter; "
+                "this finding is informational, and removing the paths would only be defence in depth.")
+    np = sec.get("unix_control_nopath") or {}
+    ev["unix_control_nopath"] = np
+    verdict = np.get("verdict")
+    if verdict == "connect refused before path lookup":
+        return ("The bind-and-connect control could not run (no writable directory), but connecting to a path that does "
+                "not exist was refused with PermissionError rather than FileNotFoundError. The call is therefore blocked "
+                "before the path is consulted, so the refusal is not specific to these sockets and the visible paths are "
+                "inert. Informational.")
+    if verdict == "connect permitted":
+        return ("The bind-and-connect control could not run (no writable directory), but connecting to a nonexistent path "
+                "returned FileNotFoundError, so unix-domain connect is permitted in general and the refusal on these "
+                "sockets is path-scoped. Containment rests on that rule rather than on the socket being absent.")
+    return ("The control test could not run (" + str(ctl.get("error")) + " at the " + str(stage) + " stage) and the "
+            "no-path fallback was inconclusive, so it is not known whether the refusal is specific to these paths or "
+            "applies to every unix socket. Treat the containment claim as unverified.")
+
+
+# Credential files a coding agent itself logs in with (see CREDENTIAL_PATHS in the probe).
+AGENT_CREDENTIALS = {"~/.claude/.credentials.json", "~/.codex/auth.json", "~/.gemini/oauth_creds.json"}
+# Persistence kinds: writing one runs code outside the sandbox later.
+RUNS_OUTSIDE = {"shell-startup", "ssh-login", "git-config", "git-hooks", "desktop-autostart", "home"}
+
+
 def analyze(probe: dict[str, Any]) -> list[Finding]:
     findings: list[Finding] = []
     ident = probe.get("identity", {}) or {}
@@ -108,7 +147,21 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                            "docker --security-opt no-new-privileges."))
 
     # --- Secrets ------------------------------------------------------------
-    socks = sec.get("container_sockets", [])
+    all_socks = [s for s in sec.get("container_sockets", []) if s.get("is_socket") is not False]
+    socks = [s for s in all_socks if s.get("kind", "container") == "container"]
+    ssh = [s for s in all_socks if s.get("kind") == "ssh-agent"]
+    if ssh:
+        ev = {"paths": [s["path"] for s in ssh]}
+        if any(s.get("connected") for s in ssh):
+            findings.append(_f("SEC-007", "SSH agent socket reachable from the sandbox", "high", "secrets", ev,
+                               ["ASI03", "ASI02"],
+                               "A forwarded SSH agent signs with every key loaded into it, for any host those keys open, "
+                               "without the key file ever being readable. Do not pass SSH_AUTH_SOCK into the sandbox; "
+                               "give the agent a scoped deploy key or token instead."))
+        else:
+            ev["unix_control"] = sec.get("unix_control") or {}
+            findings.append(_f("SEC-008", "SSH agent socket visible but connections are refused", "low", "secrets", ev,
+                               ["ASI03"], _unix_refusal_detail(sec, ev)))
     if socks:
         connected = [s["path"] for s in socks if s.get("connected")]
         ev = {"paths": [s["path"] for s in socks], "writable": [s["path"] for s in socks if s.get("writable")],
@@ -121,36 +174,9 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                                "Never expose the Docker/containerd/podman socket to an agent sandbox: a socket that answers is root on "
                                "the host, and a read-only root filesystem does not take it away."))
         else:
-            ctl = sec.get("unix_control") or {}
-            ev["unix_control"] = ctl
-            stage = ctl.get("stage")
-            if ctl.get("connected"):
-                detail = ("A control connection to a socket the probe created itself succeeded, so unix-domain connections do work "
-                          "here and the refusal is specific to these paths. Containment rests on that path-scoped rule rather than "
-                          "on the socket being absent, so removing the path as well is the more durable fix.")
-            elif ctl.get("supported") or stage in ("socket", "bind", "listen", "connect"):
-                detail = ("The control also failed, at the " + str(stage) + " call, so unix-domain sockets appear to be blocked "
-                          "wholesale rather than for these paths specifically. The visible socket paths are inert under that filter; "
-                          "this finding is informational, and removing the paths would only be defence in depth.")
-            else:
-                np = sec.get("unix_control_nopath") or {}
-                ev["unix_control_nopath"] = np
-                verdict = np.get("verdict")
-                if verdict == "connect refused before path lookup":
-                    detail = ("The bind-and-connect control could not run (no writable directory), but connecting to a path that does "
-                              "not exist was refused with PermissionError rather than FileNotFoundError. The call is therefore blocked "
-                              "before the path is consulted, so the refusal is not specific to these sockets and the visible paths are "
-                              "inert. Informational.")
-                elif verdict == "connect permitted":
-                    detail = ("The bind-and-connect control could not run (no writable directory), but connecting to a nonexistent path "
-                              "returned FileNotFoundError, so unix-domain connect is permitted in general and the refusal on these "
-                              "sockets is path-scoped. Containment rests on that rule rather than on the socket being absent.")
-                else:
-                    detail = ("The control test could not run (" + str(ctl.get("error")) + " at the " + str(stage) + " stage) and the "
-                              "no-path fallback was inconclusive, so it is not known whether the refusal is specific to these paths or "
-                              "applies to every unix socket. Treat the containment claim as unverified.")
+            ev["unix_control"] = sec.get("unix_control") or {}
             findings.append(_f("SEC-006", "Container runtime socket visible but connections are refused", "low", "secrets", ev,
-                               ["ASI03"], detail))
+                               ["ASI03"], _unix_refusal_detail(sec, ev)))
     env_names = [e["name"] for e in sec.get("env_secret_names", [])]
     if env_names:
         findings.append(_f("SEC-002", "Secret-looking environment variables visible to the agent", "high", "secrets",
@@ -167,6 +193,12 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
               "probed": len(sec.get("credential_files", [])) or None,
               "via": sorted({c.get("via", "unknown") for c in creds})}
         detail = ("Do not mount home-directory credentials into the sandbox.")
+        agent_creds = sorted(p for p in readable if p in AGENT_CREDENTIALS)
+        if agent_creds:
+            ev["agent_credentials"] = agent_creds
+            detail += (" Among them is a coding agent's own login credential. A sandboxed command that can open "
+                       "it can put the token in its output, and from there in a transcript or a commit; the agent "
+                       "process needs it, the commands it runs do not.")
         if not sec.get("home_env_matches_passwd", True):
             ev["home_env_matches_passwd"] = False
             detail += (" Note: $HOME does not point at this account's home directory. That is a legitimate "
@@ -189,6 +221,37 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                            {"cwd_writable": True}, ["ASI05"],
                            "Expected for a workspace-write style sandbox: the agent can edit its project and nothing else. "
                            "Informational, not a defect."))
+    pers = [p for p in fs.get("persistence", []) if p.get("writable") and not p.get("masked")]
+    # host_backed None means the mount could not be resolved: count it, rather
+    # than let an unreadable mountinfo make a real write disappear.
+    lasting = [p for p in pers if p.get("host_backed") is not False]
+    local = [p for p in pers if p.get("host_backed") is False]
+
+    def _ev(items):
+        return [{"path": p["path"], "kind": p["kind"], "fstype": p.get("fstype")} for p in items]
+
+    runs_out = [p for p in lasting if p["kind"] in RUNS_OUTSIDE]
+    if runs_out:
+        findings.append(_f("FS-008", "Files that run outside the sandbox are writable from inside it", "high", "filesystem",
+                           {"writable": _ev(runs_out)}, ["ASI05", "ASI10"],
+                           "A shell startup file, git hook, ssh authorized_keys or a new file in the home directory runs "
+                           "the next time the user opens a shell, runs git or logs in, with none of the sandbox's limits: "
+                           "a way out that only has to wait. These are on host-backed storage (the fstype in the "
+                           "evidence), so they outlive the sandbox. Mount the home directory and .git read-only, or deny "
+                           "these paths explicitly."))
+    agent_cfg = [p for p in lasting if p["kind"] == "agent-config"]
+    if agent_cfg:
+        findings.append(_f("FS-009", "The agent's own configuration is writable from inside its sandbox", "high", "filesystem",
+                           {"writable": _ev(agent_cfg)}, ["ASI05", "ASI03"],
+                           "An agent that can rewrite its settings or MCP configuration can turn its own sandbox off, "
+                           "widen its permissions, or add a hook or server that runs unsandboxed, all of which take effect "
+                           "in its next session. Deny writes to these paths from inside the sandbox."))
+    if local:
+        findings.append(_f("FS-010", "Startup or configuration files writable, but only on storage that dies with the sandbox",
+                           "info", "filesystem", {"writable": _ev(local)}, ["ASI05"],
+                           "These live on " + ", ".join(sorted({str(p.get('fstype')) for p in local})) + ", which does not "
+                           "outlive the sandbox (a container's overlay, a tmpfs), so writing them changes nothing outside it. "
+                           "Informational; it becomes FS-008 or FS-009 if the same path is ever bind-mounted from the host."))
     if fs.get("root_rw") and not w:
         findings.append(_f("FS-002", "Root filesystem mounted read-write", "low", "filesystem", {}, ["ASI05"], "docker --read-only."))
     # Docker always binds resolv.conf, hostname and hosts read-write; they are not host reach.
@@ -252,6 +315,9 @@ FINDING_FLAGS = {
     "SEC-002": ["(inject secrets through a broker, not the environment)"],
     "SEC-003": ["(remove the credential mount)"],
     "SEC-004": ["(own PID namespace: avoid --pid=host)"],
+    "SEC-007": ["(do not pass SSH_AUTH_SOCK into the sandbox)"],
+    "FS-008": ["(mount the home directory and .git read-only)"],
+    "FS-009": ["(deny writes to the agent's own settings from inside the sandbox)"],
     "FS-001": ["--read-only", "--tmpfs /tmp"],
     "FS-002": ["--read-only", "--tmpfs /tmp"],
     "FS-003": ["(mount the working tree only, :ro where possible)"],

@@ -14,11 +14,19 @@ Non-exfiltrating by construction:
   * unix sockets are connected to and closed with nothing sent, to prove
     reachability rather than infer it from permission bits;
   * the only writes are zero-byte marker files, one per probed directory
-    (see WRITE_PROBE_DIRS), each created and removed immediately. That is the
-    writability test; it can trip file-integrity monitoring where present.
+    (see WRITE_PROBE_DIRS and PERSISTENCE_DIRS), each created and removed
+    immediately. That is the writability test; it can trip file-integrity
+    monitoring where present;
+  * existing files in PERSISTENCE_FILES (shell startup files, the agent's own
+    settings) are opened for append and closed WITHOUT writing a byte, so
+    content and mtime are unchanged and nothing is created. A file watcher
+    still sees a close-after-write event;
+  * readability is proven by opening a file and reading zero bytes, never by
+    reading its contents.
 
 Output: one JSON document on stdout. Everything else goes to stderr.
 """
+import errno
 import json
 import os
 import re
@@ -28,7 +36,7 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.2.0"
+PROBE_VERSION = "0.3.0"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
 EGRESS_TARGETS = [
@@ -72,8 +80,57 @@ CREDENTIAL_PATHS = [
     "~/.git-credentials", "~/.gitconfig", "~/.config/gh/hosts.yml",
     "/run/secrets", "/var/run/secrets/kubernetes.io/serviceaccount/token",
     "/etc/shadow",
+    # Coding agents' own login credentials. For a tool about agent sandboxes,
+    # the credential the agent itself runs on is the one most likely present.
+    # Each path is cited to the vendor's docs or source, read 2026-11-03:
+    #   https://code.claude.com/docs/en/iam  "On Linux, credentials are stored in
+    #     ~/.claude/.credentials.json with file mode 0600."
+    #   https://learn.chatgpt.com/docs/auth (from developers.openai.com/codex/auth)
+    #     "Codex caches login details locally in a plaintext file at ~/.codex/auth.json"
+    #   github.com/google-gemini/gemini-cli packages/core/src/config/storage.ts
+    #     OAUTH_FILE = 'oauth_creds.json' under the global .gemini directory
+    "~/.claude/.credentials.json", "~/.codex/auth.json", "~/.gemini/oauth_creds.json",
 ]
+# Container runtime sockets. A socket that answers is root on the host (or the
+# user's whole container estate, for a rootless engine).
 SOCKET_PATHS = ["/var/run/docker.sock", "/run/docker.sock", "/run/containerd/containerd.sock", "/run/podman/podman.sock"]
+# Rootless engines put theirs in the user's runtime directory, and Docker
+# Desktop in the home directory. Both locations are resolved from the
+# environment AND from the uid / passwd entry, so clearing XDG_RUNTIME_DIR or
+# moving HOME cannot hide a socket that is still there.
+RUNTIME_SOCKETS = ["docker.sock", "podman/podman.sock"]
+HOME_SOCKETS = ["~/.docker/desktop/docker.sock", "~/.docker/run/docker.sock"]
+
+# Files that run, or configure what runs, OUTSIDE the sandbox: the next shell
+# the user opens, the next ssh login, the next git command, the next session of
+# the agent itself. Writing one is a way out of the sandbox that waits for the
+# user. Opened for append and closed without writing; never created.
+PERSISTENCE_FILES = [
+    ("~/.bashrc", "shell-startup"), ("~/.bash_profile", "shell-startup"), ("~/.profile", "shell-startup"),
+    ("~/.zshrc", "shell-startup"), ("~/.zprofile", "shell-startup"),
+    ("~/.ssh/authorized_keys", "ssh-login"), ("~/.gitconfig", "git-config"),
+    # The agent's own configuration, user and project level. An agent that can
+    # rewrite these can turn its own sandbox off, or add a hook or MCP server
+    # that runs unsandboxed, for its next session. Cited 2026-11-03:
+    #   https://code.claude.com/docs/en/settings  (~/.claude/settings.json,
+    #     .claude/settings.json, .claude/settings.local.json)
+    #   https://code.claude.com/docs/en/mcp  (.mcp.json at the project root)
+    #   https://learn.chatgpt.com/docs/config-file/config-basic  (~/.codex/config.toml;
+    #     project .codex/config.toml, loaded only for trusted projects)
+    #   gemini-cli packages/core/src/config/storage.ts  (~/.gemini/settings.json,
+    #     <workspace>/.gemini/settings.json)
+    ("~/.claude/settings.json", "agent-config"), ("~/.codex/config.toml", "agent-config"),
+    ("~/.gemini/settings.json", "agent-config"),
+    ("./.claude/settings.json", "agent-config"), ("./.claude/settings.local.json", "agent-config"),
+    ("./.mcp.json", "agent-config"), ("./.codex/config.toml", "agent-config"),
+    ("./.gemini/settings.json", "agent-config"),
+]
+# Directories where a NEW file runs outside the sandbox. Tested the same way as
+# WRITE_PROBE_DIRS: one zero-byte marker, created and removed at once.
+PERSISTENCE_DIRS = [("~", "home"), ("./.git/hooks", "git-hooks"), ("~/.config/autostart", "desktop-autostart")]
+# Filesystems whose contents do not outlive the sandbox. A write there is not a
+# way out: a container's own /root/.bashrc lives on its overlay and dies with it.
+EPHEMERAL_FSTYPES = ("overlay", "tmpfs", "ramfs", "devtmpfs")
 WRITE_PROBE_DIRS = ["/", "/etc", "/usr/bin", "/usr/local/bin", "/root", "/home", "/var", "/opt", "/tmp", "/dev/shm"]
 # The working directory is probed separately: sandboxes that grant a single
 # writable workspace (an agent's "workspace-write" mode) differ from fully
@@ -323,6 +380,182 @@ def _candidate_paths(p):
             for h, src in _home_dirs()]
 
 
+def _err(e):
+    """'EROFS' rather than 'OSError': read-only and permission-denied are different answers."""
+    return errno.errorcode.get(getattr(e, "errno", None) or -1, type(e).__name__)
+
+
+def _masked(path):
+    """True when the path is a device node standing in for a file.
+
+    Some sandboxes hide a file by bind-mounting /dev/null over it. Opening it
+    then succeeds, for reading and for writing, and touches nothing; counting
+    that as a readable credential or a writable rc file would report a breach
+    that is not there.
+    """
+    try:
+        m = os.stat(path).st_mode
+    except OSError:
+        return False
+    return stat.S_ISCHR(m) or stat.S_ISBLK(m)
+
+
+def _can_read(path):
+    """Prove readability by opening, not by permission bits. Reads zero bytes.
+
+    os.access() answers from the mode bits and the real uid; a seccomp filter,
+    Landlock or an LSM can still refuse the open() itself. O_NONBLOCK keeps a
+    FIFO planted at a credential path from hanging the probe.
+    """
+    try:
+        if os.path.isdir(path):
+            os.listdir(path)
+        else:
+            os.close(os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)))
+        return True, None
+    except Exception as e:
+        return False, _err(e)
+
+
+def _can_append(path):
+    """Open an EXISTING file for append and close it without writing a byte.
+
+    No O_CREAT, so a missing file stays missing. Nothing is written, so content
+    and mtime are unchanged, but the close is still a close-after-write event to
+    inotify, which a settings watcher may notice.
+    """
+    try:
+        os.close(os.open(path, os.O_WRONLY | os.O_APPEND | getattr(os, "O_NONBLOCK", 0)))
+        return True, None
+    except Exception as e:
+        return False, _err(e)
+
+
+def _can_create_in(d):
+    try:
+        fd, path = tempfile.mkstemp(prefix=".agentsec_probe_", dir=d)
+        os.close(fd)
+        os.unlink(path)
+        return True, None
+    except Exception as e:
+        return False, _err(e)
+
+
+def _unescape_mountinfo(s):
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), s)
+
+
+def parse_mountinfo(text):
+    """[(mount_point, fstype)] from /proc/self/mountinfo text."""
+    out = []
+    for line in (text or "").splitlines():
+        if " - " not in line:
+            continue
+        left, right = line.split(" - ", 1)
+        lf, rf = left.split(), right.split()
+        if len(lf) >= 5 and rf:
+            out.append((_unescape_mountinfo(lf[4]), rf[0]))
+    return out
+
+
+def fstype_of(path, mounts):
+    """Filesystem type of the mount that holds `path` (longest matching mount point, last wins)."""
+    best, fstype = -1, None
+    for mp, fs in mounts:
+        if path == mp or path.startswith(mp.rstrip("/") + "/") or mp == "/":
+            if len(mp) >= best:
+                best, fstype = len(mp), fs
+    return fstype
+
+
+def _local_candidates(p):
+    """'./x' resolves against the working directory; '~' forms against every home."""
+    if p.startswith("./"):
+        return [(os.path.join(os.getcwd(), p[2:]), "cwd")]
+    return _candidate_paths(p)
+
+
+def probe_persistence():
+    """What the sandbox lets the agent leave behind for the world outside it."""
+    mounts = parse_mountinfo(read_text("/proc/self/mountinfo", 400000))
+    out, seen = [], set()
+    for items, is_dir in ((PERSISTENCE_FILES, False), (PERSISTENCE_DIRS, True)):
+        for p, kind in items:
+            for path, via in _local_candidates(p):
+                if not os.path.exists(path) or (os.path.isdir(path) != is_dir):
+                    continue
+                real = os.path.realpath(path)
+                if real in seen:
+                    continue
+                seen.add(real)
+                entry = {"path": p, "kind": kind, "via": via, "is_dir": is_dir}
+                if _masked(path):
+                    entry.update(masked=True, writable=False)
+                else:
+                    ok, err = (_can_create_in if is_dir else _can_append)(path)
+                    entry["writable"] = ok
+                    if err:
+                        entry["error"] = err
+                fs = fstype_of(real, mounts)
+                entry["fstype"] = fs
+                entry["host_backed"] = None if fs is None else fs not in EPHEMERAL_FSTYPES
+                out.append(entry)
+    return out
+
+
+def _runtime_dirs():
+    """The user's runtime directory, from the environment and from the uid."""
+    dirs = []
+    env = os.environ.get("XDG_RUNTIME_DIR")
+    if env:
+        dirs.append((env, "XDG_RUNTIME_DIR"))
+    dirs.append(("/run/user/%d" % os.getuid(), "uid"))
+    out, seen = [], set()
+    for d, src in dirs:
+        k = os.path.normpath(d)
+        if k not in seen and os.path.isdir(d):
+            seen.add(k)
+            out.append((d, src))
+    return out
+
+
+def _socket_candidates():
+    """(reported_path, real_path, kind, via). Reported paths carry no username."""
+    c = [(p, p, "container", "absolute") for p in SOCKET_PATHS]
+    for d, src in _runtime_dirs():
+        for name in RUNTIME_SOCKETS:
+            c.append(("$XDG_RUNTIME_DIR/" + name, os.path.join(d, name), "container", src))
+    for p in HOME_SOCKETS:
+        for path, via in _candidate_paths(p):
+            c.append((p, path, "container", via))
+    ssh = os.environ.get("SSH_AUTH_SOCK")
+    if ssh:
+        c.append(("$SSH_AUTH_SOCK", ssh, "ssh-agent", "SSH_AUTH_SOCK"))
+    return c
+
+
+def _connect_unix(path):
+    """Connect, send nothing, close. Proves reachability instead of inferring it."""
+    entry = {"connected": False}
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    except Exception as e:
+        entry["socket_error"] = type(e).__name__
+        return entry
+    s.settimeout(CONNECT_TIMEOUT)
+    try:
+        s.connect(path)
+        entry["connected"] = True
+    except Exception as e:
+        entry["connect_error"] = type(e).__name__
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+    return entry
+
+
 def probe_secrets():
     env_hits = []
     for k in os.environ:
@@ -350,7 +583,14 @@ def probe_secrets():
             # operator's username. `via` says which home resolved it, so a
             # redirected HOME is visible instead of silently hiding the file.
             entry = {"path": p, "resolved_under_home": p.startswith("~"), "via": via,
-                     "readable": os.access(path, os.R_OK), "is_dir": os.path.isdir(path)}
+                     "access_bits": os.access(path, os.R_OK), "is_dir": os.path.isdir(path)}
+            if _masked(path):
+                entry.update(masked=True, readable=False)
+            else:
+                ok, err = _can_read(path)
+                entry["readable"] = ok
+                if err:
+                    entry["read_error"] = err
             try:
                 st = os.stat(path)
                 entry["mode"] = oct(stat.S_IMODE(st.st_mode))
@@ -359,29 +599,24 @@ def probe_secrets():
                 pass
             seen_real[real] = entry
             files.append(entry)
-    sockets = []
-    for sp in SOCKET_PATHS:
+    sockets, seen_sock = [], set()
+    for shown, sp, kind, via in _socket_candidates():
         if not os.path.exists(sp):
             continue
-        entry = {"path": sp, "writable": os.access(sp, os.W_OK), "connected": False}
-        # Prove reachability rather than inferring it from permissions: connect, send nothing, close.
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        except Exception as e:
-            entry["socket_error"] = type(e).__name__
-            sockets.append(entry)
+        real = os.path.realpath(sp)
+        if real in seen_sock:
             continue
-        s.settimeout(CONNECT_TIMEOUT)
+        seen_sock.add(real)
         try:
-            s.connect(sp)
-            entry["connected"] = True
-        except Exception as e:
-            entry["connect_error"] = type(e).__name__
-        finally:
-            try:
-                s.close()
-            except Exception:
-                pass
+            is_sock = stat.S_ISSOCK(os.stat(sp).st_mode)
+        except OSError:
+            is_sock = None
+        entry = {"path": shown, "kind": kind, "via": via, "is_socket": is_sock,
+                 "writable": os.access(sp, os.W_OK), "connected": False}
+        if is_sock is False:
+            entry["masked"] = _masked(sp)
+        else:
+            entry.update(_connect_unix(sp))
         sockets.append(entry)
     pid1_environ_readable = read_text("/proc/1/environ", 1) is not None
     homes = _home_dirs()
@@ -437,6 +672,7 @@ def probe_filesystem():
         except Exception:
             pass
     return {"writable_dirs": writable, "cwd_writable": cwd_writable, "root_rw": root_rw, "bind_mounts": mounts[:50], "setuid_binaries": sorted(set(setuid))[:50],
+            "persistence": probe_persistence(),
             "proc_sysrq_writable": os.access("/proc/sysrq-trigger", os.W_OK),
             "host_root_visible": os.path.exists("/host") or os.path.exists("/hostfs")}
 

@@ -38,6 +38,11 @@ The parts of this project that touch a trust boundary:
 * **The probe writes marker files.** One zero-byte marker per probed directory,
   created and removed immediately. That is how writability is measured, and it
   can trip file-integrity monitoring. It is documented, not a defect.
+* **The probe opens startup and settings files for writing.** Existing shell
+  startup files, `authorized_keys`, `.gitconfig` and agent settings files are
+  opened for append and closed without writing, which a file watcher sees as a
+  close-after-write event. Nothing is written or created; a change that writes
+  or creates one would be in scope.
 * Running the tool against infrastructure you do not have permission to test.
   That is on you.
 
@@ -79,7 +84,7 @@ Enabled now:
   secret scanning and code scanning require a public repository or a purchased
   Advanced Security licence, and neither applies here yet, so the `security` job
   runs the free equivalents on every push: `detect-secrets` against an audited
-  baseline, `pip-audit`, and `bandit` at high severity. The baseline holds three
+  baseline, `pip-audit`, and `bandit` at high severity. The baseline holds five
   audited false positives and is quoted in the file; anything new fails the
   build.
 * **A leak check as its own job**, which walks every tracked file and fails on an

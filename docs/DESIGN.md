@@ -15,7 +15,7 @@ A finding nobody can reproduce is not a finding. Every result envelope records t
 
 ## Non-exfiltration rule
 
-The probe reports presence and names, never values; connects only to a fixed host list; writes only zero-byte marker files, one per probed directory, removed at once. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
+The probe reports presence and names, never values, and proves readability by opening and reading zero bytes; connects only to a fixed host list; writes only zero-byte marker files, one per probed directory, removed at once. Existing persistence files (shell startup files, `authorized_keys`, `.gitconfig`, the agent's own settings) are opened for append without `O_CREAT` and closed without writing, so nothing is created and nothing changes. Any change to the probe that touches these rules needs a test that asserts the rule still holds.
 
 ## Scoring
 
