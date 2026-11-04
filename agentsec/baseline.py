@@ -29,7 +29,7 @@ from .scoring import SEVERITY_WEIGHT
 # these can widen a finding; bookkeeping lists (which home resolved a path, the
 # error a refusal returned) changing is not the sandbox getting looser.
 REACH_KEYS = {"reached", "readable_of_those_probed", "agent_credentials", "names", "connected",
-              "paths", "writable", "mounts", "capabilities"}
+              "paths", "writable", "mounts", "capabilities", "proxy_accepted_connect_to"}
 
 
 def _key(v: Any) -> str:

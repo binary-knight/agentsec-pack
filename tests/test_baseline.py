@@ -92,3 +92,14 @@ def test_score_with_a_baseline_gates_the_captured_run(tmp_path):
     rc = main(["score", str(probe_file), "--label", "x", "--how", "test", "--out", str(tmp_path / "r"),
                "--baseline", str(base)])
     assert rc == 2
+
+
+def test_a_wider_proxy_allowlist_is_a_regression():
+    """NET-005 keeps its id when the proxy starts accepting another host; the
+    accepted hosts are reach, so the gate must count them."""
+    def env(hosts):
+        return {"summary": {"score": 49, "findings": [
+            {"id": "NET-005", "severity": "medium", "title": "Egress through the proxy is allowlisted",
+             "evidence": {"via": "proxy", "proxy_accepted_connect_to": hosts}}]}, "probe": {}}
+    r = bl.compare(env(["github.com"]), env(["github.com", "pypi.org"]))
+    assert r["regressions"][0]["gained"] == {"proxy_accepted_connect_to": ["pypi.org"]}
