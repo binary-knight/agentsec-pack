@@ -1,11 +1,11 @@
-# agentsec-pack (working name)
+# agentsec-pack
 
 Adversarial tests for AI agent deployments, built to answer two questions a CI owner cannot see from a transcript:
 
 1. **Sandbox blast radius** — what can the agent reach from inside the environment you run it in? Network, secrets, host filesystem, privileges, sibling processes.
 2. **Verifier integrity** (planned) — did the agent do the task, or did it edit the tests, the fixtures or the grader?
 
-This repository is at the first milestone: the blast-radius probe, a runner, a scorer and reports. `agentsec-pack` is a placeholder name.
+This repository is at the first milestone: the blast-radius probe, a runner, a scorer and reports. It installs as `agentsec-pack` and runs as `agentsec`.
 
 ## How to use this tool
 
