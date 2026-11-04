@@ -2,7 +2,7 @@
   "_meta": {
     "description": "Named sandbox configurations to measure. Every preset shipped here was executed on a Linux host on 2026-09-08 and produced a probe result; none is transcribed from documentation. Presets named after a third-party agent's sandbox must cite that agent's source in `source` and are not shipped until its code has been read.",
     "schema": "kind=container needs engine+flags; kind=command needs template containing {probe}",
-    "verified_on": "2026-09-08, Ubuntu 24.04, docker 29.7.2, podman rootless, bubblewrap 0.9.0"
+    "verified_on": "2026-09-08, Ubuntu 24.04, docker 29.7.2, podman rootless, bubblewrap 0.9.0; the seatbelt-* presets on a GitHub-hosted macos-latest runner, macOS 26.6.2, 2026-11-04"
   },
   "presets": {
     "bwrap-ro-root": {
@@ -115,6 +115,24 @@
       "kind": "container",
       "rationale": "The hardened flag set under rootless podman, for teams that cannot give the agent a docker socket at all.",
       "source": "composed; verified 2026-09-08"
+    },
+    "seatbelt-allow-default": {
+      "kind": "command",
+      "rationale": "A Seatbelt profile that allows everything. The process counts as sandboxed, so PRIV-006 does not fire, while every other axis is as open as no sandbox at all. It shows what the presence of a profile is worth on its own, which is nothing beyond that one finding.",
+      "source": "macOS Seatbelt via /usr/bin/sandbox-exec; run on a GitHub-hosted macos-latest runner (macOS 26.6.2), 2026-11-04",
+      "template": "sandbox-exec -p '(version 1)(allow default)' python3 {probe}"
+    },
+    "seatbelt-deny-network": {
+      "kind": "command",
+      "rationale": "Allow everything except networking, the one-line profile people reach for first. network* covers unix-domain sockets as well as IP, so it also cuts off a forwarded SSH agent and the Docker socket. Reads and writes stay as open as the user's own.",
+      "source": "macOS Seatbelt via /usr/bin/sandbox-exec; run on a GitHub-hosted macos-latest runner (macOS 26.6.2), 2026-11-04",
+      "template": "sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 {probe}"
+    },
+    "seatbelt-confined": {
+      "kind": "command",
+      "rationale": "No network, writes only to the temporary directories, and no reads of the common credential locations in the home directory. A hand-written profile for comparison with the agents' own: it is a configuration, and no agent is claimed to use it.",
+      "source": "macOS Seatbelt via /usr/bin/sandbox-exec; run on a GitHub-hosted macos-latest runner (macOS 26.6.2), 2026-11-04",
+      "template": "sandbox-exec -p '(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (subpath \"/private/tmp\") (subpath \"/private/var/folders\") (literal \"/dev/null\") (literal \"/dev/tty\"))(deny file-read* (regex #\"^/Users/[^/]+/[.](ssh|aws|gnupg|docker|kube|netrc|git-credentials|gitconfig|claude|codex|gemini)\") (regex #\"^/Users/[^/]+/[.]config/gh\"))' python3 {probe}"
     }
   }
 }
