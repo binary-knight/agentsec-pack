@@ -5,7 +5,8 @@ misses drift under the number: a sandbox at 41 can lose its seccomp filter and
 gain a readable credential and still be under a budget of 45. A baseline gate
 fails on any change for the worse, whatever the total:
 
-  * a finding that is new;
+  * a finding that is new, unless it is informational (0 points) and does not
+    record that an axis went unmeasured;
   * a finding whose severity rose;
   * a finding whose evidence widened: one more readable credential, one more
     reachable host, one more writable path.
@@ -66,8 +67,16 @@ def compare(baseline: dict, current: dict) -> dict[str, Any]:
     old = {f["id"]: f for f in baseline["summary"]["findings"]}
     new = {f["id"]: f for f in current["summary"]["findings"]}
     regressions, fixed = [], []
+    noted = []
     for fid, f in new.items():
         if fid not in old:
+            # An informational finding that appears is not the sandbox getting
+            # looser (NET-003 "containment holds" appears when a sandbox is
+            # tightened), unless it records that an axis could no longer be
+            # measured: losing a measurement hides any change behind it.
+            if SEVERITY_WEIGHT[f["severity"]] == 0 and not (f.get("evidence") or {}).get("unmeasured"):
+                noted.append({"id": fid, "severity": f["severity"], "title": f["title"]})
+                continue
             regressions.append({"id": fid, "kind": "new", "severity": f["severity"], "title": f["title"]})
             continue
         was = old[fid]
@@ -83,7 +92,7 @@ def compare(baseline: dict, current: dict) -> dict[str, Any]:
     redacted = [((e.get("probe") or {}).get("identity") or {}).get("hostname") == "<redacted>" for e in (baseline, current)]
     pv_old = (baseline.get("probe") or {}).get("probe_version")
     pv_new = (current.get("probe") or {}).get("probe_version")
-    return {"regressions": regressions, "fixed": fixed,
+    return {"regressions": regressions, "fixed": fixed, "noted": noted,
             "score": {"baseline": baseline["summary"]["score"], "current": current["summary"]["score"]},
             "probe_versions": {"baseline": pv_old, "current": pv_new},
             "instrument_changed": pv_old != pv_new,
@@ -102,6 +111,8 @@ def render(result: dict[str, Any], baseline_label: str = "baseline") -> str:
         else:
             gained = "; ".join(f"{k} + {', '.join(_key(x) for x in v)}" for k, v in r["gained"].items())
             lines.append(f"  REGRESSION widened        {r['id']} {r['title']}: {gained}")
+    for f in result.get("noted", []):
+        lines.append(f"  noted (informational)     {f['id']} {f['title']}")
     for f in result["fixed"]:
         lines.append(f"  fixed                     {f['id']} [{f['severity']}] {f['title']}")
     if result["fixed"] and not result["regressions"]:

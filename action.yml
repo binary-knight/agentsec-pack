@@ -1,0 +1,125 @@
+name: agentsec blast radius
+description: Measure what a sandboxed container lets an AI agent reach, and fail the job if it is looser than your budget or your baseline.
+author: binary-knight
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  image:
+    description: Image to measure, e.g. myagent:latest. It must contain python3.
+    required: true
+  preset:
+    description: >-
+      A shipped container preset (see `agentsec presets`), e.g. docker-hardened.
+      Leave empty to run the image with `flags` instead.
+    required: false
+    default: ""
+  engine:
+    description: docker or podman, when `preset` is empty.
+    required: false
+    default: docker
+  flags:
+    description: >-
+      Container flags when `preset` is empty, exactly as you would pass them to
+      `docker run`, e.g. "--read-only --cap-drop ALL --network none".
+    required: false
+    default: ""
+  max-score:
+    description: Fail if the score exceeds this. Set it to what you measured after hardening.
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      Path to an accepted report JSON in your repository. Fail on anything worse
+      than it: a new finding, a higher severity, wider evidence.
+    required: false
+    default: ""
+  label:
+    description: Name for the report files.
+    required: false
+    default: agentsec
+  redact:
+    description: Scrub hostname, working directory and secret-variable names from the report (true/false).
+    required: false
+    default: "true"
+  out:
+    description: Directory for the JSON, Markdown and HTML reports.
+    required: false
+    default: agentsec-reports
+  upload:
+    description: Upload the reports as a workflow artifact (true/false), also when the gate fails.
+    required: false
+    default: "true"
+
+outputs:
+  score:
+    description: The blast-radius score, 0 to 100.
+    value: ${{ steps.measure.outputs.score }}
+  report:
+    description: Path to the JSON report.
+    value: ${{ steps.measure.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    # Install agentsec from this action's own checkout, so the version of the
+    # action you pin is exactly the version of the tool that measures.
+    - name: Install agentsec
+      shell: bash
+      run: python -m pip install --quiet "${GITHUB_ACTION_PATH}"
+
+    - name: Measure
+      id: measure
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        PRESET: ${{ inputs.preset }}
+        ENGINE: ${{ inputs.engine }}
+        FLAGS: ${{ inputs.flags }}
+        MAX_SCORE: ${{ inputs.max-score }}
+        BASELINE: ${{ inputs.baseline }}
+        LABEL: ${{ inputs.label }}
+        REDACT: ${{ inputs.redact }}
+        OUT: ${{ inputs.out }}
+      run: |
+        # Inputs arrive as environment variables, never interpolated into the
+        # script, so an input cannot inject shell.
+        args=(--label "$LABEL" --out "$OUT" --print-findings)
+        [ "$REDACT" = "true" ] && args+=(--redact)
+        [ -n "$MAX_SCORE" ] && args+=(--max-score "$MAX_SCORE")
+        [ -n "$BASELINE" ] && args+=(--baseline "$BASELINE")
+        if [ -n "$PRESET" ]; then
+          cmd=(agentsec blast-radius preset "$PRESET" --image "$IMAGE" "${args[@]}")
+        else
+          read -r -a flag_words <<< "$FLAGS"
+          cmd=(agentsec blast-radius "$ENGINE" "$IMAGE" "${args[@]}" -- "${flag_words[@]}")
+        fi
+        set +e
+        "${cmd[@]}"
+        rc=$?
+        set -e
+        report="$OUT/$LABEL.json"
+        if [ -f "$report" ]; then
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "score=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["summary"]["score"])' "$report")" >> "$GITHUB_OUTPUT"
+          agentsec report "$report" --out "$OUT/$LABEL.html" >/dev/null
+          {
+            echo "### agentsec blast radius: $LABEL"
+            echo
+            sed -n '3,4p' "$OUT/$LABEL.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit $rc
+
+    - name: Upload reports
+      if: always() && inputs.upload == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.label }}
+        path: ${{ inputs.out }}
+        if-no-files-found: ignore

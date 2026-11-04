@@ -70,3 +70,53 @@ jobs:
 
       - name: Python security lint
         run: bandit -r agentsec --severity-level high
+
+  action:
+    # The GitHub Action in action.yml, used the way a consumer would use it.
+    # It must pass a hardened container, fail a loose one, and not fail a run
+    # that is strictly better than its baseline.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: A hardened container passes a budget of 0
+        id: hardened
+        uses: ./
+        with:
+          image: python:3.12-slim
+          preset: docker-hardened
+          max-score: "0"
+          label: hardened
+
+      - name: A default container fails a budget of 10
+        id: loose
+        continue-on-error: true
+        uses: ./
+        with:
+          image: python:3.12-slim
+          preset: docker-default
+          max-score: "10"
+          label: loose
+
+      - name: Flags instead of a preset, gated on the loose run as baseline
+        id: flags
+        uses: ./
+        with:
+          image: python:3.12-slim
+          flags: --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 --tmpfs /tmp
+          baseline: agentsec-reports/loose.json
+          label: flags
+
+      - name: The outcomes and outputs are what they should be
+        env:
+          HARDENED: ${{ steps.hardened.outputs.score }}
+          LOOSE_OUTCOME: ${{ steps.loose.outcome }}
+          LOOSE: ${{ steps.loose.outputs.score }}
+          FLAGS: ${{ steps.flags.outputs.score }}
+        run: |
+          set -x
+          [ "$HARDENED" = "0" ]
+          [ "$LOOSE_OUTCOME" = "failure" ]
+          [ -n "$LOOSE" ] && [ "$LOOSE" -gt 10 ]
+          [ -n "$FLAGS" ] && [ "$FLAGS" -lt "$LOOSE" ]
+          test -s agentsec-reports/hardened.html
