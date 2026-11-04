@@ -32,3 +32,26 @@ caught the old behaviour.
 
 Front-end changes: the page loads nothing from the network, and a test enforces
 it. Keep it that way.
+
+## Releasing
+
+`agentsec-pack` publishes to PyPI from `.github/workflows/release.yml`, on a
+pushed `v*` tag only, using trusted publishing: no PyPI token is stored
+anywhere.
+
+Once, before the first release:
+
+1. On PyPI, add a **pending trusted publisher** (Account settings, Publishing):
+   project `agentsec-pack`, owner `binary-knight`, repository `agentsec-pack`,
+   workflow `release.yml`, environment `pypi`.
+2. On GitHub, create the environment `pypi` (Settings, Environments) and add
+   yourself as a required reviewer, so a pushed tag waits for approval.
+
+Each release:
+
+1. Set `version` in `pyproject.toml`; the workflow refuses a tag that does not
+   match it.
+2. Merge that to `main`, then tag it: `git tag v0.1.0 && git push origin v0.1.0`.
+3. The build job builds the sdist and wheel, runs `twine check`, installs the
+   wheel into a clean environment and uses it (`presets`, a local probe run,
+   an HTML report). Approve the `pypi` environment to publish.

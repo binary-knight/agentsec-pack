@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentsec-pack"
 version = "0.0.1"
-description = "Adversarial tests for AI agents: does the agent's sandbox contain it, and did the agent do the task without cheating? (working name)"
+description = "Measure what an AI agent's sandbox lets it reach: network, secrets, host filesystem, privileges and processes, from inside the sandbox."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -24,7 +24,7 @@ security = ["detect-secrets>=1.5", "pip-audit>=2.7", "bandit>=1.7"]
 include = ["agentsec*"]
 
 [tool.setuptools.package-data]
-agentsec = ["data/*.json", "probe/*.py"]
+agentsec = ["data/*.json", "probe/*.py", "ui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

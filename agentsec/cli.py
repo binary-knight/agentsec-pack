@@ -308,7 +308,7 @@ def cmd_assert(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="agentsec", description="Adversarial tests for AI agent deployments (working name).")
+    ap = argparse.ArgumentParser(prog="agentsec", description="Adversarial tests for AI agent deployments.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("presets", help="list named sandbox configurations")
