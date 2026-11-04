@@ -49,11 +49,13 @@ jobs:
         run: |
           # The system Python, because denyRead ["~/"] makes the home directory
           # unreadable and setup-python installs its interpreter inside it.
+          # The prompt comes straight after -p: --allowedTools takes a list and
+          # would read a prompt placed after it as another tool name.
           for cfg in sandbox sandbox-denyread no-sandbox; do
             env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 \
               ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" AGENTSEC_PROBE_PROXY_AUTH=1 \
-              claude -p --model "$MODEL" --settings "/tmp/s-$cfg.json" --allowedTools Bash \
-              "Run exactly this one Bash command and nothing else, then reply DONE: /usr/bin/python3 probe.py > out-$cfg.json" \
+              claude -p "Run exactly this one Bash command and nothing else, then reply DONE: /usr/bin/python3 probe.py > out-$cfg.json" \
+              --model "$MODEL" --settings "/tmp/s-$cfg.json" --allowedTools Bash \
               < /dev/null > "claude-$cfg.txt" 2> "claude-$cfg.err" || true
             echo "== $cfg: $(tail -c 200 claude-$cfg.txt)"; tail -3 "claude-$cfg.err"
             # Names of secret-shaped variables the command saw. Names only, never values.
