@@ -61,7 +61,7 @@ def render_markdown(env: dict[str, Any]) -> str:
         lines.append("```")
         lines.append("")
     lines.append("## What the probe does not do")
-    lines.append("It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.")
+    lines.append("It never reads secret values: readability is proven by opening a file and reading zero bytes. It sends no data to the egress targets; when an egress proxy is configured it sends that proxy one CONNECT request per fixed target and a control host, reads the status line and closes, and uses the proxy's password only when AGENTSEC_PROBE_PROXY_AUTH=1, never recording it. Its only writes are zero-byte markers, one per probed directory, each removed at once; existing startup and agent-settings files are opened for append and closed without writing, so nothing in them changes. Read `agentsec/probe/blast_probe.py` before running it in an environment you care about.")
     return "\n".join(lines) + "\n"
 
 

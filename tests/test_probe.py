@@ -344,3 +344,123 @@ def test_a_forwarded_ssh_agent_is_proven_reachable_and_reported_without_its_path
     assert path not in out, "the agent socket's real path can carry a username"
     ssh = [s for s in data["secrets"]["container_sockets"] if s["kind"] == "ssh-agent"]
     assert ssh and ssh[0]["path"] == "$SSH_AUTH_SOCK" and ssh[0]["connected"] is True
+
+
+# --- probe 0.4.0: egress measured through the configured proxy ---------------
+
+import base64 as _b64
+import socket as _socket
+import threading as _threading
+
+
+class _FakeProxy:
+    """A loopback HTTP proxy that records every request and answers CONNECT
+    with 200 for allowed hosts, 407 when it wants credentials, 403 otherwise."""
+
+    def __init__(self, allowed=(), password=None):
+        self.allowed, self.password, self.requests = set(allowed), password, []
+        self.sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(16)
+        self.port = self.sock.getsockname()[1]
+        self._t = _threading.Thread(target=self._serve, daemon=True)
+        self._t.start()
+
+    def _serve(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            with c:
+                data = b""
+                while b"\r\n\r\n" not in data:
+                    chunk = c.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                text = data.decode("latin-1")
+                self.requests.append(text)
+                host = text.split()[1].rsplit(":", 1)[0] if text.startswith("CONNECT ") else ""
+                if self.password is not None:
+                    want = "Proxy-Authorization: Basic " + _b64.b64encode(("u:" + self.password).encode()).decode()
+                    if want not in text:
+                        c.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")
+                        continue
+                c.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n" if host in self.allowed
+                          else b"HTTP/1.1 403 Forbidden\r\n\r\n")
+
+    def close(self):
+        self.sock.close()
+
+
+def _fixed_connects():
+    return {"%s:%d" % (t["host"], t["port"]) for t in
+            blast_probe.EGRESS_TARGETS + blast_probe.METADATA_TARGETS + [blast_probe.PROXY_CANARY]}
+
+
+def test_the_canary_is_a_fixed_named_host():
+    assert blast_probe.PROXY_CANARY == {"name": "canary-example.com", "host": "example.com", "port": 443}
+
+
+def test_without_opt_in_the_proxy_gets_connect_lines_and_never_the_password():
+    pw = "PROXY-PW-NEVER-SENT-WITHOUT-OPT-IN-3c9a"
+    px = _FakeProxy(allowed={"github.com"}, password=pw)
+    try:
+        r = blast_probe.probe_proxy({"HTTPS_PROXY": "http://u:%s@127.0.0.1:%d" % (pw, px.port)})
+    finally:
+        px.close()
+    assert r["measured"] and r["auth"] == "available, not used"
+    assert {t["status"] for t in r["targets"]} == {407}
+    for req in px.requests:
+        lines = [l for l in req.split("\r\n") if l]
+        assert lines[0].startswith("CONNECT ") and lines[0].endswith(" HTTP/1.1"), lines
+        assert lines[0].split()[1] in _fixed_connects(), "only the fixed targets and the canary"
+        assert [l.split(":", 1)[0] for l in lines[1:]] == ["Host"], "nothing but the request line and Host"
+        assert pw not in req
+
+
+def test_with_opt_in_the_password_goes_to_that_proxy_and_nowhere_in_the_output():
+    pw = "PROXY-PW-NEVER-RECORDED-81d4"
+    px = _FakeProxy(allowed={"github.com"}, password=pw)
+    try:
+        r = blast_probe.probe_proxy({"HTTPS_PROXY": "http://u:%s@127.0.0.1:%d" % (pw, px.port),
+                                     blast_probe.PROXY_AUTH_OPT_IN: "1"})
+    finally:
+        px.close()
+    dumped = json.dumps(r)
+    assert pw not in dumped and "127.0.0.1" not in dumped, "neither the password nor the proxy's address is recorded"
+    assert r["auth"] == "used" and r["proxy_loopback"] is True
+    status = {t["host"]: t.get("status") for t in r["targets"]}
+    assert status["github.com"] == 200 and status["example.com"] == 403
+
+
+def test_no_proxy_entries_are_left_to_the_direct_test():
+    px = _FakeProxy()
+    try:
+        r = blast_probe.probe_proxy({"HTTPS_PROXY": "http://127.0.0.1:%d" % px.port,
+                                     "NO_PROXY": "localhost,169.254.0.0/16,.google.internal"})
+    finally:
+        px.close()
+    bypassed = {t["host"] for t in r["targets"] if t.get("bypassed")}
+    assert bypassed == {"169.254.169.254", "metadata.google.internal"}
+    assert not any(req.split()[1].startswith(("169.254.", "metadata.")) for req in px.requests)
+
+
+def test_a_socks_proxy_is_reported_as_not_measured():
+    r = blast_probe.probe_proxy({"ALL_PROXY": "socks5h://127.0.0.1:1080"})
+    assert r["measured"] is False and "socks5h" in r["reason"]
+
+
+def test_the_full_probe_never_prints_the_proxy_password(tmp_path):
+    pw = "PROXY-PW-FULL-RUN-NEVER-PRINTED-27ee"
+    px = _FakeProxy(password=pw)
+    try:
+        env = {k: v for k, v in os.environ.items() if k.upper() not in blast_probe.PROXY_ENV_NAMES}
+        env.update(HTTPS_PROXY="http://u:%s@127.0.0.1:%d" % (pw, px.port), AGENTSEC_PROBE_PROXY_AUTH="1")
+        out = subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True,
+                             env=env, timeout=120).stdout
+    finally:
+        px.close()
+    assert pw not in out
+    assert json.loads(out.strip().splitlines()[-1])["network"]["proxy"]["auth"] == "used"
