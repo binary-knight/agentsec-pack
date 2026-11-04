@@ -56,8 +56,9 @@ agent from inside another agent's shell, or from a terminal where you have
 exported a token, and those variables are visible inside the sandbox and are
 scored against the product you think you are measuring. The tell is a
 secret-shaped variable in the report that has nothing to do with the vendor:
-`CLAUDE_CODE_MESSAGING_TOKEN` and `CLOUDSDK_PROXY_PASSWORD` are both ones that
-have shown up this way.
+`CLAUDE_CODE_MESSAGING_TOKEN` and `CLOUDSDK_PROXY_PASSWORD`, which Claude Code
+puts in its own sandbox, both turned up in a Codex measurement that had been
+launched from inside a Claude Code session.
 
 Prefer a plain terminal. Where you cannot, strip the environment and say that
 you did:
@@ -67,20 +68,32 @@ env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/bash LANG=C.
   <agent command>
 ```
 
-Measuring both ways is better than choosing one, and the difference is the part
-of the blast radius you close by fixing your own shell rather than the agent.
-Whichever you do, record it in `--how`.
+Measuring both ways is better than choosing one: the minimal environment gives
+the intrinsic figure, and the difference is the part of the blast radius you
+close by fixing your own shell rather than the agent. Record which you did in
+`--how`; a score without its environment is not comparable to another score.
 
-## Minimise the launching environment, or say that you did not
+## When the sandbox sends traffic through a proxy
 
-An agent's sandbox inherits the environment of the shell that started it. Anything exported there is visible inside and is scored against the agent, which is misleading when the variable came from your terminal rather than the product. Launch with a minimal environment when you want the intrinsic figure:
+Some sandboxes cut the direct route out and send traffic through a proxy that
+checks an allowlist. Claude Code's does this, through `HTTPS_PROXY` on loopback.
+The probe sees the proxy variables and asks the proxy for a tunnel to each fixed
+target and to `example.com`, a control no allowlist has a reason to contain, and
+records only the status codes.
+
+If the proxy wants a password, it answers 407 and the network axis reads **not
+measured** (NET-004). The password is usually already in the proxy variable, and
+the probe will send it to that proxy, and nowhere else, only if you say so:
 
 ```bash
-env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/bash LANG=C.UTF-8 \
-  <agent command>
+AGENTSEC_PROBE_PROXY_AUTH=1 python3 /tmp/probe.py > /tmp/out.json
 ```
 
-Measuring both ways is better than choosing one. The difference is the part of the blast radius you can close by fixing your own shell. Record which you did in `--how`; a score without its environment is not comparable to another score.
+That is your decision to make, not the agent's: an agent following `AGENTS.md`
+should report NET-004 rather than set this on its own. Two further things belong
+in `--how`. Whether you set it, and which domains were allowed when the probe
+ran: in Claude Code the allowlist can change per command, and the same sandbox
+scored 41 with nothing allowed and 49 with `github.com` allowed.
 
 ## When a launcher is installed and still cannot build a sandbox
 
