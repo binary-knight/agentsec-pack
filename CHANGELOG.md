@@ -6,19 +6,27 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
-- Probe **0.5.0**: Google's Antigravity CLI paths, its login token and its own settings, hooks and MCP files, user and workspace level.
-- Antigravity CLI 1.4.12 measured: on stock Ubuntu its terminal sandbox cannot start, `--sandbox` has no effect, and an approved command runs unsandboxed with nothing printed in print mode. Score 100.
-- `agentsec chart`: many runs as one color-coded SVG chart or Markdown table. The README now opens its results with two generated charts and a table, and the long write-ups moved to `docs/MEASUREMENTS.md`.
-- README copy rewritten, with three factual errors corrected: a broken `agentsec report` example, a budget example whose numbers did not add up, and a wrong figure in the Claude Code 2.1.266 profile. (#18)
-- `agentsec probe`: measure and score the sandbox the command runs in, in one
-  step. (#13)
-- Every published number re-measured with probe 0.4.0. The bubblewrap rows of
-  the `python:3.12-slim` matrix fell by 15 when launched with a minimal
-  environment, and the README now says why. Codex CLI 0.164.0 and Claude Code
-  2.1.318 with `denyRead` were measured. (#14)
-- A GitHub Action for the gate (`action.yml`). The regression gate no longer
-  fails a sandbox that was tightened. (#15)
-- `docs/ROADMAP.md`. (#12)
+## 0.2.0 — 2026-11-04
+
+Probe **0.5.0**. Reports from probe 0.4.0 still score the same, and the new paths only add findings where those files exist.
+
+**Measuring**
+- `agentsec probe` measures and scores the sandbox the command runs in, in one step. `--proxy-auth` is the explicit opt-in for sending a configured proxy its own password. (#13)
+- Probe 0.5.0 checks Google's Antigravity CLI: its login token, its settings, and its hooks and MCP files at user and workspace level. (#19)
+
+**Gating and reporting**
+- A GitHub Action for the gate, in `action.yml`, which installs agentsec from its own checkout and fails the job with the CLI's exit code. (#15)
+- The regression gate no longer fails a sandbox that was tightened. A new informational finding is noted unless it records an axis that could not be measured. (#15)
+- `agentsec chart` draws many runs as one color-coded SVG chart, or as a Markdown table when the output name ends in `.md`. (#19)
+
+**Measured profiles**
+- Every published number re-measured with probe 0.4.0, with Codex CLI 0.164.0 and Claude Code 2.1.318 with `denyRead` added. The bubblewrap rows of the `python:3.12-slim` matrix fell by 15 when launched with a minimal environment, and the README says why. (#14)
+- Antigravity CLI 1.4.12: on stock Ubuntu its terminal sandbox cannot start, `--sandbox` has no effect, and an approved command runs unsandboxed with nothing printed in print mode. Score 100. (#19)
+
+**Documentation**
+- The README opens with two generated charts and a table of every measurement, and the long write-ups moved to `docs/MEASUREMENTS.md`. (#19)
+- README copy rewritten, with three factual errors corrected: a broken `agentsec report` example, a budget example whose numbers did not add up, and a wrong figure in the Claude Code 2.1.266 profile. (#18, #21)
+- `docs/ROADMAP.md`, with an opt-in community benchmark added as item 8. (#12, #20)
 
 ## 0.1.0 — 2026-11-04
 
