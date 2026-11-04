@@ -1,11 +1,10 @@
 # agentsec-pack
 
-Adversarial tests for AI agent deployments, built to answer two questions a CI owner cannot see from a transcript:
+Measures the **blast radius** of an AI agent's sandbox: what the agent could reach from inside the environment you run it in, if it were prompt-injected or simply wrong. Network, secrets, host filesystem, privileges, sibling processes. It answers a question a transcript cannot: not what the agent did, but what it *could* have done.
 
-1. **Sandbox blast radius** — what can the agent reach from inside the environment you run it in? Network, secrets, host filesystem, privileges, sibling processes.
-2. **Verifier integrity** (planned) — did the agent do the task, or did it edit the tests, the fixtures or the grader?
+A small probe runs inside the sandbox and reports what it actually reached, separating **reachable** from **merely visible**: a refused connection is not a breach. A scorer turns that into findings and a 0–100 score, and gates turn the score into a CI check. It installs as `agentsec-pack` and runs as `agentsec`.
 
-This repository is at the first milestone: the blast-radius probe, a runner, a scorer and reports. It installs as `agentsec-pack` and runs as `agentsec`.
+A second test class, verifier integrity (did the agent pass CI by editing the tests?), is on the [roadmap](docs/ROADMAP.md) and not built yet.
 
 ## How to use this tool
 
