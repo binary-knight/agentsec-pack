@@ -92,8 +92,8 @@ This repository is public. Checked against the repository's settings on
 * **Secret scanning, dependency audit and a security lint in CI**, kept beside
   GitHub's own because they also run on forks and fail the build rather than
   raise an alert: `detect-secrets` against an audited baseline, `pip-audit`,
-  and `bandit` at high severity. The baseline holds five audited false
-  positives, all planted test values, and is quoted in the file; anything new
+  and `bandit` at high severity. The baseline holds six audited false
+  positives, five planted test values and one axis label, and anything new
   fails the build.
 * **A leak check as its own job**, which walks every tracked file and fails on an
   operator's home path. That has been needed twice. It checks the current tree,

@@ -316,6 +316,35 @@ def _load_results(paths: list[str]) -> list[dict]:
     return out
 
 
+def cmd_chart(args: argparse.Namespace) -> int:
+    """One quick-look chart of many runs: a row per run, a colored cell per axis."""
+    from . import chart
+    rows = []
+    for p in args.results:
+        paths = [os.path.join(p, n) for n in sorted(os.listdir(p)) if n.endswith(".json")] if os.path.isdir(p) else [p]
+        for path in paths:
+            try:
+                with open(path) as f:
+                    env = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(env, dict) and env.get("test") == "sandbox-blast-radius-matrix":
+                rows += chart.rows_from_matrix(env)
+            elif isinstance(env, dict) and "summary" in env:
+                rows.append(chart.row_from_envelope(env))
+    if not rows:
+        print("no scored results found in those paths", file=sys.stderr)
+        return 1
+    if args.sort:
+        rows.sort(key=lambda r: -r["score"])
+    body = (chart.render_markdown([("", rows)]) if args.out.endswith(".md")
+            else chart.render_svg([("", rows)], args.title, args.subtitle, args.theme))
+    with open(args.out, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(f"{len(rows)} row(s) -> {args.out}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     from .ui import render_html
     results = _load_results(args.results)
@@ -438,6 +467,15 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("results", nargs="+", help="report JSON files, or directories of them")
     rp.add_argument("--out", default="agentsec-report.html")
     rp.set_defaults(func=cmd_report)
+
+    ch = sub.add_parser("chart", help="draw many saved runs as one color-coded chart (SVG) or table (.md)")
+    ch.add_argument("results", nargs="+", help="report JSON files, matrix JSON files, or directories of them")
+    ch.add_argument("--out", default="agentsec-chart.svg", help="write an SVG, or a Markdown table if the name ends in .md")
+    ch.add_argument("--theme", choices=("light", "dark"), default="light")
+    ch.add_argument("--title", default="Blast radius by configuration")
+    ch.add_argument("--subtitle", default="One row per run. Score 0 means the probe reached nothing.")
+    ch.add_argument("--sort", action="store_true", help="highest score first")
+    ch.set_defaults(func=cmd_chart)
 
     u = sub.add_parser("ui", help="open a local console in the browser (127.0.0.1 only)")
     u.add_argument("--port", type=int, default=8787)
