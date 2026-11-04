@@ -9,7 +9,7 @@ and two reports are only comparable when it matches or the difference is known.
 - Probe **0.5.0**: Google's Antigravity CLI paths, its login token and its own settings, hooks and MCP files, user and workspace level.
 - Antigravity CLI 1.4.12 measured: on stock Ubuntu its terminal sandbox cannot start, `--sandbox` has no effect, and an approved command runs unsandboxed with nothing printed in print mode. Score 100.
 - `agentsec chart`: many runs as one color-coded SVG chart or Markdown table. The README now opens its results with two generated charts and a table, and the long write-ups moved to `docs/MEASUREMENTS.md`.
-- The README rewritten in the maintainer's voice, with three factual errors corrected. (#18)
+- README copy rewritten, with three factual errors corrected: a broken `agentsec report` example, a budget example whose numbers did not add up, and a wrong figure in the Claude Code 2.1.266 profile. (#18)
 - `agentsec probe`: measure and score the sandbox the command runs in, in one
   step. (#13)
 - Every published number re-measured with probe 0.4.0. The bubblewrap rows of
