@@ -12,7 +12,7 @@ This repository is at the first milestone: the blast-radius probe, a runner, a s
 ### By hand
 
 ```bash
-uv venv .venv && uv pip install -e '.[dev]' && source .venv/bin/activate
+pip install agentsec-pack   # or, from a checkout: uv venv .venv && uv pip install -e '.[dev]'
 agentsec presets            # what this host can actually run, not just what is installed
 ```
 
