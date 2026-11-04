@@ -6,6 +6,7 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- Claude Code 2.1.318 measured on macOS in full headless sessions (`macos-claude-code.yml`, approval required for every run): no sandbox 100, sandbox on 53, sandbox with `denyRead` 38. Claude Code protects its own project config and leaves Codex's and Antigravity's writable, the mirror of the Codex result. Sandboxed commands can see `ANTHROPIC_API_KEY` by name.
 - Three `seatbelt-*` presets run the probe under macOS `sandbox-exec`: a profile that allows everything, one that denies the network, and a confined profile.
 - macOS measurements from a GitHub-hosted machine: no sandbox 76, the Seatbelt presets 68, 53 and 8, and Codex CLI 0.164.0's own sandbox through `codex sandbox`, 15 in read-only and 30 in `workspace-write`. On macOS, Codex hides other processes and leaves Claude Code's project config writable inside its workspace. The README gains a macOS chart.
 - Probe **0.6.0** runs on macOS. It reads Seatbelt confinement through `sandbox_check()`, process visibility through `sysctl`, and a read-only root through `statvfs`, and it skips the Linux-only checks. PRIV-006 reports a process under no Seatbelt profile. `~/Library/LaunchAgents` and `/opt/homebrew/bin` are checked. CI runs the suite on `macos-latest`, and `macos-measure.yml` runs the probe on a macOS runner when started by hand.
