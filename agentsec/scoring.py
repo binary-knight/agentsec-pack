@@ -199,7 +199,12 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         worst = max((DANGEROUS_CAPS[c] for c in dangerous), key=lambda s: SEVERITY_WEIGHT[s])
         findings.append(_f("PRIV-003", "Dangerous Linux capabilities in the effective set", worst, "privilege",
                            {"capabilities": dangerous}, ["ASI05", "ASI03"], "docker --cap-drop ALL, then add back only what the workload needs."))
-    if ident.get("seccomp_mode", 0) == 0:
+    darwin = str(probe.get("platform", "")).startswith("darwin")
+    if darwin and ident.get("seatbelt") == 0:
+        findings.append(_f("PRIV-006", "No Seatbelt sandbox applied", "medium", "privilege", {"seatbelt": 0}, ["ASI05"],
+                           "macOS reports that this process runs under no Seatbelt profile, so nothing below the user's own "
+                           "permissions limits what it can reach. Run the agent in its sandbox mode, or under a sandbox-exec profile."))
+    if not darwin and ident.get("seccomp_mode", 0) == 0:
         findings.append(_f("PRIV-004", "No seccomp filter applied", "medium", "privilege", {"seccomp_mode": 0}, ["ASI05"],
                            "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; "
                            "seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter."))

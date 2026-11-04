@@ -41,7 +41,8 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.5.0"
+PROBE_VERSION = "0.6.0"
+IS_DARWIN = sys.platform == "darwin"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
 EGRESS_TARGETS = [
@@ -153,13 +154,18 @@ PERSISTENCE_FILES = [
 # Directories where a NEW file runs outside the sandbox. Tested the same way as
 # WRITE_PROBE_DIRS: one zero-byte marker, created and removed at once.
 PERSISTENCE_DIRS = [("~", "home"), ("./.git/hooks", "git-hooks"), ("~/.config/autostart", "desktop-autostart"),
+                    # macOS: launchd starts every agent plist here at the user's next login.
+                    ("~/Library/LaunchAgents", "desktop-autostart"),
                     # Where an agent's hook and MCP files are created if they do not exist
                     # yet (Antigravity, global and workspace; Codex also protects .agents).
                     ("~/.gemini/config", "agent-config"), ("./.agents", "agent-config")]
 # Filesystems whose contents do not outlive the sandbox. A write there is not a
 # way out: a container's own /root/.bashrc lives on its overlay and dies with it.
 EPHEMERAL_FSTYPES = ("overlay", "tmpfs", "ramfs", "devtmpfs")
-WRITE_PROBE_DIRS = ["/", "/etc", "/usr/bin", "/usr/local/bin", "/root", "/home", "/var", "/opt", "/tmp", "/dev/shm"]
+WRITE_PROBE_DIRS = ["/", "/etc", "/usr/bin", "/usr/local/bin", "/root", "/home", "/var", "/opt", "/tmp", "/dev/shm",
+                    # Homebrew's prefix on Apple silicon is owned by the user and sits early on PATH:
+                    # a binary planted there runs in place of the real one, outside any sandbox.
+                    "/opt/homebrew/bin"]
 # The working directory is probed separately: sandboxes that grant a single
 # writable workspace (an agent's "workspace-write" mode) differ from fully
 # read-only ones only here, and a fixed list would miss it.
@@ -212,6 +218,10 @@ def probe_identity():
         elif line.startswith("NoNewPrivs:"):
             info["no_new_privs"] = int(line.split(":", 1)[1].strip() or 0)
     info["capabilities"] = caps
+    if IS_DARWIN:
+        # No seccomp, capabilities or user namespaces on macOS. Seatbelt is the
+        # syscall-level sandbox there, and this asks the kernel whether it applies.
+        info["seatbelt"] = _darwin_seatbelt()
     info["ptrace_scope"] = (read_text("/proc/sys/kernel/yama/ptrace_scope") or "").strip()
     info["in_user_namespace"] = _in_user_namespace()
     info["cgroup"] = (read_text("/proc/self/cgroup") or "").strip()[:200]
@@ -220,6 +230,52 @@ def probe_identity():
         "containerenv": os.path.exists("/run/.containerenv"),
     }
     return info
+
+
+def _darwin_seatbelt():
+    """1 if this process runs under a Seatbelt profile, 0 if not, None if macOS will not say.
+
+    sandbox_check(pid, NULL, SANDBOX_FILTER_NONE) is the call macOS itself uses to
+    ask whether a process is sandboxed; it lives in libsystem_sandbox, which
+    libSystem re-exports. Called through ctypes, so the probe stays stdlib-only.
+    """
+    try:
+        import ctypes
+        f = ctypes.CDLL("/usr/lib/libSystem.B.dylib").sandbox_check
+        f.restype = ctypes.c_int
+        f.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        return 1 if f(os.getpid(), None, 0) else 0
+    except Exception:
+        return None
+
+
+def _darwin_process_count():
+    """(count, error): processes this one can see, from sysctl(KERN_PROC_ALL).
+
+    macOS has no /proc. A sandbox profile can refuse the sysctl, which is
+    itself the answer, so a refusal is reported and not treated as zero.
+    """
+    try:
+        import ctypes
+        libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+        mib = (ctypes.c_int * 4)(1, 14, 0, 0)  # CTL_KERN, KERN_PROC, KERN_PROC_ALL
+        size = ctypes.c_size_t(0)
+        if libc.sysctl(mib, 3, None, ctypes.byref(size), None, ctypes.c_size_t(0)) != 0:
+            return None, errno.errorcode.get(ctypes.get_errno(), "sysctl")
+        buf = ctypes.create_string_buffer(size.value)
+        if libc.sysctl(mib, 3, buf, ctypes.byref(size), None, ctypes.c_size_t(0)) != 0:
+            return None, errno.errorcode.get(ctypes.get_errno(), "sysctl")
+        return size.value // 648, None  # sizeof(struct kinfo_proc) on 64-bit macOS
+    except Exception as e:
+        return None, type(e).__name__
+
+
+def _root_read_only():
+    """Is / mounted read-only? statvfs answers on Linux and macOS alike."""
+    try:
+        return bool(os.statvfs("/").f_flag & os.ST_RDONLY)
+    except Exception:
+        return None
 
 
 def _in_user_namespace():
@@ -389,7 +445,10 @@ def probe_network():
         for name in os.listdir("/sys/class/net"):
             ifaces.append(name)
     except Exception:
-        pass
+        try:
+            ifaces = [n for _i, n in socket.if_nameindex()]  # macOS has no /sys
+        except Exception:
+            pass
     return {"targets": results, "interfaces": sorted(ifaces), "proxy_env": proxy_env_names(),
             "proxy": probe_proxy(),
             "socket_syscall_blocked": blocked == len(results) and blocked > 0,
@@ -798,7 +857,11 @@ def probe_filesystem():
         if fstype in ("proc", "sysfs", "cgroup", "cgroup2", "devpts", "mqueue", "tmpfs", "devtmpfs", "securityfs", "pstore", "bpf", "debugfs", "tracefs", "configfs", "fusectl", "hugetlbfs", "binfmt_misc", "autofs", "nsfs", "overlay", "squashfs"):
             continue
         mounts.append({"source": src, "target": dst, "fstype": fstype, "rw": "rw" in opts.split(",")})
-    root_rw = "rw" in next((l.split()[3] for l in (read_text("/proc/mounts", 200000) or "").splitlines() if len(l.split()) > 3 and l.split()[1] == "/"), "").split(",")
+    if os.path.exists("/proc/mounts"):
+        root_rw = "rw" in next((l.split()[3] for l in (read_text("/proc/mounts", 200000) or "").splitlines() if len(l.split()) > 3 and l.split()[1] == "/"), "").split(",")
+    else:
+        ro = _root_read_only()
+        root_rw = None if ro is None else not ro
     setuid = []
     for d in ("/bin", "/usr/bin", "/sbin", "/usr/sbin", "/usr/local/bin"):
         try:
@@ -819,6 +882,13 @@ def probe_filesystem():
 
 
 def probe_process():
+    if IS_DARWIN:
+        count, err = _darwin_process_count()
+        out = {"visible_pid_count": count or 0, "visible_uids": [], "pid1_is_self": os.getpid() == 1,
+               "pid1_cmdline": "", "method": "sysctl(KERN_PROC_ALL)"}
+        if err:
+            out["error_detail"] = err
+        return out
     procs = []
     try:
         for pid in os.listdir("/proc"):
