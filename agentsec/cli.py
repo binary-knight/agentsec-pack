@@ -1,6 +1,8 @@
 """agentsec command line.
 
   agentsec presets
+  agentsec probe --label "my-agent 1.2 workspace-write" --how "..."
+    (measure the sandbox this command is running in)
   agentsec blast-radius local
   agentsec blast-radius docker python:3.12-slim --print-findings
   agentsec blast-radius docker python:3.12-slim --label hardened -- --network none --read-only
@@ -204,6 +206,32 @@ def _probe_from_text(raw: str) -> tuple[dict, str]:
                      "surrounding prose and a truncated tail")
 
 
+def cmd_probe(args: argparse.Namespace) -> int:
+    """Measure the sandbox this command is running in, and score it, in one step."""
+    run = runner.run_self(timeout=args.timeout, proxy_auth=args.proxy_auth)
+    summary = summarize(run["probe"])
+    run["target"].update(label=args.label, how=args.how)
+    env = runner.result_envelope(run, summary, args.label)
+    if args.redact:
+        env = redact(env)
+    name = args.label.replace(" ", "_").replace("/", "_")
+    try:
+        jp, mp = _write(env, args.out, name)
+        print(f"{args.label}: score {summary['score']}/100, {summary['finding_count']} findings -> {mp}")
+    except OSError as e:
+        # A read-only sandbox cannot keep the report. Hand it back on stdout so
+        # it can be saved from the transcript and gated or rendered elsewhere.
+        print(f"could not write to {args.out} ({type(e).__name__}); the report follows on stdout. "
+              "Save it to a file; `agentsec diff` and `agentsec report` accept it.", file=sys.stderr)
+        print(json.dumps(env, sort_keys=True))
+    for f in summary["findings"]:
+        print(f"  [{f['severity']:<8}] {f['id']} {f['title']}", file=sys.stderr)
+    if not run["target"]["proxy_auth"] and any(f["id"] == "NET-004" for f in summary["findings"]):
+        print("  note: the network axis was not measured; --proxy-auth sends the proxy its own password "
+              "(to that proxy only) so it can be. That is your decision, not an agent's.", file=sys.stderr)
+    return _gate(summary["score"], args, env)
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Score a probe result the tool did not launch itself.
 
@@ -370,6 +398,19 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--max-score", type=int, help="exit 2 if the BEST configuration still exceeds this")
     m.add_argument("--redact", action="store_true", help="scrub operator-identifying detail before writing")
     m.set_defaults(func=cmd_matrix)
+
+    pr = sub.add_parser("probe", help="measure the sandbox this command runs in, and score it, in one step")
+    pr.add_argument("--label", required=True, help="what is being measured, e.g. 'vendor-agent 1.2.3 workspace-write'")
+    pr.add_argument("--how", required=True, help="exactly how this was run: agent, mode, settings, launching environment")
+    pr.add_argument("--out", default="reports")
+    pr.add_argument("--timeout", type=int, default=runner.DEFAULT_TIMEOUT)
+    pr.add_argument("--max-score", type=int, help="exit 2 if the score exceeds this")
+    pr.add_argument("--baseline", metavar="REPORT_JSON", help="exit 2 if anything is worse than this saved report")
+    pr.add_argument("--redact", action="store_true", help="scrub hostname, working directory and secret-variable names")
+    pr.add_argument("--proxy-auth", action="store_true",
+                    help="send a configured egress proxy its own password from the environment, to that proxy only, "
+                         "so the network axis can be measured; never recorded")
+    pr.set_defaults(func=cmd_probe)
 
     sc = sub.add_parser("score", help="score a probe result captured by any means (see docs/CAPTURING.md)")
     sc.add_argument("probe_json", help="JSON written by blast_probe.py, however you ran it")

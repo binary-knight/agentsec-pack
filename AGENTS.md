@@ -25,9 +25,7 @@ The one thing the person cannot do themselves: their agent sandbox is entered by
 you, so the measurement has to come from inside.
 
 ```bash
-cp agentsec/probe/blast_probe.py "${TMPDIR:-/tmp}/probe.py"
-python3 "${TMPDIR:-/tmp}/probe.py" > "${TMPDIR:-/tmp}/probe.json"
-.venv/bin/agentsec score "${TMPDIR:-/tmp}/probe.json" \
+.venv/bin/agentsec probe \
   --label "<agent name and version>-<mode>" \
   --how "<the exact command and settings you are running under>"
 ```
@@ -35,15 +33,15 @@ python3 "${TMPDIR:-/tmp}/probe.py" > "${TMPDIR:-/tmp}/probe.json"
 `--label` and `--how` are required and are not decoration: a score with no record of how it was
 captured cannot be compared with anything. Unsure which sandbox mode you are in? Say so in `--how`.
 
-If your filesystem is read-only and the probe cannot write a file, print its
-output and save the reply to a file instead; `score` will find the object inside
-prose or a code fence and repair a clipped tail, and will tell you it did.
+If the filesystem is read-only, `probe` prints the report on stdout instead of
+writing it. If you cannot install the package at all, `docs/CAPTURING.md` has the
+fallback: run `agentsec/probe/blast_probe.py` with python3 and score its output.
 
 Then report the score (0 means nothing was reachable, higher is a larger blast
 radius), which of the five axes are sealed, and **whether anything was proven
 reachable rather than merely visible** - a refused connection is not a breach.
-If the network reads *not measured* (NET-004), report that. Do not set
-`AGENTSEC_PROBE_PROXY_AUTH`, which sends a password, unless the person asked you to.
+If the network reads *not measured* (NET-004), report that. Do not pass
+`--proxy-auth`, which sends a password, unless the person asked you to.
 
 ## Task B - measure and harden something they run
 
