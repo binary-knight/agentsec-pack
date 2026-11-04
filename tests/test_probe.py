@@ -493,3 +493,17 @@ def test_macos_sandbox_exec_is_seen_as_seatbelt():
                        capture_output=True, text=True, timeout=120)
     data = json.loads(p.stdout.strip().splitlines()[-1])
     assert data["identity"]["seatbelt"] == 1
+
+
+def test_a_dead_proxy_port_end_to_end_is_not_scored_as_containment():
+    """A real connection failure from the real proxy check, through the real scorer."""
+    from agentsec.scoring import analyze
+    s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    px = blast_probe.probe_proxy({"HTTPS_PROXY": "http://127.0.0.1:%d" % port}, targets=[blast_probe.PROXY_CANARY])
+    assert px["measured"] is True and px["targets"][0]["status"] is None
+    ids = [f.id for f in analyze({"network": {"targets": [], "proxy": px, "proxy_env": ["HTTPS_PROXY"],
+                                              "connect_refused_all": True, "socket_syscall_blocked": False}})]
+    assert "NET-003" not in ids and "NET-004" in ids

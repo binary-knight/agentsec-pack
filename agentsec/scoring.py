@@ -86,26 +86,44 @@ AGENT_CREDENTIALS = {"~/.claude/.credentials.json", "~/.codex/auth.json", "~/.ge
 RUNS_OUTSIDE = {"shell-startup", "ssh-login", "git-config", "git-hooks", "desktop-autostart", "home"}
 
 
+# 4xx answers where the proxy did not rule on the destination: 405 means CONNECT is
+# unsupported (the same proxy may still forward plain HTTP), 407 asks for credentials,
+# 408 and 429 are about the request or the rate. A 5xx means the proxy tried to forward.
+_NOT_A_REFUSAL = {405, 407, 408, 429}
+
+
+def _proxy_refused(status: Any) -> bool:
+    """Did the proxy clearly decline to tunnel to this destination?"""
+    return isinstance(status, int) and 400 <= status < 500 and status not in _NOT_A_REFUSAL
+
+
 def _proxy_verdict(px: dict) -> dict:
-    """Sort a measured proxy's answers: accepted (2xx), refused, or asking for auth."""
-    accepted, metadata, statuses = [], [], []
+    """Sort a measured proxy's answers: accepted (2xx), refused, asking for auth, or unsettled.
+
+    Unsettled is everything else: a timeout, a connection the proxy never took, a
+    gateway error. Containment needs a refusal from every destination asked about, so
+    one unsettled answer withholds it.
+    """
+    accepted, metadata, statuses, unsettled = [], [], [], []
     canary = "not asked"
     for t in px.get("targets", []):
         if t.get("bypassed"):
             continue
         st = t.get("status")
+        answer = st if st is not None else t.get("error") or "no answer"
         statuses.append(st)
         ok = isinstance(st, int) and 200 <= st < 300
+        if not ok and not _proxy_refused(st):
+            unsettled.append({"host": t["host"], "answer": answer})
         if t["name"].startswith("canary"):
-            canary = "accepted" if ok else "refused (%s)" % (st if st is not None else t.get("error"))
+            canary = "accepted" if ok else (("refused (%s)" if _proxy_refused(st) else "no clear answer (%s)") % answer)
         elif t["name"].startswith(("cloud-metadata", "gcp-metadata")):
             if ok:
                 metadata.append(t["host"])
         elif ok:
             accepted.append(t["host"])
-    asked = [s for s in statuses if s is not None]
-    return {"accepted": accepted, "metadata": metadata, "canary": canary,
-            "auth_required": bool(asked) and all(s == 407 for s in asked)}
+    return {"accepted": accepted, "metadata": metadata, "canary": canary, "unsettled": unsettled,
+            "asked": len(statuses), "auth_required": bool(statuses) and all(s == 407 for s in statuses)}
 
 
 def analyze(probe: dict[str, Any]) -> list[Finding]:
@@ -145,10 +163,13 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
         elif via_proxy["accepted"]:
             findings.append(_f("NET-005", "Egress through the proxy is allowlisted", "medium", "network", ev,
                                ["ASI02", "ASI10"],
-                               "The proxy refused the control host and accepted tunnels to the hosts listed, so it is "
-                               "filtering, and those hosts are what an injected command can reach. Keep the list to what the "
-                               "agent needs; a host that accepts uploads, such as a code host or a package index, is an "
-                               "exfiltration route."))
+                               ("The proxy refused the control host and accepted tunnels to the hosts listed, so it is "
+                                "filtering, and those hosts are what an injected command can reach. "
+                                if via_proxy["canary"].startswith("refused") else
+                                "The proxy accepted tunnels to the hosts listed, and the control host got no clear refusal, "
+                                "so those hosts are what an injected command can reach at least, and the proxy may allow more. ")
+                               + "Keep the list to what the agent needs; a host that accepts uploads, such as a code host or a "
+                               "package index, is an exfiltration route."))
         elif via_proxy["auth_required"]:
             findings.append(_f("NET-004", "Direct connections refused; the proxy requires authentication the probe did not send",
                                "info", "network", dict(ev, unmeasured=True), ["ASI02"],
@@ -156,10 +177,21 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                                "the sandbox can, since the password is in " + str(px.get("source")) + ", so what the proxy "
                                "allows is unknown. Re-run the probe with AGENTSEC_PROBE_PROXY_AUTH=1 to send it to that proxy "
                                "and measure the allowlist; it is never recorded."))
+        elif via_proxy["unsettled"]:
+            findings.append(_f("NET-004", "Direct connections refused; the proxy gave no clear answer, so egress was not measured",
+                               "info", "network", dict(ev, unmeasured=True, unsettled=via_proxy["unsettled"]), ["ASI02"],
+                               "Every direct connection the probe tried was refused, but the proxy did not clearly refuse the "
+                               "destinations listed in the evidence: a timeout, a failed connection or a gateway error does not "
+                               "show what the proxy allows. Treat the network axis as unverified, and run the probe again once "
+                               "the proxy is answering."))
         else:
             findings.append(_f("NET-003", "No network reachable from the sandbox (containment holds)", "info", "network",
-                               dict(ev, detail="direct connections refused, and the proxy refused a tunnel to every "
-                                               "target and to the control"), ["ASI02"],
+                               dict(ev, detail=("direct connections refused, and the proxy refused a tunnel to every "
+                                                "target and to the control" if via_proxy["canary"].startswith("refused") else
+                                                "direct connections refused, and the proxy refused a tunnel to every "
+                                                "destination it was asked about" if via_proxy["asked"] else
+                                                "direct connections refused, and every destination bypasses the proxy "
+                                                "through NO_PROXY")), ["ASI02"],
                                "No action: the probe could not leave this sandbox directly or through its proxy."))
     elif net.get("connect_refused_all") and proxy_env and not net.get("socket_syscall_blocked"):
         findings.append(_f("NET-004", "Direct connections refused; egress through the configured proxy was not measured",
