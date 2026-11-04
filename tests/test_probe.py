@@ -244,3 +244,103 @@ def test_proxy_variables_are_reported_by_name_never_by_value():
 
 def test_proxy_names_ignore_unrelated_variables():
     assert blast_probe.proxy_env_names({"NO_PROXY": "localhost", "GRPC_PROXY": "x", "PROXY": "x"}) == []
+
+
+# --- probe 0.3.0: agent credentials, readability by open, persistence --------
+
+def _run_probe(env_overrides, cwd=None):
+    env = dict(os.environ, **env_overrides)
+    p = subprocess.run([sys.executable, runner.probe_path()], capture_output=True, text=True,
+                       env=env, cwd=cwd, timeout=60)
+    return p.stdout, json.loads(p.stdout.strip().splitlines()[-1])
+
+
+def test_agent_credentials_are_found_and_readability_is_proven_by_opening(tmp_path):
+    content = "TOKEN-CONTENT-MUST-NEVER-APPEAR-5b1e"
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex" / "auth.json").write_text(content)
+    (tmp_path / ".claude").mkdir()
+    locked = tmp_path / ".claude" / ".credentials.json"
+    locked.write_text(content)
+    locked.chmod(0)
+    try:
+        out, data = _run_probe({"HOME": str(tmp_path)})
+    finally:
+        locked.chmod(0o600)
+    assert content not in out, "a credential's contents must never reach the output"
+    mine = {c["path"]: c for c in data["secrets"]["credential_files"] if c["via"] in ("HOME", "HOME+passwd")}
+    assert mine["~/.codex/auth.json"]["readable"] is True
+    if os.geteuid() != 0:  # root opens a mode-000 file; the check would prove nothing
+        assert mine["~/.claude/.credentials.json"]["readable"] is False
+        assert mine["~/.claude/.credentials.json"]["read_error"] == "EACCES"
+
+
+def test_a_device_standing_in_for_a_file_is_masked_not_readable_or_writable():
+    """Sandboxes hide files by bind-mounting /dev/null over them; opening that succeeds."""
+    assert blast_probe._masked("/dev/null") is True
+    assert blast_probe._masked(blast_probe.__file__) is False
+
+
+def test_persistence_check_opens_existing_files_and_changes_nothing(tmp_path):
+    home, proj = tmp_path / "home", tmp_path / "proj"
+    home.mkdir()
+    (proj / ".git" / "hooks").mkdir(parents=True)
+    rc = home / ".bashrc"
+    rc.write_text("# original\n")
+    mcp = proj / ".mcp.json"
+    mcp.write_text("{}\n")
+    before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in (rc, mcp)}
+    home_listing, hooks_listing = set(os.listdir(home)), set(os.listdir(proj / ".git" / "hooks"))
+
+    _out, data = _run_probe({"HOME": str(home)}, cwd=str(proj))
+
+    for p, (content, mtime) in before.items():
+        assert p.read_bytes() == content and p.stat().st_mtime_ns == mtime, f"{p} was modified"
+    assert not (home / ".zshrc").exists(), "a missing file must never be created"
+    assert set(os.listdir(home)) == home_listing and set(os.listdir(proj / ".git" / "hooks")) == hooks_listing
+    got = {(e["path"], e["via"]): e for e in data["filesystem"]["persistence"]}
+    if os.access(str(home), os.W_OK):  # skipped inside a sandbox that already denies this
+        assert got[("~/.bashrc", "HOME")]["writable"] is True
+        assert got[("~", "HOME")]["writable"] is True
+        assert got[("./.mcp.json", "cwd")]["kind"] == "agent-config"
+        assert got[("./.git/hooks", "cwd")]["writable"] is True
+    for e in data["filesystem"]["persistence"]:
+        assert str(tmp_path) not in e["path"], "paths are reported in ~ / ./ form"
+
+
+def test_mountinfo_resolves_the_longest_mount_and_unescapes_spaces():
+    text = ("22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n"
+            "40 22 0:5 / /root rw - overlay overlay rw\n"
+            "41 22 8:1 /x /srv/a\\040b rw - tmpfs tmpfs rw\n")
+    m = blast_probe.parse_mountinfo(text)
+    assert ("/srv/a b", "tmpfs") in m
+    assert blast_probe.fstype_of("/root/.bashrc", m) == "overlay"
+    assert blast_probe.fstype_of("/srv/a b/.zshrc", m) == "tmpfs"
+    assert blast_probe.fstype_of("/srv/ab/.zshrc", m) == "ext4", "a prefix that is not a path component must not match"
+
+
+def test_rootless_and_desktop_sockets_are_looked_for_whatever_the_environment_says(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    shown = {(c[0], c[3]) for c in blast_probe._socket_candidates()}
+    assert ("$XDG_RUNTIME_DIR/podman/podman.sock", "XDG_RUNTIME_DIR") in shown
+    assert "~/.docker/desktop/docker.sock" in {s for s, _ in shown}
+    monkeypatch.delenv("XDG_RUNTIME_DIR")
+    if os.path.isdir("/run/user/%d" % os.getuid()):
+        shown = {(c[0], c[3]) for c in blast_probe._socket_candidates()}
+        assert ("$XDG_RUNTIME_DIR/docker.sock", "uid") in shown, "clearing the variable must not hide the socket"
+
+
+@needs_unix_sockets
+def test_a_forwarded_ssh_agent_is_proven_reachable_and_reported_without_its_path(tmp_path):
+    import socket as _s
+    path = str(tmp_path / "agent.sock")
+    srv = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
+    srv.bind(path)
+    srv.listen(1)
+    try:
+        out, data = _run_probe({"SSH_AUTH_SOCK": path})
+    finally:
+        srv.close()
+    assert path not in out, "the agent socket's real path can carry a username"
+    ssh = [s for s in data["secrets"]["container_sockets"] if s["kind"] == "ssh-agent"]
+    assert ssh and ssh[0]["path"] == "$SSH_AUTH_SOCK" and ssh[0]["connected"] is True
