@@ -1,8 +1,9 @@
 """Compare a measurement with a saved baseline and say what got worse.
 
 `--max-score` fails a build when the blast radius crosses a number. That
-misses drift under the number: a sandbox at 41 can lose its seccomp filter and
-gain a readable credential and still be under a budget of 45. A baseline gate
+misses drift under the number: a sandbox at 26 under a budget of 45 can gain a
+writable host mount (FS-003, 8 points) and lose no_new_privs (PRIV-005, 3 points)
+and still pass at 37. A baseline gate
 fails on any change for the worse, whatever the total:
 
   * a finding that is new, unless it is informational (0 points) and does not
