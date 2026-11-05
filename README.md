@@ -285,7 +285,7 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [ ] verifier integrity past a plain test command: detecting a forged runner result, and measuring benchmark harnesses
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
-- [ ] history across runs
+- [x] history across runs (`agentsec history`)
 
 ## Reporting a problem
 
