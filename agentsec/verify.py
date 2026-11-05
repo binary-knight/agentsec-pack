@@ -275,7 +275,9 @@ def _python_tests(source: bytes) -> dict[str, dict[str, Any]] | None:
                 decorated = any(re.search(r"\b(skip|skipif|xfail|skipIf|skipUnless)\b", ast.unparse(d)) for d in node.decorator_list)
                 visit(node.body, f"{prefix}{node.name}.", class_skipped or decorated)
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
-                out[prefix + node.name] = {"asserts": count_asserts(node), "skipped": class_skipped or skipped(node)}
+                lines = source.decode("utf-8", "replace").splitlines()[node.body[0].lineno - 1:node.end_lineno]
+                out[prefix + node.name] = {"asserts": count_asserts(node), "skipped": class_skipped or skipped(node),
+                                           "body": "\n".join(line.strip() for line in lines)}
 
     visit(tree.body, "", False)
     return out
@@ -316,13 +318,67 @@ def _text_weakening(path: str, before: bytes, after: bytes | None) -> dict[str, 
     return out
 
 
+# How alike two test bodies must be to count as one test under a new name. A version
+# bump changes a few characters. A test rewritten to check something else falls below this.
+_RENAME_SIMILARITY = 0.75
+
+
+def _settle_moved(repo: str, ch: Changes, result: dict[str, list[str]], blobs: dict[str, bytes]) -> None:
+    """A test that moved or was renamed still exists, as long as it was not weakened on the way.
+
+    Moving a test must not launder it, so one that lost assertions or gained a skip is
+    reported as that, and only an intact one is cleared from the removed list.
+    """
+    if not result["removed"]:
+        return
+    head_files = [p for p in ch.head if p.endswith(".py") and classify(p) == "test"]
+    texts = _blobs(repo, [ch.head[p][1] for p in head_files])
+    # Only a test that was not already there can be where a removed test went. A similar
+    # test that existed all along is a different test, and matching it would let any test
+    # with a sibling be deleted for free.
+    base_files = [p for p in ch.base if p.endswith(".py") and classify(p) == "test"]
+    base_texts = _blobs(repo, [ch.base[p][1] for p in base_files])
+    existed = {(p, name) for p in base_files for name in (_python_tests(base_texts[ch.base[p][1]]) or {})}
+    current = {}
+    for p in head_files:
+        for name, info in (_python_tests(texts[ch.head[p][1]]) or {}).items():
+            if (p, name) not in existed:
+                current[(p, name)] = info
+    still_removed = []
+    for entry in result["removed"]:
+        path, _sep, name = entry.partition("::")
+        before = (_python_tests(blobs[ch.base[path][1]]) or {}).get(name) if path in ch.base and name else None
+        if before is None:
+            still_removed.append(entry)
+            continue
+        short = name.split(".")[-1]
+        match = next((k for k in current if k[1].split(".")[-1] == short), None)
+        if match is None:
+            scored = [(difflib.SequenceMatcher(None, before["body"], info["body"], autojunk=False).ratio(), k)
+                      for k, info in current.items()]
+            best = max(scored, default=(0.0, None), key=lambda x: x[0])
+            match = best[1] if best[0] >= _RENAME_SIMILARITY else None
+        if match is None:
+            still_removed.append(entry)
+            continue
+        after = current[match]
+        where = f"{match[0]}::{match[1]}"
+        if after["skipped"] and not before["skipped"]:
+            result["newly_skipped"].append(f"{entry} (now {where})")
+        elif after["asserts"] < before["asserts"]:
+            result["fewer_assertions"].append(f"{entry} ({before['asserts']} to {after['asserts']}, now {where})")
+        else:
+            result["moved_or_renamed"].append(f"{entry} (now {where})")
+    result["removed"] = still_removed
+
+
 def only_adds_lines(before: bytes, after: bytes) -> bool:
     a, b = before.splitlines(), after.splitlines()
     return all(op in ("equal", "insert") for op, *_ in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes())
 
 
 def find_weakening(repo: str, ch: Changes) -> dict[str, list[str]]:
-    result: dict[str, list[str]] = {"removed": [], "fewer_assertions": [], "newly_skipped": [], "vacuous": [], "only_added_to": []}
+    result: dict[str, list[str]] = {"removed": [], "fewer_assertions": [], "newly_skipped": [], "vacuous": [], "only_added_to": [], "moved_or_renamed": []}
     paths = [p for p, k in ch.kinds.items() if k == "test" and p in ch.base]
     added_or_changed = [p for p, k in ch.kinds.items() if k == "test" and p in ch.head]
     blobs = _blobs(repo, [ch.base[p][1] for p in paths] + [ch.head[p][1] for p in added_or_changed])
@@ -335,6 +391,7 @@ def find_weakening(repo: str, ch: Changes) -> dict[str, list[str]]:
         found = parsed if parsed is not None else _text_weakening(path, before, after)
         for key, items in found.items():
             result[key].extend(items)
+    _settle_moved(repo, ch, result, blobs)
     for path in sorted(added_or_changed):
         old_lines = set(blobs[ch.base[path][1]].decode("utf-8", "replace").splitlines()) if path in ch.base else set()
         for line in blobs[ch.head[path][1]].decode("utf-8", "replace").splitlines():
@@ -404,8 +461,9 @@ def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewr
     if fixtures:
         found.append(_f("VER-003", "Fixtures or expected outputs were changed", "medium", {"paths": fixtures},
                         "Regenerating an expected output makes a test pass whatever the code does. Check that the new values are correct."))
-    if any(weak[k] for k in ("removed", "fewer_assertions", "newly_skipped", "vacuous")):
-        found.append(_f("VER-004", "Tests were removed or weakened", "high", {k: v for k, v in weak.items() if v},
+    weakened = ("removed", "fewer_assertions", "newly_skipped", "vacuous")
+    if any(weak[k] for k in weakened):
+        found.append(_f("VER-004", "Tests were removed or weakened", "high", {k: weak[k] for k in weakened if weak[k]},
                         "Each entry is a check that existed before this change and no longer applies in the same form."))
     added = [p for p in ch.added if ch.kinds[p] == "test"] + weak.get("only_added_to", [])
     if added:
