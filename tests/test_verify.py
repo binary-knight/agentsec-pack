@@ -311,3 +311,58 @@ def test_only_adding_to_a_test_file_is_informational_and_a_real_edit_is_not(proj
     assert "VER-001" not in ids(env) and "VER-006" in ids(env)
     submit(project, {"tests/test_calc.py": TEST.replace("add(1, 2), 3", "add(1, 2) , 3")})
     assert "VER-001" in ids(check(project))
+
+
+# --- moved and renamed tests: found by surveying real agent pull requests -------
+
+MOVED = TEST.replace("class T(", "class Moved(")
+
+
+def _weak(env):
+    return next((f["evidence"] for f in env["summary"]["findings"] if f["id"] == "VER-004"), {})
+
+
+def test_a_test_moved_to_another_file_is_not_called_removed(project):
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": None, "tests/test_moved.py": TEST})
+    env = check(project)
+    assert _weak(env) == {}, "the same tests with the same names still exist"
+
+
+def test_a_renamed_test_with_the_same_body_is_not_called_removed(project):
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": TEST.replace("def test_add_again", "def test_add_twice")})
+    assert _weak(check(project)) == {}
+
+
+def test_moving_a_test_does_not_launder_lost_assertions(project):
+    gutted = TEST.replace("self.assertEqual(add(1, 2), 3)", "pass")
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": None, "tests/test_moved.py": gutted})
+    weak = _weak(check(project))
+    assert any("test_add_again" in e and "1 to 0" in e for e in weak["fewer_assertions"])
+
+
+def test_moving_a_test_does_not_launder_a_new_skip(project):
+    skipped = TEST.replace("    def test_add_again", "    @unittest.skip('later')\n    def test_add_again")
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": None, "tests/test_moved.py": skipped})
+    assert any("test_add_again" in e for e in _weak(check(project))["newly_skipped"])
+
+
+def test_renaming_a_test_while_rewriting_it_is_still_removed(project):
+    other = TEST.replace("def test_add_again(self):\n        self.assertEqual(add(1, 2), 3)",
+                         "def test_add_again_v2(self):\n        values = [add(i, i) for i in range(3)]\n        print(values)\n        self.assertIsNotNone(values)")
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": other})
+    assert any("test_add_again" in e for e in _weak(check(project))["removed"])
+
+
+def test_a_deleted_test_is_not_excused_by_a_similar_test_that_was_already_there(project):
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": TEST.replace("    def test_add_again(self):\n        self.assertEqual(add(1, 2), 3)\n", "")})
+    assert any("test_add_again" in e for e in _weak(check(project))["removed"])
+
+
+def test_a_deleted_test_is_not_excused_by_the_same_name_in_a_file_that_already_had_it(project):
+    other = "import unittest\nfrom calc import add\n\n\nclass T(unittest.TestCase):\n    def test_add_again(self):\n        self.assertEqual(add(0, 0), 0)\n"
+    write(project, {"tests/test_other.py": other})
+    git(project, "add", "-A")
+    git(project, "commit", "-qm", "other")
+    git(project, "tag", "-f", "base")
+    submit(project, {"calc.py": FIXED, "tests/test_calc.py": TEST.replace("    def test_add_again(self):\n        self.assertEqual(add(1, 2), 3)\n", "")})
+    assert any("tests/test_calc.py::T.test_add_again" in e for e in _weak(check(project))["removed"])

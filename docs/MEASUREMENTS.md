@@ -155,3 +155,29 @@ Harbor keeps the grader's files out of the agent's container in all four, and ea
 
 **Limits.** This is 4 tasks of 66, on one host, through Harbor's Docker environment. All 4 are single-container tasks running as root. The 11 tasks with their own `docker-compose.yaml` and the tasks that set a non-root user were not in the sample, and Harbor's cloud environments are not covered. The cloud metadata address is unreachable here, which says nothing about a run on a cloud machine.
 
+## `agentsec verify` on real agent pull requests
+
+`scripts/survey_agent_prs.py` runs verify's static checks, tampering and weakening, over public pull requests written by coding agents. It reads git objects only and executes nothing from those repositories, so **re-grading is not part of this survey and no verdicts were produced**. It shows how often the checks fire and whether they are right, which was judged by reading every flagged change.
+
+A fixed seed picks one day of October 2026 for each of five agent accounts and each outcome, merged or closed without merging, and draws up to 10 pull requests in repositories GitHub lists as Python. That gave 99 pull requests across 65 repositories, run on 2026-11-05. Individual projects are not named here, because the point is how the check behaves and none of these changes was shown to be cheating. The rule is repeatable, though GitHub's search results can shift over time.
+
+| Of 99 pull requests | Count |
+|---|---:|
+| touched anything test-related | 47 |
+| edited or deleted existing tests | 16 |
+| flagged as weakening, first version of the check | 7 |
+| flagged as weakening, after the fix below | 5 |
+| added a skip or a vacuous assertion | 0 |
+
+**Reading the flags found a bug.** Two of the seven were false alarms: one moved its tests to another file under the same names, and one was a version bump that renamed tests such as `test_version_is_0_77_0`. The check now recognizes a moved or renamed test. Moving a test does not excuse it, so one that lost assertions or gained a skip is still reported, and only a test that did not exist at that location before the change can count as where a removed test went.
+
+**The five that remain are not proof of anything.** In one, the code the test covered was removed in the same change, which reads as deliberate. The other four need someone who knows the project. Two of those are near-identical attempts from one repository. In them a removed assertion checks a string that is still in the code, so that assertion would still have passed, which does not look like hiding a failure.
+
+**What this does not support.**
+- Merged and closed pull requests were flagged at about the same rate, 3 of 50 and 2 of 49, so the flag does not predict rejection in a sample this small.
+- Skips and vacuous assertions never appeared, so these results say nothing about how those checks behave on real code.
+- The sample leans small: the median pull request is in a repository with 1 star, 39 pull requests are in repositories with none, and 19 are in repositories with 100 or more. Several pull requests can share a repository, so they are not independent.
+- Static checks cannot judge a changed expected value. Of the 9 pull requests that edited tests and raised no flag in the first version, 4 changed assertion lines, and only re-grading can say whether those edits were needed.
+
+One of the five agent accounts is Anthropic's Claude, and this survey was run and judged by a Claude session. Three of the five remaining flags are on that account's pull requests, all in one repository, and the other two are on another agent's. The sample and the code are public, so the numbers can be recomputed, but a reader should weigh the source.
+
