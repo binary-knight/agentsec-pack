@@ -86,8 +86,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work", type=pathlib.Path)
     ap.add_argument("--per-cell", type=int, default=10)
+    ap.add_argument("--regrade-list", action="store_true",
+                    help="print the pull requests that edited existing tests, as input for regrade.yml")
     a = ap.parse_args()
     a.work.mkdir(parents=True, exist_ok=True)
+    if a.regrade_list:
+        rows = [json.loads(line) for line in (a.work / "results.jsonl").read_text().splitlines()]
+        print(json.dumps([{"repo": r["repo"], "base": r["base"], "head": r["head"]} for r in rows if r.get("existing_tests_edited")]))
+        return
     sample = a.work / "sample.json"
     if not sample.exists():
         sample.write_text(json.dumps(draw(a.per_cell), indent=1))

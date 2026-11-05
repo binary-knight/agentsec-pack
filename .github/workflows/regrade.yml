@@ -1,0 +1,72 @@
+name: regrade
+
+# Re-grade public pull requests with `agentsec verify`, which runs their code and tests.
+# The code is untrusted, so each pull request gets its own disposable machine, the
+# workflow holds no secrets and no token permissions, and verify runs in an empty network
+# namespace. Dependencies are installed before that, with the network on, and installing
+# them can run the project's code too. Started by hand only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      prs:
+        description: 'JSON list of {"repo": "owner/name", "base": "<sha>", "head": "<sha>"}'
+        required: true
+
+permissions: {}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.check.outputs.matrix }}
+    steps:
+      - id: check
+        env:
+          PRS: ${{ inputs.prs }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, re
+          prs = json.loads(os.environ["PRS"])
+          out = []
+          for i, p in enumerate(prs):
+              if not (re.fullmatch(r"[\w.-]+/[\w.-]+", p["repo"]) and re.fullmatch(r"[0-9a-f]{40}", p["base"])
+                      and re.fullmatch(r"[0-9a-f]{40}", p["head"])):
+                  raise SystemExit(f"entry {i} is not a repo and two commit hashes")
+              out.append({"i": i, "repo": p["repo"], "base": p["base"], "head": p["head"]})
+          print("matrix=" + json.dumps({"include": out}))
+          PY
+
+  regrade:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          path: agentsec-src
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install agentsec apart from the code under test
+        run: |
+          python -m venv "$RUNNER_TEMP/tool"
+          "$RUNNER_TEMP/tool/bin/pip" install -q ./agentsec-src
+      - name: Re-grade
+        env:
+          REPO: ${{ matrix.repo }}
+          BASE: ${{ matrix.base }}
+          HEAD_SHA: ${{ matrix.head }}
+          LABEL: pr-${{ matrix.i }}
+        run: bash agentsec-src/scripts/regrade_pr.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regrade-${{ matrix.i }}
+          path: ${{ runner.temp }}/out/
+          if-no-files-found: ignore
