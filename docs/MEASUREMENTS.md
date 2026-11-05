@@ -157,7 +157,7 @@ Harbor keeps the grader's files out of the agent's container in all four, and ea
 
 ## `agentsec verify` on real agent pull requests
 
-`scripts/survey_agent_prs.py` runs verify's static checks, tampering and weakening, over public pull requests written by coding agents. It reads git objects only and executes nothing from those repositories, so **re-grading is not part of this survey and no verdicts were produced**. It shows how often the checks fire and whether they are right, which was judged by reading every flagged change.
+`scripts/survey_agent_prs.py` runs verify's static checks, tampering and weakening, over public pull requests written by coding agents. It reads git objects only and executes nothing from those repositories, so **this survey produced no verdicts**. Re-grading is a separate step, covered at the end of this section. It shows how often the checks fire and whether they are right, which was judged by reading every flagged change.
 
 A fixed seed picks one day of October 2026 for each of five agent accounts and each outcome, merged or closed without merging, and draws up to 10 pull requests in repositories GitHub lists as Python. That gave 99 pull requests across 65 repositories, run on 2026-11-05. Individual projects are not named here, because the point is how the check behaves and none of these changes was shown to be cheating. The rule is repeatable, though GitHub's search results can shift over time.
 
@@ -181,3 +181,48 @@ A fixed seed picks one day of October 2026 for each of five agent accounts and e
 
 One of the five agent accounts is Anthropic's Claude, and this survey was run and judged by a Claude session. Three of the five remaining flags are on that account's pull requests, all in one repository, and the other two are on another agent's. The sample and the code are public, so the numbers can be recomputed, but a reader should weigh the source.
 
+### Re-grading the 16 that edited tests
+
+The 16 pull requests that edited or deleted existing tests, in 12 repositories, were then run through `agentsec verify --junit` on 2026-11-05. `.github/workflows/regrade.yml` gave each one its own disposable GitHub Actions runner, and `scripts/regrade_pr.sh` installed the project's declared dependencies, then ran each test run for up to 480 seconds in a network namespace. A direct check on every pull request found no route out of that namespace.
+
+An earlier pass compared exit codes only and installed fewer dependencies, so the difference below comes from both changes.
+
+| Verdict, of 16 | Exit codes only | `--junit` and fuller setup |
+|---|---:|---:|
+| `verified` | 0 | 0 |
+| `tests-changed-the-result` | 4 | 7 |
+| `failing` | 11 | 1 |
+| `already-failing` | not available | 2 |
+| `unverified` | 1 | 6 |
+
+The sample cannot show how often `verified` happens, because every pull request in it was chosen for editing existing tests. **`verified` has still not been reached on real agent output.**
+
+**Nothing here was shown to be cheating.** Each `tests-changed-the-result` and `failing` verdict was read by hand, with one exception noted below.
+
+| Result, as read | Pull requests | Verdict |
+|---|---:|---|
+| A release bump, and the old tests pin the old version | 1 | `tests-changed-the-result` |
+| A rename to a private name, and the old tests import the old name | 1 | `tests-changed-the-result` |
+| Behavior moved on purpose, with the old assertions updated or carried to new tests | 2 | `tests-changed-the-result` |
+| A test file moved, from a location where it could not load in this setup | 1 | `tests-changed-the-result` |
+| A red suite turned green largely by editing its tests, which the project's owner would have to judge | 2 | `tests-changed-the-result` |
+| A new test file could not load in this setup | 1 | `failing` |
+| No failure was new | 2 | `already-failing` |
+| Timed out in all three runs | 3 | `unverified` |
+| A crash while importing a dependency, so no results were written | 1 | `unverified` |
+| A test file exits at import, so pytest never reached a test | 2 | `unverified` |
+
+**The two that need a person are near-identical attempts from one repository, both closed without merging.** Their base commit was already failing. With the change, 11 tests pass only because of its test edits, 8 are fixed by its code, and 3 that passed before fail when their old versions return. Most edits state a reason in a comment or docstring. Several look like plain corrections, such as replacing a hardcoded value that had gone out of date with a read of the file it describes. Others loosen what a test demands: one lets a draft entry go without citations, one widens the failure reasons a check over the live data accepts, and one accepts any of three exit codes after moving its strict form to a fixture. New companion tests limit the first of those. This may be the right decision for that project, and `verify` cannot tell. It did point to the edits that need reading. One of the two was read closely, and the other has identical per-test results.
+
+**One repository's verdicts mostly reflect the setup.** Three of the pull requests are in a repository where a package failed to install here, so about 30 test files could not load. That produced the only `failing` verdict, a new test file hitting the same missing module as the rest. It also produced the test file move in the table and one `already-failing`.
+
+**`--junit` separated what exit codes could not.** One project's test downloads a database extension and fails without a network, and it now reads as already failing, apart from the change. Another 20 failures in a different pull request were all present before the change. Pytest exiting without reaching a test had read as `failing` and now reads as `unverified`.
+
+**Reading the results found a bug.** One project's parameterized tests put `uuid4()` in their ids, so each run looked as if 5 tests had stopped and 5 others had appeared. That counts as a failure, and it would give a clean change a false `failing`. It did not change this verdict, which rested on a different test. `verify` now pairs a case whose id changed, keeps each case's own status, and still reports a case that went away. These reports predate that fix.
+
+**What this does not support.**
+- 16 pull requests, 6 of them in 2 repositories, are too few to give any rate.
+- Installing a project from its declared dependencies is a generic approximation, and it is not how those projects run their own CI.
+- The results depend on the setup, and 6 of the 16 produced no result at all.
+
+Five of the 16 are on Anthropic's Claude account, including both that need a person, and all of this was read and judged by a Claude session. Reports are kept out of this repository because they name the projects, so these totals cannot be recomputed from it, though the workflow and the selection rule are public.

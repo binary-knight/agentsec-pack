@@ -196,13 +196,15 @@ Every measurement run writes a machine-readable file to `reports/<label>.json` u
 
 ## Did the change pass its tests, or change them?
 
-Checking an agent's work requires the tests from before the agent started, because a green test run confirms only that the current suite passed. `agentsec verify` compares two commits to report changes to tests, fixtures, test configuration, or CI, alongside tests that lost assertions or were removed or skipped. Once that comparison finishes, the command puts the old test suite back in place to execute the new code.
+`agentsec verify` checks that an agent's changes pass the tests from before the agent started, because a green run only shows that the final suite passed. The command diffs two commits, reporting edits to tests, fixtures, test configuration, or CI alongside removed or skipped tests and lost assertions before running the new code with the old tests restored. Have your test command write a JUnit XML results file and pass its name with `--junit`, so the runs are compared test by test.
 
 ```bash
-agentsec verify --base main --head agent-branch --test-cmd "pytest -q" --image python:3.12-slim
+agentsec verify --base main --head agent-branch --test-cmd "pytest -q --junit-xml=results.xml" --junit results.xml --image python:3.12-slim
 ```
 
-The tool reports `verified` when the new code passes the base commit's tests, or `tests-changed-the-result` when passing requires its own test edits. A run produces `failing` when the test suite fails, while `unverified` indicates that the tests could not be executed to a result. Every verdict other than `verified` returns exit code 2, while `--strict` also exits with 2 when a passing change modified its tests. Test edits can be legitimate on their own, so a person should read those modifications directly during review. Omit `--image` to run the tests on your machine with your user's access, or pass `--image` to run them in a container with no network. A change can still pass by special-casing the tests within its own code or by making the test runner report success. That limit exists because a pass means only that the old tests' command exited 0 when run against the new code.
+The verdict is `verified` when the new code passes the base commit's tests, and `tests-changed-the-result` when passing requires the change's own test edits. Breaking a previously passing test produces `failing`, while runs where every failure already existed before the change produce `already-failing`. When the suite fails to reach a result, including when tests never start or write no results file, the run is marked `unverified`. Omitting `--junit` leaves only exit codes, so the tool cannot distinguish old failures from new ones or a suite that never started from a failed run. Code that exits 0 as soon as the tests import it therefore passes without `--junit` and becomes `unverified` with `--junit`. Every verdict other than `verified` exits with code 2, and `--strict` also exits 2 when a passing change edited its tests. Editing a test is a legitimate part of many changes, so a person should read those test edits directly.
+
+Without `--image`, the tests run on your machine with your user's access, so pass `--image` to run them in a container with no network. Even then, a change can go undetected if it special-cases the tests in its own code or writes its own results file.
 
 ## Seeing it
 

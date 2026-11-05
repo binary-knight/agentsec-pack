@@ -552,6 +552,40 @@ def test_the_report_shows_the_counts_per_run(project, tmp_path):
     assert "| head | the new commit as submitted | 0 | 2 | 0 | 0 | 0 |" in (tmp_path / "r.md").read_text()
 
 
+def test_a_parameter_id_that_changes_every_run_is_still_the_same_test():
+    case = "t.py::test_a[{}]"
+    runs = [{case.format(x): "passed", "t.py::test_b[fixed]": "passed"} for x in ("one", "two", "three")]
+    cmp = vf.compare_tests(*runs)
+    assert not any(cmp.values())
+
+
+def test_a_changing_id_keeps_its_own_status():
+    case = "t.py::test_a[{}]"
+    cmp = vf.compare_tests({case.format("one"): "passed"}, {case.format("two"): "failed"}, {case.format("three"): "failed"})
+    assert cmp["regressed"] == ["t.py::test_a[changing id 1]"]
+
+
+def test_a_case_that_went_away_is_not_excused_by_its_siblings():
+    case = "t.py::test_a[{}]"
+    both = {case.format("one"): "passed", case.format("two"): "passed"}
+    only = {case.format("one"): "passed"}
+    assert vf.compare_tests(both, only, only)["stopped_running"] == [case.format("two")]
+
+
+def test_a_case_whose_id_held_keeps_its_name_beside_one_that_changed():
+    case = "t.py::test_a[{}]"
+    base = {case.format("a"): "passed", case.format("b"): "passed"}
+    after = {case.format("b"): "failed", case.format("c"): "passed"}
+    assert vf.compare_tests(base, after, after)["regressed"] == [case.format("b")]
+
+
+def test_a_changed_id_with_a_lost_case_is_not_paired():
+    case = "t.py::test_a[{}]"
+    base = {case.format("a"): "passed", case.format("b"): "passed"}
+    after = {case.format("c"): "passed"}
+    assert len(vf.compare_tests(base, after, after)["stopped_running"]) == 2
+
+
 def test_known_limit_code_that_writes_its_own_results_still_passes(project):
     """Pinned so it stays honest. Results raise the bar, but the code under test can reach the file."""
     fake = ('<testsuite><testcase classname=\\"tests.test_calc.T\\" name=\\"test_add\\"/>'
