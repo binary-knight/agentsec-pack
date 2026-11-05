@@ -30,9 +30,17 @@ that failed. Each run also has to produce results, so code that exits 0 as soon 
 tests import it is caught. The results file is cleared before each run, so one committed
 to the repository cannot stand in for a run.
 
+Before --junit results are accepted as a pass, the code gets one more run with a test
+planted beside the existing ones. Its name is random and it must fail, so results that
+leave it out or report it passing did not come from running the tests, and code that
+neuters assertions or the runner is caught too. The other results of that run have to
+agree with the first, so code cannot behave only while it is being watched.
+
 What this cannot see, stated so a pass is not read as more than it is: a change can
-special-case the tests in its own code, or write a results file of its own. Without
---junit a pass means only that the old tests' command exited 0 against the new code.
+special-case the tests in its own code, or look through the tree for the planted test
+and report it failed along with its invented results. The planted test is Python, so
+results from other languages are not checked this way. Without --junit a pass means
+only that the old tests' command exited 0 against the new code.
 """
 from __future__ import annotations
 
@@ -44,6 +52,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -61,6 +70,8 @@ OUTPUT_TAIL_CHARS = 8000
 MAX_RESULTS_BYTES = 64 * 1024 * 1024
 # How many test names a report lists in each group. The counts are always complete.
 MAX_LISTED = 50
+# How many directories get a planted test. A suite with more still collects the shallow ones.
+MAX_PLANT_SITES = 20
 _BAD = {"failed", "error"}
 
 _GIT = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.attributesFile=/dev/null"]
@@ -511,6 +522,55 @@ def _read_results(tree: Path, junit: str) -> tuple[dict[str, str] | None, str | 
         return None, str(e)
 
 
+# --- a test that must fail --------------------------------------------------------
+
+_PLANTED_TEST = """import unittest
+
+
+class Test{name}(unittest.TestCase):
+    def test_{name}_method(self):
+        self.assertEqual(1, 2)
+
+    def test_{name}_raised(self):
+        raise AssertionError("{name}")
+"""
+
+
+def _plant_sites(base: dict[str, tuple[str, str]], extra_globs: list[str] | None, not_tests: list[str] | None) -> dict[str, str]:
+    """{directory: file name pattern} for the directories that hold Python tests, shallowest first.
+
+    One per directory, because a test command often selects part of a suite, and a file
+    next to existing tests, under their naming pattern, is what that suite will collect.
+    """
+    sites: dict[str, str] = {}
+    for path in sorted(base, key=lambda p: (p.count("/"), p)):
+        name = PurePosixPath(path).name
+        if base[path][0] == "120000" or classify(path, extra_globs, not_tests) != "test":
+            continue
+        if fnmatch.fnmatch(name, "test_*.py"):
+            sites.setdefault(str(PurePosixPath(path).parent), "test_{}.py")
+        elif fnmatch.fnmatch(name, "*_test.py"):
+            sites.setdefault(str(PurePosixPath(path).parent), "{}_test.py")
+    return dict(list(sites.items())[:MAX_PLANT_SITES])
+
+
+def _plant(tree: Path, sites: dict[str, str]) -> tuple[str, list[str]]:
+    """Write the test into each site under a new random name. (the name, the paths written)"""
+    token = secrets.token_hex(8)
+    paths = []
+    for i, (directory, pattern) in enumerate(sites.items()):
+        name = f"{token}_{i}"
+        path = str(PurePosixPath(directory) / pattern.format(name))
+        _write_entry(tree, path, "100644", _PLANTED_TEST.format(name=name).encode())
+        paths.append(path)
+    return token, paths
+
+
+def _split_planted(found: dict[str, str], token: str) -> tuple[dict[str, str], dict[str, str]]:
+    """(the planted tests' results, everything else)"""
+    return {t: s for t, s in found.items() if token in t}, {t: s for t, s in found.items() if token not in t}
+
+
 def _tally(tests: dict[str, str]) -> dict[str, int]:
     return {k: sum(1 for v in tests.values() if v == k) for k in ("passed", "failed", "error", "skipped")}
 
@@ -694,7 +754,8 @@ def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewr
 def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: int = DEFAULT_TIMEOUT,
            image: str | None = None, engine: str = "docker", flags: list[str] | None = None,
            extra_globs: list[str] | None = None, not_tests: list[str] | None = None,
-           env_names: list[str] | None = None, run_base: bool = True, junit: str | None = None) -> dict[str, Any]:
+           env_names: list[str] | None = None, run_base: bool = True, junit: str | None = None,
+           plant: bool = True) -> dict[str, Any]:
     repo = os.path.abspath(repo)
     if junit and (PurePosixPath(junit).is_absolute() or ".." in PurePosixPath(junit).parts or not PurePosixPath(junit).parts):
         raise VerifyError(f"--junit must be a path inside the tree: {junit}")
@@ -710,21 +771,89 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
     args = (test_cmd, timeout, image, engine, flags or [], env_names or [])
     tests: dict[str, dict[str, str]] = {}
 
-    def run(name: str, tree: Path) -> None:
+    def run(name: str, tree: Path, into: dict[str, dict] = runs) -> None:
         # Each run gets its own home, so one run cannot leave anything there for the next.
         home = tree.parent / f"home-{name}"
         home.mkdir()
         if junit:
             _remove(_safe_target(tree, junit))
-        runs[name] = run_tests(tree, *args, home)
+        into[name] = run_tests(tree, *args, home)
         if junit:
-            found, problem = _read_results(tree, junit) if runs[name]["ran"] else (None, "the run did not finish")
-            runs[name]["results"] = _tally(found) if found is not None else None
+            found, problem = _read_results(tree, junit) if into[name]["ran"] else (None, "the run did not finish")
+            into[name]["results"] = _tally(found) if found is not None else None
             if found is None:
-                runs[name]["results_problem"] = problem
+                into[name]["results_problem"] = problem
             else:
                 tests[name] = found
 
+    def build_regrade(tree: Path) -> None:
+        materialize(repo, head, tree)
+        blobs = _blobs(repo, [base[p][1] for p in restored if p in base])
+        for p in restored:
+            if p in base:
+                _write_entry(tree, p, base[p][0], blobs[base[p][1]])
+            else:
+                _remove(_safe_target(tree, p))
+
+    def check_planted(work: Path, final: str) -> tuple[str, list[Finding], dict[str, Any]]:
+        """Run the new code once more with a test that must fail. (verdict, findings, record)"""
+        sites = _plant_sites(base, extra_globs, not_tests)
+        if not plant or not sites:
+            why = "--no-planted-test was passed" if not plant else "the base commit has no Python test file to plant one beside"
+            return "verified", [_f("VER-015", "No test was planted to check these results", "info", {"reason": why},
+                                   "Code that writes its own results file would pass this run. Results are only checked this way for Python suites.")], \
+                {"status": "not-planted", "reason": why}
+        tree = work / "planted"
+        if final == "regrade":
+            build_regrade(tree)
+        else:
+            materialize(repo, head, tree)
+        token, paths = _plant(tree, sites)
+        extra: dict[str, dict] = {}
+        run("planted", tree, extra)
+        record: dict[str, Any] = {"status": "unverified", "paths": paths, "exit": extra["planted"]["exit"]}
+        found = tests.pop("planted", None)
+        if found is None:
+            problem = extra["planted"].get("results_problem")
+            return "unverified", [_f("VER-008", "The run with the planted test produced no results", "high", {"problem": problem, "unmeasured": True},
+                                     "The earlier runs produced results and this one did not, so the earlier results are not confirmed.")], record
+        seen, rest = _split_planted(found, token)
+        record["results"] = _tally(rest)
+        passing = sorted(t for t, status in seen.items() if status not in _BAD)
+        if passing:
+            record["status"] = "reported-passing"
+            return "results-not-credible", [_f("VER-014", "A test planted to fail was reported as not failing", "critical",
+                                               {"tests": passing, "planted_in": paths},
+                                               "These tests cannot pass. Something changed what the run reports, so read the change for code "
+                                               "that writes the results file or alters assertions or the test runner.")], record
+        if not seen:
+            base_tree = work / "planted-base"
+            materialize(repo, base, base_tree)
+            base_token, _paths = _plant(base_tree, sites)
+            run("planted-base", base_tree, extra)
+            on_base, _rest = _split_planted(tests.pop("planted-base", {}), base_token)
+            if on_base:
+                record["status"] = "missing"
+                return "results-not-credible", [_f("VER-014", "A test planted to fail is missing from the results of the new code", "critical",
+                                                   {"planted_in": paths, "collected_on_the_base_commit": True},
+                                                   "The same test ran on the base commit's code. Read the change for code that writes the results "
+                                                   "file, exits early, or changes which tests are collected.")], record
+            record["status"] = "not-collected"
+            return "unverified", [_f("VER-008", "The test command did not collect the planted test", "high", {"planted_in": paths, "unmeasured": True},
+                                     "The test did not run on the base commit either, so this suite cannot confirm its results this way. Run a "
+                                     "command that collects the directory, or pass --no-planted-test to accept the results unconfirmed.")], record
+        final_results = tests[final]
+        changed = sorted(t for t, status in rest.items() if status in _BAD and final_results.get(t) == "passed")
+        if changed:
+            record["status"] = "results-differ"
+            return "unverified", [_f("VER-008", "Tests passed in one run and failed in another, on the same code", "high",
+                                     dict(_listed(changed), unmeasured=True),
+                                     "Either these tests are flaky, or the code behaves differently when another test file is present. "
+                                     "A test that does not hold from one run to the next was not shown to pass.")], record
+        record["status"] = "failed-as-planted"
+        return "verified", [], record
+
+    planted_record = None
     with tempfile.TemporaryDirectory(prefix="agentsec-verify-") as td:
         work = Path(td)
         if run_base:
@@ -734,22 +863,20 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
         run("head", work / "head")
         if restored:
             tree = work / "regrade"
-            materialize(repo, head, tree)
-            blobs = _blobs(repo, [base[p][1] for p in restored if p in base])
-            for p in restored:
-                if p in base:
-                    _write_entry(tree, p, base[p][0], blobs[base[p][1]])
-                else:
-                    _remove(_safe_target(tree, p))
+            build_regrade(tree)
             guarded = sorted(({p for p in base if classify(p, extra_globs, not_tests)} | {p for p in restored if p in base}) - {junit})
             before = _hash_paths(tree, guarded)
             run("regrade", tree)
             after = _hash_paths(tree, guarded)
             rewritten = sorted(p for p in guarded if before[p] != after[p])
-    cmp = None
-    if junit and "head" in tests and ("regrade" in tests or "regrade" not in runs):
-        cmp = compare_tests(tests.get("base"), tests["head"], tests.get("regrade", tests["head"]))
-    verdict, findings = analyze(ch, weak, runs, rewritten, restored, cmp, bool(junit))
+        cmp = None
+        if junit and "head" in tests and ("regrade" in tests or "regrade" not in runs):
+            cmp = compare_tests(tests.get("base"), tests["head"], tests.get("regrade", tests["head"]))
+        verdict, findings = analyze(ch, weak, runs, rewritten, restored, cmp, bool(junit))
+        # Only a result that would pass needs confirming, so a failing change costs nothing more.
+        if junit and verdict == "verified":
+            verdict, more, planted_record = check_planted(work, "regrade" if "regrade" in runs else "head")
+            findings += more
     summary = {"verdict": verdict, "score": min(100, sum(f.weight for f in findings)), "finding_count": len(findings),
                "by_severity": {s: sum(1 for f in findings if f.severity == s) for s in SEVERITY_WEIGHT},
                "findings": [dataclasses.asdict(f) for f in findings]}
@@ -758,7 +885,8 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
                        "image": image, "engine": engine if image else None, "flags": flags or [], "junit": junit},
             "changes": {"added": ch.added, "modified": ch.modified, "deleted": ch.deleted,
                         "test_settings_in_mixed_files": ch.test_settings_in_mixed, "restored_for_regrade": restored},
-            "comparison": {k: _listed(v) for k, v in cmp.items()} if cmp else None, "runs": runs, "summary": summary}
+            "comparison": {k: _listed(v) for k, v in cmp.items()} if cmp else None, "runs": runs, "planted_test": planted_record,
+            "summary": summary}
 
 
 VERDICT_TEXT = {
@@ -766,6 +894,7 @@ VERDICT_TEXT = {
     "tests-changed-the-result": "the new code passes only with its own edits to the tests",
     "failing": "the tests fail",
     "already-failing": "the only failing tests also failed before this change",
+    "results-not-credible": "a test planted to fail did not fail, so these results did not come from running the tests",
     "unverified": "the tests could not be run to a result, so nothing was shown",
 }
 
@@ -793,13 +922,18 @@ def render_markdown(env: dict[str, Any]) -> str:
             lines.append(row)
     if "regrade" not in env["runs"]:
         lines += ["", "No test-related file changed, so re-grading would repeat the run above."]
+    planted = env.get("planted_test")
+    if planted and planted.get("paths"):
+        lines += ["", f"The new code ran once more with a test that must fail, planted in {', '.join(f'`{p}`' for p in planted['paths'])}: "
+                      f"**{planted['status']}**."]
     lines += ["", "## Findings"]
     if not s["findings"]:
         lines.append("None.")
     for f in s["findings"]:
         lines += [f"### {f['id']} · {f['severity'].upper()} · {f['title']}", f"- evidence: `{f['evidence']}`", f"- {f['remediation']}", ""]
     lines += ["", "## What this does not show",
-              "A change can special-case the tests in its own code, or write a results file of its own."
+              "A change can special-case the tests in its own code, or look through the tree for the planted test and report "
+              "it failed along with its invented results."
               if per_test else
               "A change can special-case the tests in its own code, or make the test runner report success. "
               "A pass means the base commit's test command exited 0 against the new code. Pass --junit to compare test by test."]

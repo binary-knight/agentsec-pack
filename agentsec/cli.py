@@ -330,7 +330,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     try:
         env = vf.verify(args.repo, args.base, args.head, args.test_cmd, timeout=args.timeout, image=args.image,
                         engine=args.engine, flags=args.flags, extra_globs=args.tests, not_tests=args.not_tests,
-                        env_names=args.env, run_base=not args.no_base_run, junit=args.junit)
+                        env_names=args.env, run_base=not args.no_base_run, junit=args.junit, plant=not args.no_planted_test)
     except vf.VerifyError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -561,6 +561,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--env", action="append", default=[], metavar="NAME", help="pass this variable to the tests; none are passed otherwise")
     v.add_argument("--timeout", type=int, default=600, help="seconds for each test run")
     v.add_argument("--no-base-run", action="store_true", help="skip running the base commit, which only reports whether the tests already passed")
+    v.add_argument("--no-planted-test", action="store_true", help="with --junit, accept the results without the extra run that plants a test that must fail")
     v.add_argument("--strict", action="store_true", help="also exit 2 when the change passes but touched its tests")
     v.add_argument("--label")
     v.add_argument("--out", default="reports")
