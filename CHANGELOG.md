@@ -6,15 +6,29 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
-- `agentsec verify --junit PATH` compares the runs test by test. It separates a failure that predates the change (new verdict `already-failing`), a suite that never started (`unverified`), a real regression (`failing`), and tests that pass only with the change's own edits. A run that writes no results is `unverified`, and a results file committed to the repository is cleared before each run. Each run now gets its own home directory. A parameterized case whose id changes between runs, for example through `uuid4()`, is no longer reported as a test that stopped running. Results of re-grading 16 public agent pull requests are in `docs/MEASUREMENTS.md`.
-- `agentsec verify` recognizes a test that moved or was renamed, and still reports one that lost assertions or gained a skip on the way. Found by running its static checks over 99 public agent pull requests with `scripts/survey_agent_prs.py`; results are in `docs/MEASUREMENTS.md`.
-- `agentsec verify` compares two commits and asks whether the change passed its tests or changed them. It reports changes to tests, fixtures, test configuration and CI, and tests that were removed, skipped or lost assertions, then runs the new code with the old tests put back. Exits 2 unless the verdict is `verified`, and `--strict` also fails a passing change that edited its tests. It reads the repository from git objects so hooks, filters and `export-ignore` cannot affect it, and it clears symlinks before restoring a path. It cannot detect a change that forges the test runner's result.
-- Public Terminal-Bench tasks measured through real Harbor with a no-model agent. Four tasks drawn by a repeatable rule score 67, and `/tests` and `/solution` are absent from the agent's container. A fifth needs a GPU and was not measured. The README gains a Harbor chart, and `docs/MEASUREMENTS.md` explains why 67 is not comparable with plain Docker's 59.
-- A proxy that gave no clear answer no longer counts as containment. NET-003 now needs a refusal from every destination asked about. A timeout, a failed connection, a gateway error or a proxy without `CONNECT` support reports NET-004, not measured, and lists those destinations. No published score changes.
-- Claude Code 2.1.318 measured on macOS in full headless sessions (`macos-claude-code.yml`, approval required for every run): no sandbox 100, sandbox on 53, sandbox with `denyRead` 38. Claude Code protects its own project config and leaves Codex's and Antigravity's writable, the mirror of the Codex result. Sandboxed commands can see `ANTHROPIC_API_KEY` by name.
-- Three `seatbelt-*` presets run the probe under macOS `sandbox-exec`: a profile that allows everything, one that denies the network, and a confined profile.
-- macOS measurements from a GitHub-hosted machine: no sandbox 76, the Seatbelt presets 68, 53 and 8, and Codex CLI 0.164.0's own sandbox through `codex sandbox`, 15 in read-only and 30 in `workspace-write`. On macOS, Codex hides other processes and leaves Claude Code's project config writable inside its workspace. The README gains a macOS chart.
-- Probe **0.6.0** runs on macOS. It reads Seatbelt confinement through `sandbox_check()`, process visibility through `sysctl`, and a read-only root through `statvfs`, and it skips the Linux-only checks. PRIV-006 reports a process under no Seatbelt profile. `~/Library/LaunchAgents` and `/opt/homebrew/bin` are checked. CI runs the suite on `macos-latest`, and `macos-measure.yml` runs the probe on a macOS runner when started by hand.
+## 0.3.0 — 2026-11-05
+
+Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.
+
+**Checking an agent's work**
+- `agentsec verify` compares two commits and asks whether the change passed its tests or changed them. It reports changes to tests, fixtures, test configuration and CI, and tests that were removed, skipped or lost assertions, then runs the new code with the old tests put back. Exits 2 unless the verdict is `verified`, and `--strict` also fails a passing change that edited its tests. It reads the repository from git objects so hooks, filters and `export-ignore` cannot affect it, and it clears symlinks before restoring a path. (#30)
+- `verify --junit PATH` compares the runs test by test. It separates a failure that predates the change (new verdict `already-failing`), a suite that never started (`unverified`), a regression (`failing`), and tests that pass only with the change's own edits. A run that writes no results is `unverified`, and a results file committed to the repository is cleared before each run. Each run gets its own home directory. (#33)
+- `verify` recognizes a test that moved or was renamed, and still reports one that lost assertions or gained a skip on the way. A parameterized case whose id changes between runs, for example through `uuid4()`, is no longer reported as a test that stopped running. (#31, #34)
+- `verify` is early. It has been run on 16 public agent pull requests and has not yet reached `verified` on real agent output, because all 16 were chosen for editing their tests. A change can still special-case the tests in its own code or write its own results file. Results are in `docs/MEASUREMENTS.md`. (#34)
+- `scripts/survey_agent_prs.py` runs the static checks over public agent pull requests, and `regrade.yml` re-grades them on disposable machines. (#31, #32)
+
+**Measuring**
+- Probe 0.6.0 runs on macOS. It reads Seatbelt confinement through `sandbox_check()`, process visibility through `sysctl`, and a read-only root through `statvfs`, and it skips the Linux-only checks. PRIV-006 reports a process under no Seatbelt profile. `~/Library/LaunchAgents` and `/opt/homebrew/bin` are checked. CI runs the suite on `macos-latest`. (#23)
+- Three `seatbelt-*` presets run the probe under macOS `sandbox-exec`: a profile that allows everything, one that denies the network, and a confined profile. (#24)
+- A proxy that gave no clear answer no longer counts as containment. NET-003 now needs a refusal from every destination asked about. A timeout, a failed connection, a gateway error or a proxy without `CONNECT` support reports NET-004, not measured, and lists those destinations. (#28)
+
+**Measured profiles**
+- macOS from a GitHub-hosted machine: no sandbox 76, the Seatbelt presets 68, 53 and 8, and Codex CLI 0.164.0's own sandbox through `codex sandbox`, 15 in read-only and 30 in `workspace-write`. On macOS, Codex hides other processes and leaves Claude Code's project config writable inside its workspace. (#24)
+- Claude Code 2.1.318 on macOS in full headless sessions: no sandbox 100, sandbox on 53, sandbox with `denyRead` 38. Claude Code protects its own project config and leaves Codex's and Antigravity's writable, the mirror of the Codex result. Sandboxed commands can see `ANTHROPIC_API_KEY` by name. (#25, #26, #27)
+- Public Terminal-Bench tasks through real Harbor with a no-model agent. Four tasks drawn by a repeatable rule score 67, and `/tests` and `/solution` are absent from the agent's container. A fifth needs a GPU and was not measured. `docs/MEASUREMENTS.md` explains why 67 is not comparable with plain Docker's 59. (#29)
+
+**Fixed**
+- `agentsec.__version__` said `0.0.1` in every release so far. It now matches the package version.
 
 ## 0.2.0 — 2026-11-04
 

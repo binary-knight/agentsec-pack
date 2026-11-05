@@ -3,6 +3,8 @@ import fnmatch
 import os
 import re
 
+import agentsec
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
@@ -31,3 +33,8 @@ def test_every_non_python_file_in_the_package_is_shipped():
             if not any(fnmatch.fnmatch(rel, p) for p in patterns):
                 missing.append(rel)
     assert not missing, f"not in [tool.setuptools.package-data]: {missing}"
+
+
+def test_the_package_reports_the_version_it_is_published_under():
+    with open(os.path.join(REPO, "pyproject.toml"), encoding="utf-8") as f:
+        assert f'version = "{agentsec.__version__}"' in f.read()
