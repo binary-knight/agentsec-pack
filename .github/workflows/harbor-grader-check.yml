@@ -1,0 +1,54 @@
+name: harbor-grader-check
+
+# Check public Terminal-Bench graders through real Harbor, one disposable machine per task,
+# with scripts/check_harbor_grader.sh. Tasks come from scripts/select_harbor_sample.py. The
+# task's code runs here, so this holds no secrets and no token permissions. By hand only.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [harbor-grader-check]
+
+permissions: {}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      tasks: ${{ steps.draw.outputs.tasks }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: draw
+        run: |
+          TB=73d6279f91eb773bd51af2e2572a6fa044342e7a
+          git init -q tb && git -C tb remote add origin https://github.com/harbor-framework/terminal-bench.git
+          git -C tb fetch -q --depth 1 origin "$TB" && git -C tb checkout -q FETCH_HEAD
+          python3 scripts/select_harbor_sample.py tb 5 | sed -n "s/^measure: //p" | tr "'" '"' | sed 's/^/tasks=/' >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        task: ${{ fromJSON(needs.plan.outputs.tasks) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv
+      - name: Free disk for the task's image
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - run: bash scripts/check_harbor_grader.sh "$RUNNER_TEMP/grader" "${{ matrix.task }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grader-${{ matrix.task }}
+          path: examples/harbor-grader/
+          if-no-files-found: warn

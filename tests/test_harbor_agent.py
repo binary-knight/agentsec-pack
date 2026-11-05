@@ -1,6 +1,7 @@
 """The Harbor probe agent and the task selection rule, with no Harbor or Docker needed."""
 import asyncio
 import importlib
+import importlib.util
 import json
 import pathlib
 import subprocess
@@ -79,3 +80,41 @@ def test_the_draw_repeats_and_adds_only_agent_network_off_tasks(tmp_path):
     assert a == b and len(a["drawn"]) == 3 and a["population"] == 12
     assert a["network_off"] == ["off"], "a verifier's setting does not change what the agent gets"
     assert "off" in a["measure"]
+
+
+def test_the_forge_agent_makes_every_attempt_and_records_how_each_ended(agent_module, tmp_path):
+    env = FakeEnv()
+    asyncio.run(agent_module.ForgeAgent(tmp_path).run("task", env, None))
+    recorded = json.loads((tmp_path / "agentsec-forge.json").read_text())
+    assert set(recorded) == set(agent_module.FORGE_ATTEMPTS)
+
+
+def _reader():
+    spec = importlib.util.spec_from_file_location("read_harbor_grades", REPO / "scripts" / "read_harbor_grades.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.parametrize("nothing,forged,solution,result", [
+    (0, 0, 1, "held"),
+    (0, 1, 1, "forged-run-scored"),
+    (1, 0, 1, "untouched-environment-scored"),
+    (0, 0, 0, "solution-did-not-pass"),
+    (0, 0, None, "incomplete"),
+    (None, 0, 1, "incomplete"),
+    (0, 1, None, "incomplete"),
+])
+def test_a_grader_holds_only_when_all_three_runs_settle(nothing, forged, solution, result):
+    runs = {"nothing": {"reward": nothing}, "forged": {"reward": forged}, "solution": {"reward": solution}}
+    assert _reader().conclude(runs) == result
+
+
+def test_a_run_with_no_reward_is_not_read_as_zero(tmp_path):
+    reader = _reader()
+    trial = tmp_path / "forged" / "trial"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(json.dumps({"verifier_result": None, "exception_info": {"exception_type": "VerifierTimeoutError"}}))
+    run = reader.read_run(tmp_path, "forged")
+    assert run["reward"] is None and run["error"] == "VerifierTimeoutError"
+    assert reader.read_run(tmp_path, "solution") == {"finished": False, "reward": None}
