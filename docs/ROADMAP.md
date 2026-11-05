@@ -157,7 +157,7 @@ trend view.
 
 `agentsec verify` covers what a diff and a re-run can prove. Two things are left.
 
-**A forged result.** A change can make the test runner report success, for example by exiting 0 when the tests import it. A pass today means the command exited 0. Done when a run can show that the tests actually executed, for example with a test that must fail planted in the suite, so a run that reports success anyway is caught. `test_known_limit_code_that_forges_the_runner_exit_still_passes` pins the gap until then.
+**A forged result.** With `--junit`, a change that exits 0 when the tests import it is caught, because the run writes no results. A change can still write a results file of its own. Done when a run can show that the tests executed, for example with a test that must fail planted in the suite, so a results file that reports success anyway is caught. `test_known_limit_code_that_writes_its_own_results_still_passes` pins the gap until then.
 
 **Other kinds of grader.** Done when a benchmark's verifier, which is not a plain test command in the repository, can be checked the same way. Public harnesses and tasks only, with their commits recorded.
 

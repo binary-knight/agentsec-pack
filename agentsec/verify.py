@@ -515,13 +515,37 @@ def _tally(tests: dict[str, str]) -> dict[str, int]:
     return {k: sum(1 for v in tests.values() if v == k) for k in ("passed", "failed", "error", "skipped")}
 
 
+def _align_changing_ids(*runs: dict[str, str]) -> list[dict[str, str]]:
+    """Give a parameterized case the same id in every run when only its id changed.
+
+    A parameter such as uuid4() changes the case's id each time the suite starts, which
+    would read as one test that stopped running and another that appeared. Cases under one
+    test are paired in the order they ran, and only when every run has the same number of
+    unmatched cases. Each keeps its own status, so pairing cannot hide a failure, and a case
+    that really went away changes the count and is still reported.
+    """
+    present = [r for r in runs if r]
+    if len(present) < 2:
+        return list(runs)
+    stable = set(present[0]).intersection(*present[1:])
+    changed = {t.split("[", 1)[0] for r in present for t in r if t not in stable and "[" in t}
+    aligned = [dict(r) for r in runs]
+    for test in changed:
+        unmatched = [[t for t in r if t not in stable and t.startswith(f"{test}[")] for r in present]
+        if len({len(ids) for ids in unmatched}) == 1:
+            for r, ids in zip((r for r in aligned if r), unmatched):
+                for k, t in enumerate(ids, 1):
+                    r[f"{test}[changing id {k}]"] = r.pop(t)
+    return aligned
+
+
 def compare_tests(base: dict[str, str] | None, head: dict[str, str], regrade: dict[str, str]) -> dict[str, list[str]]:
     """Sort every test by what happened to it across the three runs.
 
     regrade is the new code with the old tests. When no test-related file changed it is
     the same run as head, so nothing can land in the two groups that depend on the edits.
     """
-    b = base or {}
+    b, head, regrade = _align_changing_ids(base or {}, head, regrade)
     out: dict[str, list[str]] = {k: [] for k in ("broken_with_old_tests", "green_only_by_edits", "regressed",
                                                  "stopped_running", "already_failing", "fixed", "new_failures")}
     for t in sorted(set(b) | set(regrade) | set(head)):
