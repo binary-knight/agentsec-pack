@@ -7,110 +7,59 @@ that is not the implementer's to make.
 The rule that governs every measurement item still applies: a number goes in
 only from a run that was actually made, and says how it was made.
 
-Last revised 2026-11-04, after 0.1.0. Item 8 added the same day.
+Last revised 2026-11-05, after 0.3.0.
 
-## Now: toward 0.2.0
+## Next
 
-### 1. One command to measure where you are: `agentsec probe`
+### 1. Verifier integrity, past what it has been shown to do
 
-**Why first:** every measurement below, and every user following `AGENTS.md`,
-currently copies the probe to a temp path, runs it, and scores the output in
-three steps. One command makes each measurement in item 2 a single line, and
-lowers the cost of the most important use case: measuring a sandbox from
-inside it.
+**Why first:** `agentsec verify` is the newest part of the tool and the least
+proven. It works on the scenarios in its tests, and the one trial on real work
+produced no `verified` verdict. Three things are left.
 
-**Done when:** `agentsec probe --label ... --how ...` runs the bundled probe
-in the current process environment, scores it, writes the report, and
-supports `--redact`, `--max-score`, `--baseline` and the proxy-auth opt-in as
-an explicit flag. `AGENTS.md` Task A and `docs/CAPTURING.md` use it. The
-three-step form stays documented for read-only sandboxes, where the output has
-to come back through a transcript.
+**`verified` on real agent output.** All 16 pull requests in
+`docs/MEASUREMENTS.md` were chosen for editing their tests, and 6 produced no
+result. Done when a sample that was not chosen that way has been re-graded and
+read by hand, with the verdicts reported whichever way they fall.
 
-### 2. Bring every published number up to probe 0.4.0
+**A forged result.** With `--junit`, a change that exits 0 when the tests
+import it is caught, because the run writes no results. A change can still
+write a results file of its own. Done when a run can show that the tests
+executed, for example with a test that must fail planted in the suite, so a
+results file that reports success anyway is caught.
+`test_known_limit_code_that_writes_its_own_results_still_passes` pins the gap
+until then.
 
-**Why second:** the README publishes numbers taken by probe 0.1.0, which
-could not see proxy egress, agents' own credentials, or persistence. A
-measurement tool whose own tables are stale undermines the one thing it sells.
+**Other kinds of grader.** Done when a benchmark's verifier, which is not a
+plain test command in the repository, can be checked the same way. Public
+harnesses and tasks only, with their commits recorded.
+
+### 2. Measurements still missing
+
+**Why:** each of these is a gap in the published results, and each waits on
+something outside this repository.
 
 **Done when**, each from a real run:
-- **Codex CLI** (installed: 0.164.0) in `read-only` and `workspace-write`. The
-  open question is whether `workspace-write` lets the agent write
-  `.git/hooks` or its own `.codex/config.toml`, which would be a way out of
-  the sandbox that waits for the user. *Needs the maintainer's go-ahead to run
-  Codex on their account.*
-- **Claude Code with `sandbox.filesystem.denyRead`** set as the vendor
-  documents, to show what the documented remedy for readable credentials
-  buys. Uses `--settings`, so no settings file is changed. *Needs the go-ahead
-  to run a headless Claude Code session on the maintainer's account.*
-- **The `python:3.12-slim` matrix** (`agentsec matrix python:3.12-slim`),
-  re-run so the README table and the 59 / 15 / 0 figures in `AGENTS.md` are
-  current. *Needs Docker, which is on the maintainer's host but not reachable
-  from an agent sandbox.*
 - **Gemini CLI:** the probe already checks its credential and settings paths,
   but it is not installed here. *Needs the maintainer to install it and
-  approve its use.* Google's Antigravity CLI, which is installed, was measured
-  instead on 2026-11-04. Its sandbox cannot start on stock Ubuntu, so only the
-  unsandboxed result is published. Measuring the sandbox itself needs a host
-  that allows unprivileged user namespaces.
+  approve its use.*
+- **Antigravity CLI's sandbox:** it cannot start on stock Ubuntu, so only the
+  unsandboxed result is published. *Needs a host that allows unprivileged user
+  namespaces.*
+- **A developer's Mac:** every macOS number comes from a GitHub-hosted machine.
+  *Needs a Mac.*
 
 Any result that contradicts a vendor's documentation is raised with the
 vendor before or at the time it is published (SECURITY.md).
 
-### 3. A GitHub Action for the gate
-
-**Why third:** `--max-score` and `--baseline` are the CI story, and a CI story
-that needs a page of YAML gets skipped. An action makes it a few lines.
-
-**Done when:** `uses: binary-knight/agentsec-pack@v0` runs a preset or image
-against a budget and/or a committed baseline, uploads the JSON, Markdown and
-HTML reports as artifacts, and fails the job with exit code 2. It is
-documented in the README with one complete workflow example and tested in
-this repository's own CI.
-
-### 4. Release hygiene
-
-**Why here:** cheap, and it is what people look for first.
-
-**Done when:** `CHANGELOG.md` exists and is kept per release, v0.1.0 has a
-GitHub Release with notes, and the release workflow points to the changelog.
-
-### 5. Say only what exists
-
-**Why:** the README pitches two test classes and one is built. Until
-verifier integrity exists, the pitch is blast radius.
-
-**Done when:** the README opens with what the tool does today, and verifier
-integrity sits under "Later" on this page rather than in the first lines of
-the README.
-
-## Next: 0.3.0
-
-### 6. macOS
-
-**Why it matters most after 0.2.0:** most developers run these agents on
-macOS, where Claude Code and Codex sandbox with Seatbelt rather than
-bubblewrap. The probe reads `/proc` and assumes Linux, so on a Mac today it
-would report a missing seccomp filter and empty resource limits that mean
-nothing.
-
-**Done when:** every probe section either works on macOS or reports
-`not applicable on darwin` rather than a finding; the network, credential,
-socket and persistence checks, which are portable, run there; Seatbelt
-confinement is detected; and Claude Code and Codex are measured on a Mac.
-*Needs a Mac.* A GitHub-hosted macOS runner serves for most of it. The probe
-runs on macOS from probe 0.6.0 and CI tests it on `macos-latest`. The
-Seatbelt presets and Codex's macOS sandbox are measured on a runner through
-`macos-measure.yml`, and Claude Code's in full sessions through
-`macos-claude-code.yml`.
-
-### 7. Hosted agent sandboxes
+### 3. Hosted agent sandboxes
 
 Presets or capture recipes for the sandboxes agents are increasingly deployed
 into: devcontainers, E2B, Modal, Daytona, Docker's own sandboxes. Each preset
 must say what it does not reproduce, and each recipe must come from a live
 run.
 
-### 8. A community benchmark from opt-in submissions
+### 4. A community benchmark from opt-in submissions
 
 **Why:** every number in this repository comes from one machine. Results that
 other people capture on their own hosts would show how agents and sandbox
@@ -121,7 +70,7 @@ draw a leaderboard from them.
 is a property of the sandbox, and every measured profile records that the model
 choice does not change it. Ranking models needs a behavioral test, such as how
 often a model is prompt-injected or tries to leave its sandbox, which belongs
-with the promptfoo integration and item 10.
+with the promptfoo integration and item 1.
 
 **Done when:**
 - `agentsec submit <report>` sends a result only when a person runs it. Nothing
@@ -147,22 +96,36 @@ on the threshold for publishing a configuration.*
 
 ## Later
 
-### 9. History across runs
+### 5. History across runs
 
 Score and findings per image or agent over time, so drift is visible before
 it crosses a gate. The `--baseline` gate covers the CI case; this is the
 trend view.
 
-### 10. Verifier integrity, past a plain test command
-
-`agentsec verify` covers what a diff and a re-run can prove. Two things are left.
-
-**A forged result.** With `--junit`, a change that exits 0 when the tests import it is caught, because the run writes no results. A change can still write a results file of its own. Done when a run can show that the tests executed, for example with a test that must fail planted in the suite, so a results file that reports success anyway is caught. `test_known_limit_code_that_writes_its_own_results_still_passes` pins the gap until then.
-
-**Other kinds of grader.** Done when a benchmark's verifier, which is not a plain test command in the repository, can be checked the same way. Public harnesses and tasks only, with their commits recorded.
-
 ## Done
 
+**0.3.0, published 2026-11-05**
+- `agentsec verify`: tampering, weakening and re-grading between two commits,
+  with moved and renamed tests recognized and a test-by-test comparison through
+  `--junit`.
+- A survey of 99 public agent pull requests and a re-grade of the 16 that edited
+  their tests.
+- Probe 0.6.0 runs on macOS, with Seatbelt presets. The presets, Codex CLI and
+  Claude Code are measured on a GitHub-hosted machine.
+- Public Terminal-Bench tasks measured through real Harbor.
+- A proxy that gives no clear answer no longer counts as containment.
+
+**0.2.0, published 2026-11-04**
+- `agentsec probe`: measure and score the sandbox the command runs in, in one
+  step.
+- A GitHub Action for the gate.
+- Every published number brought up to probe 0.4.0, with Codex CLI and Claude
+  Code with `denyRead` added.
+- Probe 0.5.0 and a measurement of Antigravity CLI.
+- `agentsec chart`, `CHANGELOG.md` and release notes built from it.
+- A README that opens with what the tool does today.
+
+**0.1.0, published 2026-11-04**
 - Blast-radius probe, runner, scorer, JSON, Markdown and HTML reports, local
   console.
 - Launcher presets for docker, podman and bubblewrap; `matrix`; `--max-score`.
@@ -172,5 +135,4 @@ trend view.
   credentials; agents' own credentials; SSH agent and rootless sockets;
   persistence; readability proven by opening.
 - `--baseline` and `agentsec diff` regression gate.
-- PyPI release workflow; agentsec-pack 0.1.0 published 2026-11-04.
-- `agentsec verify`: tampering, weakening and re-grading between two commits.
+- PyPI release workflow.
