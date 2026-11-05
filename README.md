@@ -151,9 +151,12 @@ A round number chosen in advance gives a hardened sandbox room to drift before t
 agentsec blast-radius preset docker-hardened --image myagent:tag --label accepted   # once, then commit it
 agentsec blast-radius preset docker-hardened --image myagent:tag --baseline reports/accepted.json
 agentsec diff reports/accepted.json reports/latest.json    # when measuring and gating are separate steps
+agentsec history reports/latest.json --save reports/history.jsonl    # keep a line per run and show the trend
 ```
 
 Both `--baseline` and `agentsec diff` exit with code 2 and list each finding that is new or rises in severity. The check also lists and fails on any existing finding whose evidence widens by one additional writable path, reachable host, or readable credential. Disappearing findings are marked as fixed alongside a prompt to record a fresh baseline, so the gate retains the improvement. New informational findings scored at 0 points appear as noted and let the check pass, unless the finding reports an unmeasured axis. Mismatched probe versions across the two runs make the tool report the difference and fail, because an added check can produce a new finding in an unchanged sandbox. Record the baseline with the same `--redact` setting that you use on the runs you compare against it.
+
+`agentsec history` tracks one sandbox's score and findings across runs with the `--baseline` comparison, so new findings or reachable credentials surface at the run that introduced them, even under budget. Runs sharing a label overwrite the previous report, so `--save` writes one line per run to a history file. That history file stores whatever each finding reached solely as hashes, which allows committing it without including any names. This command never fails a build because the `--max-score` and `--baseline` flags serve as the build gates in CI.
 
 GitHub Actions runs the same gate checks in one workflow step by installing `agentsec` from the action's own checkout, so the version pinned in the workflow is the version that measures.
 
