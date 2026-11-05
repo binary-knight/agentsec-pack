@@ -69,6 +69,7 @@ def _select():
 
 
 def test_the_draw_repeats_and_adds_only_agent_network_off_tasks(tmp_path):
+    pytest.importorskip("tomllib", reason="the selection script runs beside Harbor, which needs Python 3.12 or later")
     tasks = {f"t{i}": "[environment]\n" for i in range(10)}
     tasks["off"] = '[environment]\nallow_internet = false\n'
     tasks["verifier-only"] = '[verifier.environment]\nallow_internet = false\n'
