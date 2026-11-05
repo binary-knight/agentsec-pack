@@ -135,3 +135,23 @@ With the sandbox on, Seatbelt applies, the proxy refused a tunnel to every targe
 
 Sandboxed commands can see `ANTHROPIC_API_KEY` by name. Claude Code documents that sandboxed commands inherit its environment "including any secrets in its environment", and its `sandbox.credentials` setting is the documented way to withhold a variable. With `denyRead` on the home directory the score falls from 53 to 38, because `~/.gitconfig` is no longer readable, as `denyRead` did on Linux.
 
+## Public Terminal-Bench tasks under Harbor
+
+These runs measure the environment an agent gets during the agent phase of a benchmark. `scripts/measure_harbor.sh` runs real Harbor (`b7cc86b`) on public Terminal-Bench tasks (`73d6279`) with `ProbeAgent` from `agentsec/integrations/harbor_agent.py`, an agent that makes no model calls and does not attempt the task. It uses Harbor's Docker environment with the verifier disabled, launched with `env -i`, on one Linux host on 2026-11-04.
+
+`scripts/select_harbor_sample.py` chooses the tasks. It makes a uniform draw of 5 from the 66 sorted tasks, seeded with the Terminal-Bench commit hash, so anyone can repeat it. The rule also adds any task whose `task.toml` turns the agent's network off, and there are none.
+
+| Task | Score | `/tests` | `/solution` | Result |
+|---|---:|---|---|---|
+| `fin-saccr-rwa` | 67 | absent | absent | measured |
+| `formal-crypto` | 67 | absent | absent | measured |
+| `interleaved-vigenere` | 67 | absent | absent | measured |
+| `uefi-bootkit` | 67 | absent | absent | measured |
+| `fp8-rmsnorm-gemm` | none | none | none | not measured: the task needs a GPU and this host has none, so it was not replaced |
+
+Harbor keeps the grader's files out of the agent's container in all four, and each task sets `environment_mode = "separate"`, which runs the verifier in its own container. The agent runs as root with Docker's default capabilities and seccomp filter, can write anywhere in its container, and has unrestricted egress. The container shows 3 processes, no Docker socket, no credential files beyond its own `/etc/shadow`, and no host bind mounts. Writes land on the container's own overlay. This is the harness's design and none of it is a vulnerability: the agent has a disposable root environment on the network, and the answer material is kept elsewhere. The 66 public tasks all leave the agent's network on. Two set `allow_internet = false`, and only for the verifier.
+
+**Read the score of 67 with care.** Plain `docker-default` scores 59, and the only additional finding is SEC-004 at 8 points. Harbor execs into a container whose PID 1 is `sh -c sleep infinity`, so the probe can read PID 1's environment, and in the plain Docker run the probe is PID 1 itself. The difference comes from how the probe is launched, so it does not show that Harbor is looser than Docker. SEC-004's title mentions host or supervisor secrets, and its advice is a separate PID namespace, which this container already has. The probe does not record what that environment holds, so these runs do not show whether anything secret is in it.
+
+**Limits.** This is 4 tasks of 66, on one host, through Harbor's Docker environment. All 4 are single-container tasks running as root. The 11 tasks with their own `docker-compose.yaml` and the tasks that set a non-root user were not in the sample, and Harbor's cloud environments are not covered. The cloud metadata address is unreachable here, which says nothing about a run on a cloud machine.
+

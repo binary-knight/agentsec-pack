@@ -1,0 +1,478 @@
+{
+  "generated_at": 1793832954,
+  "label": "harbor-formal-crypto",
+  "probe": {
+    "duration_ms": 2253,
+    "filesystem": {
+      "bind_mounts": [
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hostname"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/hosts"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/nvme1n1p1",
+          "target": "/etc/resolv.conf"
+        }
+      ],
+      "cwd_writable": true,
+      "host_root_visible": false,
+      "persistence": [
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bashrc",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.profile",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": true,
+          "kind": "home",
+          "path": "~",
+          "via": "HOME",
+          "writable": true
+        }
+      ],
+      "proc_sysrq_writable": false,
+      "root_rw": true,
+      "setuid_binaries": [
+        "/bin/chage",
+        "/bin/chfn",
+        "/bin/chsh",
+        "/bin/expiry",
+        "/bin/gpasswd",
+        "/bin/mount",
+        "/bin/newgrp",
+        "/bin/passwd",
+        "/bin/sg",
+        "/bin/su",
+        "/bin/umount",
+        "/sbin/pam_extrausers_chkpwd",
+        "/sbin/unix_chkpwd",
+        "/usr/bin/chage",
+        "/usr/bin/chfn",
+        "/usr/bin/chsh",
+        "/usr/bin/expiry",
+        "/usr/bin/gpasswd",
+        "/usr/bin/mount",
+        "/usr/bin/newgrp",
+        "/usr/bin/passwd",
+        "/usr/bin/sg",
+        "/usr/bin/su",
+        "/usr/bin/umount",
+        "/usr/sbin/pam_extrausers_chkpwd",
+        "/usr/sbin/unix_chkpwd"
+      ],
+      "writable_dirs": [
+        "/",
+        "/etc",
+        "/usr/bin",
+        "/usr/local/bin",
+        "/root",
+        "/home",
+        "/var",
+        "/opt",
+        "/tmp",
+        "/dev/shm"
+      ]
+    },
+    "identity": {
+      "capabilities": {
+        "CapAmb": [],
+        "CapBnd": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "CapEff": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "CapInh": [],
+        "CapPrm": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ]
+      },
+      "cgroup": "<redacted>",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": true
+      },
+      "cwd": "<redacted>",
+      "euid": 0,
+      "gid": 0,
+      "hostname": "<redacted>",
+      "in_user_namespace": false,
+      "no_new_privs": 0,
+      "pid": 16,
+      "ptrace_scope": "1",
+      "seccomp_mode": 2,
+      "uid": 0
+    },
+    "network": {
+      "any_egress": true,
+      "connect_refused_all": false,
+      "interfaces": [
+        "eth0",
+        "lo"
+      ],
+      "metadata_reachable": false,
+      "proxy": {
+        "configured": false
+      },
+      "proxy_env": [],
+      "socket_syscall_blocked": false,
+      "targets": [
+        {
+          "connect": true,
+          "host": "dns.google",
+          "ms": 35,
+          "name": "dns-google",
+          "port": 443,
+          "resolved": "8.8.4.4"
+        },
+        {
+          "connect": true,
+          "host": "pypi.org",
+          "ms": 44,
+          "name": "pypi",
+          "port": 443,
+          "resolved": "151.101.128.223"
+        },
+        {
+          "connect": true,
+          "host": "github.com",
+          "ms": 63,
+          "name": "github",
+          "port": 443,
+          "resolved": "140.82.114.4"
+        },
+        {
+          "connect": true,
+          "host": "1.1.1.1",
+          "ms": 49,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": false,
+          "connect_error": "TimeoutError",
+          "host": "169.254.169.254",
+          "ms": 2002,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "linux",
+    "probe_version": "0.6.0",
+    "process": {
+      "pid1_cmdline": "<redacted>",
+      "pid1_is_self": false,
+      "visible_pid_count": 3,
+      "visible_uids": [
+        0
+      ]
+    },
+    "python": "3.11.16",
+    "resources": {
+      "cpu_max": "800000 100000",
+      "memory_max": "4294967296",
+      "pids_max": "76628"
+    },
+    "secrets": {
+      "container_sockets": [],
+      "credential_files": [
+        {
+          "access_bits": true,
+          "is_dir": false,
+          "mode": "0o640",
+          "path": "/etc/shadow",
+          "readable": true,
+          "resolved_under_home": false,
+          "size": 502,
+          "via": "absolute"
+        }
+      ],
+      "env_secret_names": [],
+      "env_var_count": 8,
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": true,
+      "unix_control": {
+        "connected": true,
+        "stage": "connect",
+        "supported": true,
+        "where": "/tmp"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
+    },
+    "timestamp": 1793832936
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 0,
+      "high": 3,
+      "info": 2,
+      "low": 2,
+      "medium": 2
+    },
+    "finding_count": 9,
+    "findings": [
+      {
+        "category": "network",
+        "evidence": {
+          "reached": [
+            "dns-google",
+            "pypi",
+            "github",
+            "cloudflare-dns-ip"
+          ]
+        },
+        "id": "NET-001",
+        "owasp": [
+          "ASI02",
+          "ASI10"
+        ],
+        "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+        "severity": "high",
+        "title": "Unrestricted internet egress from the sandbox"
+      },
+      {
+        "category": "privilege",
+        "evidence": {
+          "euid": 0
+        },
+        "id": "PRIV-001",
+        "owasp": [
+          "ASI03",
+          "ASI05"
+        ],
+        "remediation": "Run as an unprivileged user (docker --user) or inside a user namespace.",
+        "severity": "high",
+        "title": "Agent runs as real root (uid 0, not in a user namespace)"
+      },
+      {
+        "category": "privilege",
+        "evidence": {
+          "capabilities": [
+            "CAP_DAC_OVERRIDE",
+            "CAP_MKNOD",
+            "CAP_NET_RAW",
+            "CAP_SETGID",
+            "CAP_SETUID",
+            "CAP_SYS_CHROOT"
+          ]
+        },
+        "id": "PRIV-003",
+        "owasp": [
+          "ASI05",
+          "ASI03"
+        ],
+        "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
+        "severity": "medium",
+        "title": "Dangerous Linux capabilities in the effective set"
+      },
+      {
+        "category": "privilege",
+        "evidence": {},
+        "id": "PRIV-005",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "docker --security-opt no-new-privileges.",
+        "severity": "low",
+        "title": "no_new_privs not set (setuid escalation possible)"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "path": "/etc/shadow"
+        },
+        "id": "SEC-005",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Informational in a plain image; becomes real if the image carries live account hashes.",
+        "severity": "info",
+        "title": "Image shadow file readable (process is root)"
+      },
+      {
+        "category": "secrets",
+        "evidence": {},
+        "id": "SEC-004",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Run the agent in its own PID namespace.",
+        "severity": "medium",
+        "title": "PID 1 environment readable (host or supervisor secrets exposed)"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "writable": [
+            "/",
+            "/etc",
+            "/usr/bin",
+            "/usr/local/bin",
+            "/root",
+            "/home",
+            "/var",
+            "/opt"
+          ]
+        },
+        "id": "FS-001",
+        "owasp": [
+          "ASI05",
+          "ASI04"
+        ],
+        "remediation": "docker --read-only with explicit tmpfs for scratch.",
+        "severity": "high",
+        "title": "System paths writable from the sandbox"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "writable": [
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.bashrc"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.profile"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "home",
+              "path": "~"
+            }
+          ]
+        },
+        "id": "FS-010",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "These live on overlay, which does not outlive the sandbox (a container's overlay, a tmpfs), so writing them changes nothing outside it. Informational; it becomes FS-008 or FS-009 if the same path is ever bind-mounted from the host.",
+        "severity": "info",
+        "title": "Startup or configuration files writable, but only on storage that dies with the sandbox"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "count": 26
+        },
+        "id": "FS-006",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+        "severity": "low",
+        "title": "setuid binaries present and usable"
+      }
+    ],
+    "raw_score": 67,
+    "recommended_flags": [
+      "--network none",
+      "--user 65534:65534",
+      "--cap-drop ALL",
+      "--security-opt no-new-privileges",
+      "(own PID namespace: avoid --pid=host)",
+      "--read-only",
+      "--tmpfs /tmp"
+    ],
+    "score": 67
+  },
+  "target": {
+    "how": "Harbor b7cc86b617eb, terminal-bench 73d6279f91eb, task formal-crypto: harbor run with the no-model agentsec ProbeAgent, Docker environment, verifier disabled, launched with env -i. Task chosen by scripts/select_harbor_sample.py.",
+    "kind": "captured",
+    "label": "harbor-formal-crypto",
+    "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}
