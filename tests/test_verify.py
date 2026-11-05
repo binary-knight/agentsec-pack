@@ -198,8 +198,12 @@ def test_a_test_setting_inside_pyproject_counts_and_other_settings_do_not(projec
     git(project, "commit", "-qm", "pyproject")
     git(project, "tag", "-f", "base")
     submit(project, {"calc.py": FIXED, "pyproject.toml": '[project]\nname = "x"\nversion = "2"\n'})
-    assert "pyproject.toml" not in check(project)["changes"]["restored_for_regrade"]
-    pytest.importorskip("tomllib")
+    restored = check(project)["changes"]["restored_for_regrade"]
+    if sys.version_info < (3, 11):
+        # No tomllib, so settings cannot be told apart and any change counts. That is the safe side.
+        assert "pyproject.toml" in restored
+        return
+    assert "pyproject.toml" not in restored
     submit(project, {"pyproject.toml": '[project]\nname = "x"\nversion = "2"\n[tool.pytest.ini_options]\naddopts = "-k nothing"\n'})
     env = check(project)
     assert env["changes"]["test_settings_in_mixed_files"] == ["pyproject.toml"]
