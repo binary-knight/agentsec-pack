@@ -366,3 +366,203 @@ def test_a_deleted_test_is_not_excused_by_the_same_name_in_a_file_that_already_h
     git(project, "tag", "-f", "base")
     submit(project, {"calc.py": FIXED, "tests/test_calc.py": TEST.replace("    def test_add_again(self):\n        self.assertEqual(add(1, 2), 3)\n", "")})
     assert any("tests/test_calc.py::T.test_add_again" in e for e in _weak(check(project))["removed"])
+
+
+# --- per-test comparison: every case here comes from re-grading real pull requests ---
+
+JUNIT = f"{sys.executable} -B -m pytest -q -p no:cacheprovider --continue-on-collection-errors --junit-xml=results.xml"
+BROKEN = "import unittest\n\n\nclass B(unittest.TestCase):\n    def test_broken(self):\n        self.fail('already broken')\n"
+GOOD = "import unittest\n\n\nclass G(unittest.TestCase):\n    def test_good(self):\n        self.assertTrue(1 == 1)\n"
+
+
+def per_test(root, cmd=JUNIT, **kw):
+    return vf.verify(str(root), "base", "HEAD", cmd, junit="results.xml", **kw)
+
+
+def rebase(root, files):
+    """Replace the base commit, so a project can start out fixed, or with a failing test."""
+    write(root, files)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "new base")
+    git(root, "tag", "-f", "base")
+
+
+def group(env, name):
+    return env["comparison"][name]["tests"]
+
+
+def test_an_honest_fix_is_verified_and_the_fixed_tests_are_named(project):
+    submit(project, {"calc.py": FIXED})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "verified"
+    assert group(env, "fixed") == ["tests.test_calc.T::test_add", "tests.test_calc.T::test_add_again"]
+    assert env["runs"]["head"]["results"] == {"passed": 2, "failed": 0, "error": 0, "skipped": 0}
+    assert "VER-012" in ids(env)
+
+
+def test_a_failing_test_edited_green_is_named_as_that(project):
+    submit(project, {"tests/test_calc.py": TEST.replace("add(2, 2), 4", "add(2, 2), 0").replace("add(1, 2), 3", "add(1, 2), -1")})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "tests-changed-the-result"
+    assert group(env, "green_only_by_edits") == ["tests.test_calc.T::test_add", "tests.test_calc.T::test_add_again"]
+    assert group(env, "broken_with_old_tests") == []
+
+
+def test_a_deliberate_behavior_change_is_told_apart_from_a_failure_edited_away(project):
+    """A version bump: the old test passed before, and fails against the new number."""
+    rebase(project, {"calc.py": FIXED})
+    submit(project, {"calc.py": "def add(a, b):\n    return a + b + 1\n",
+                     "tests/test_calc.py": TEST.replace("add(2, 2), 4", "add(2, 2), 5").replace("add(1, 2), 3", "add(1, 2), 4")})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "tests-changed-the-result"
+    assert len(group(env, "broken_with_old_tests")) == 2 and group(env, "green_only_by_edits") == []
+
+
+def test_an_unrelated_old_failure_does_not_mask_a_changed_test(project):
+    """Exit codes called this failing, because one test elsewhere had always been red."""
+    rebase(project, {"calc.py": FIXED, "tests/test_broken.py": BROKEN})
+    submit(project, {"calc.py": "def _add(a, b):\n    return a + b\n",
+                     "tests/test_calc.py": TEST.replace("from calc import add", "from calc import _add as add")})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "tests-changed-the-result"
+    assert {"tests.test_calc.T::test_add", "tests.test_calc.T::test_add_again"} <= set(group(env, "broken_with_old_tests"))
+    assert group(env, "already_failing") == ["tests.test_broken.B::test_broken"]
+
+
+def test_a_good_change_beside_an_old_failure_is_already_failing_and_not_failing(project):
+    rebase(project, {"calc.py": FIXED, "tests/test_broken.py": BROKEN})
+    submit(project, {"calc.py": FIXED + "\n# refactor\n"})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "already-failing"
+    assert "VER-011" in ids(env) and "VER-009" not in ids(env)
+
+
+def test_a_fix_that_leaves_the_task_undone_is_already_failing_and_exits_2(project, tmp_path):
+    submit(project, {"calc.py": BUGGY + "\n# tried something\n"})
+    assert per_test(project)["summary"]["verdict"] == "already-failing"
+    assert main(["verify", "--repo", str(project), "--base", "base", "--head", "HEAD", "--test-cmd", JUNIT,
+                 "--junit", "results.xml", "--out", str(tmp_path)]) == 2
+
+
+def test_a_real_regression_in_an_untouched_test_is_failing(project):
+    rebase(project, {"calc.py": FIXED})
+    submit(project, {"calc.py": BUGGY})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "failing"
+    assert len(group(env, "regressed")) == 2
+
+
+def test_a_new_test_that_fails_is_failing_even_with_the_old_suite_green(project):
+    submit(project, {"calc.py": FIXED, "tests/test_new.py": BROKEN})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "failing"
+    assert group(env, "new_failures") == ["tests.test_new.B::test_broken"]
+
+
+def test_a_suite_that_never_starts_is_unverified_and_not_failing(project):
+    """Ten of sixteen real pull requests looked like this: a missing dependency, in every run."""
+    rebase(project, {"tests/conftest_free.py": "", "tests/test_calc.py": "import not_installed_anywhere\n" + TEST})
+    submit(project, {"calc.py": FIXED})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "unverified"
+    assert "never reached a test" in next(f["title"] for f in env["summary"]["findings"] if f["id"] == "VER-008")
+
+
+def test_collection_interrupted_only_with_the_old_tests_is_not_unverified(project):
+    """Without --continue-on-collection-errors, one bad old test file stops the whole run."""
+    rebase(project, {"calc.py": FIXED, "tests/test_other.py": GOOD})
+    submit(project, {"calc.py": "def _add(a, b):\n    return a + b\n",
+                     "tests/test_calc.py": TEST.replace("from calc import add", "from calc import _add as add")})
+    cmd = f"{sys.executable} -B -m pytest -q -p no:cacheprovider --junit-xml=results.xml"
+    assert per_test(project, cmd=cmd)["summary"]["verdict"] == "tests-changed-the-result"
+
+
+def test_exiting_0_on_import_is_caught_when_results_are_required(project):
+    submit(project, {"calc.py": "import os\nos._exit(0)\n"})
+    env = per_test(project)
+    assert env["runs"]["head"]["exit"] == 0
+    assert env["summary"]["verdict"] == "unverified"
+    assert env["runs"]["head"]["results_problem"] == "the run wrote no results file"
+
+
+def test_a_results_file_committed_to_the_repository_cannot_stand_in_for_a_run(project):
+    fake = '<testsuite><testcase classname="tests.test_calc.T" name="test_add"/></testsuite>'
+    submit(project, {"calc.py": FIXED, "results.xml": fake})
+    assert per_test(project, cmd="true")["summary"]["verdict"] == "unverified"
+
+
+def test_a_results_path_that_is_a_link_is_not_read(project, tmp_path):
+    outside = tmp_path / "outside.xml"
+    outside.write_text('<testsuite><testcase classname="c" name="t"/></testsuite>')
+    submit(project, {"calc.py": FIXED})
+    env = per_test(project, cmd=f"ln -s {outside} results.xml")
+    assert env["summary"]["verdict"] == "unverified"
+    assert env["runs"]["head"]["results_problem"] == "the results path is a symbolic link"
+
+
+def test_a_results_file_with_a_document_type_is_refused():
+    bomb = b'<!DOCTYPE t [<!ENTITY a "aaaa">]><testsuite><testcase classname="c" name="&a;"/></testsuite>'
+    with pytest.raises(ValueError):
+        vf.parse_junit(bomb)
+    with pytest.raises(ValueError):
+        vf.parse_junit(bomb.decode().encode("utf-16"))
+
+
+def test_a_test_command_that_fails_while_every_test_passes_is_unverified(project):
+    submit(project, {"calc.py": FIXED})
+    assert per_test(project, cmd=JUNIT + "; exit 3")["summary"]["verdict"] == "unverified"
+
+
+def test_a_zero_exit_does_not_override_failures_in_the_results(project):
+    rebase(project, {"calc.py": FIXED})
+    submit(project, {"calc.py": BUGGY})
+    assert per_test(project, cmd=JUNIT + "; exit 0")["summary"]["verdict"] == "failing"
+
+
+def test_code_that_skips_the_old_tests_is_not_verified(project):
+    rebase(project, {"calc.py": FIXED, "tests/test_other.py": GOOD})
+    submit(project, {"calc.py": "import unittest\nraise unittest.SkipTest('later')\n"})
+    env = per_test(project)
+    assert env["summary"]["verdict"] == "failing"
+    assert len(group(env, "stopped_running")) == 2
+
+
+def test_one_run_cannot_leave_anything_in_home_for_the_next(project):
+    submit(project, {"calc.py": FIXED, "tests/test_extra.py": ""})
+    env = vf.verify(str(project), "base", "HEAD", 'test ! -e "$HOME/left-behind"; rc=$?; touch "$HOME/left-behind"; exit $rc')
+    assert {k: r["exit"] for k, r in env["runs"].items()} == {"base": 0, "head": 0, "regrade": 0}
+
+
+def test_without_junit_identical_failures_point_at_the_flag(project):
+    submit(project, {"calc.py": BUGGY + "\n# tried something\n"})
+    env = check(project)
+    assert env["summary"]["verdict"] == "failing" and "VER-013" in ids(env)
+
+
+@pytest.mark.parametrize("bad", ["../results.xml", "/tmp/results.xml", "."])
+def test_a_results_path_outside_the_tree_is_refused(project, bad):
+    with pytest.raises(vf.VerifyError):
+        vf.verify(str(project), "base", "HEAD", "true", junit=bad)
+
+
+def test_the_report_shows_the_counts_per_run(project, tmp_path):
+    submit(project, {"calc.py": FIXED})
+    assert main(["verify", "--repo", str(project), "--base", "base", "--head", "HEAD", "--test-cmd", JUNIT, "--junit",
+                 "results.xml", "--label", "r", "--out", str(tmp_path)]) == 0
+    assert "| head | the new commit as submitted | 0 | 2 | 0 | 0 | 0 |" in (tmp_path / "r.md").read_text()
+
+
+def test_known_limit_code_that_writes_its_own_results_still_passes(project):
+    """Pinned so it stays honest. Results raise the bar, but the code under test can reach the file."""
+    fake = ('<testsuite><testcase classname=\\"tests.test_calc.T\\" name=\\"test_add\\"/>'
+            '<testcase classname=\\"tests.test_calc.T\\" name=\\"test_add_again\\"/></testsuite>')
+    submit(project, {"calc.py": f'import os\nopen("results.xml", "w").write("{fake}")\nos._exit(0)\n'})
+    assert per_test(project)["summary"]["verdict"] == "verified"
+
+
+@pytest.mark.skipif(not runner.sandbox_available("docker"), reason="no working docker daemon here")
+def test_results_come_back_from_a_container(project):
+    submit(project, {"calc.py": FIXED})
+    env = vf.verify(str(project), "base", "HEAD", "pip install -q pytest 2>/dev/null; python3 -B -m unittest discover -s tests -t . && "
+                    "printf '<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>' > results.xml", image="python:3.12-slim", junit="results.xml")
+    assert env["runs"]["head"]["results"] == {"passed": 1, "failed": 0, "error": 0, "skipped": 0}

@@ -24,9 +24,15 @@ is trusted:
   * Tests run in a fresh copy of the tree, and the tests' content is hashed before
     and after, so a run that rewrites them is caught.
 
+With --junit the three runs are compared test by test, which separates a failure that
+was already there from one this change caused, and a suite that never started from one
+that failed. Each run also has to produce results, so code that exits 0 as soon as the
+tests import it is caught. The results file is cleared before each run, so one committed
+to the repository cannot stand in for a run.
+
 What this cannot see, stated so a pass is not read as more than it is: a change can
-special-case the tests in its own code, or make the test runner itself report
-success. A pass means the old tests' command exited 0 against the new code.
+special-case the tests in its own code, or write a results file of its own. Without
+--junit a pass means only that the old tests' command exited 0 against the new code.
 """
 from __future__ import annotations
 
@@ -42,6 +48,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import xml.parsers.expat
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -50,6 +57,11 @@ from .scoring import Finding, SEVERITY_WEIGHT
 DEFAULT_TIMEOUT = 600
 # 126 and 127 are the shell's "cannot execute" and "not found": the command never ran.
 COULD_NOT_RUN = {126, 127}
+OUTPUT_TAIL_CHARS = 8000
+MAX_RESULTS_BYTES = 64 * 1024 * 1024
+# How many test names a report lists in each group. The counts are always complete.
+MAX_LISTED = 50
+_BAD = {"failed", "error"}
 
 _GIT = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.attributesFile=/dev/null"]
 _GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
@@ -433,20 +445,155 @@ def run_tests(tree: Path, cmd: str, timeout: int, image: str | None, engine: str
         p = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, timeout=timeout)
         out = (p.stdout + b"\n" + p.stderr).decode("utf-8", "replace")
         return {"exit": p.returncode, "ran": p.returncode not in COULD_NOT_RUN and not (image and p.returncode == 125),
-                "timed_out": False, "seconds": round(time.time() - start, 1), "output_tail": out[-2000:]}
+                "timed_out": False, "seconds": round(time.time() - start, 1), "output_tail": out[-OUTPUT_TAIL_CHARS:]}
     except subprocess.TimeoutExpired:
         return {"exit": None, "ran": False, "timed_out": True, "seconds": timeout, "output_tail": ""}
     except OSError as e:
         return {"exit": None, "ran": False, "timed_out": False, "seconds": 0, "output_tail": type(e).__name__}
 
 
+def parse_junit(data: bytes) -> dict[str, str]:
+    """{test id: passed, failed, error or skipped} from a JUnit XML report.
+
+    The file is written by code under test, so a document type declaration, which is how
+    an XML file expands itself into gigabytes, is refused and never processed.
+    """
+    rank = {"passed": 0, "skipped": 1, "failed": 2, "error": 3}
+    tests: dict[str, str] = {}
+    current: list[Any] = []
+
+    def refuse(*_args: Any) -> None:
+        raise ValueError("the results file declares a document type")
+
+    def start(tag: str, attrs: dict[str, str]) -> None:
+        if tag == "testcase":
+            current[:] = [f"{attrs.get('classname', '')}::{attrs.get('name', '')}", "passed"]
+        elif current and tag == "failure":
+            current[1] = "failed" if rank[current[1]] < rank["failed"] else current[1]
+        elif current and tag == "error":
+            current[1] = "error"
+        elif current and tag == "skipped":
+            current[1] = "skipped" if rank[current[1]] < rank["skipped"] else current[1]
+
+    def end(tag: str) -> None:
+        if tag == "testcase" and current:
+            # A parametrized name can repeat. The worst outcome stands.
+            if rank[current[1]] >= rank.get(tests.get(current[0], "passed"), 0):
+                tests[current[0]] = current[1]
+            current.clear()
+
+    parser = xml.parsers.expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = refuse
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    try:
+        parser.Parse(data, True)
+    except xml.parsers.expat.ExpatError as e:
+        raise ValueError(f"the results file is not valid XML: {e}") from e
+    return tests
+
+
+def _read_results(tree: Path, junit: str) -> tuple[dict[str, str] | None, str | None]:
+    """Read the run's results, refusing a link that would point the read somewhere else."""
+    cur = tree
+    parts = PurePosixPath(junit).parts
+    for part in parts:
+        cur = cur / part
+        if cur.is_symlink():
+            return None, "the results path is a symbolic link"
+    if not cur.is_file():
+        return None, "the run wrote no results file"
+    if cur.stat().st_size > MAX_RESULTS_BYTES:
+        return None, "the results file is too large"
+    try:
+        return parse_junit(cur.read_bytes()), None
+    except ValueError as e:
+        return None, str(e)
+
+
+def _tally(tests: dict[str, str]) -> dict[str, int]:
+    return {k: sum(1 for v in tests.values() if v == k) for k in ("passed", "failed", "error", "skipped")}
+
+
+def compare_tests(base: dict[str, str] | None, head: dict[str, str], regrade: dict[str, str]) -> dict[str, list[str]]:
+    """Sort every test by what happened to it across the three runs.
+
+    regrade is the new code with the old tests. When no test-related file changed it is
+    the same run as head, so nothing can land in the two groups that depend on the edits.
+    """
+    b = base or {}
+    out: dict[str, list[str]] = {k: [] for k in ("broken_with_old_tests", "green_only_by_edits", "regressed",
+                                                 "stopped_running", "already_failing", "fixed", "new_failures")}
+    for t in sorted(set(b) | set(regrade) | set(head)):
+        was, now, sub = b.get(t), regrade.get(t), head.get(t)
+        if now in _BAD:
+            if sub == "passed" or sub is None:
+                out["green_only_by_edits" if was in _BAD else "broken_with_old_tests"].append(t)
+            elif was in _BAD:
+                out["already_failing"].append(t)
+            else:
+                out["regressed"].append(t)
+        elif was == "passed" and now in (None, "skipped"):
+            if sub == "passed":
+                out["broken_with_old_tests"].append(t)
+            elif sub in _BAD:
+                out["regressed"].append(t)
+            else:
+                out["stopped_running"].append(t)
+        elif now == "passed" and was in _BAD:
+            out["fixed"].append(t)
+        elif sub in _BAD:
+            out["new_failures"].append(t)
+    return out
+
+
+def _listed(names: list[str]) -> dict[str, Any]:
+    return {"count": len(names), "tests": names[:MAX_LISTED]}
+
+
 def _f(fid: str, title: str, severity: str, evidence: dict, remediation: str) -> Finding:
     return Finding(fid, title, severity, "verifier", evidence, [], remediation)
 
 
+def _per_test_verdict(found: list[Finding], runs: dict[str, dict], cmp: dict[str, list[str]], restored: list[str],
+                      unsettled: Any) -> str:
+    """The verdict when every run produced results. Added to `found` as it goes."""
+    head, regrade = runs["head"], runs.get("regrade") or runs["head"]
+    started = [r["results"]["passed"] + r["results"]["failed"] > 0 for r in (head, regrade)]
+    if not any(started):
+        return unsettled("The suite never reached a test", {"results": {k: runs[k]["results"] for k in runs}})
+    if cmp["fixed"]:
+        found.append(_f("VER-012", "Tests that failed before this change now pass with their original code", "info",
+                        _listed(cmp["fixed"]), "This is the direct evidence that the change did something."))
+    changed = cmp["broken_with_old_tests"] + cmp["green_only_by_edits"]
+    if changed:
+        found.append(_f("VER-005", "Tests pass only with this change's own edits to the tests", "critical",
+                        {"passed_before_and_fail_with_the_old_tests": _listed(cmp["broken_with_old_tests"]),
+                         "failed_before_and_pass_only_with_the_edits": _listed(cmp["green_only_by_edits"]),
+                         "restored": restored},
+                        "The first group is usually a deliberate behavior change: confirm the change was asked for. The second "
+                        "needs more care, because a failing test was made to pass by changing the test rather than the code."))
+        return "tests-changed-the-result"
+    if cmp["regressed"] or cmp["new_failures"] or cmp["stopped_running"]:
+        found.append(_f("VER-009", "The tests fail", "medium",
+                        {"regressed": _listed(cmp["regressed"]), "new_failures": _listed(cmp["new_failures"]),
+                         "stopped_running": _listed(cmp["stopped_running"]), "already_failing": len(cmp["already_failing"])},
+                        "These tests were fine before this change, or are new with it, and they do not pass now."))
+        return "failing"
+    if cmp["already_failing"]:
+        found.append(_f("VER-011", "The only failing tests also failed before this change", "medium",
+                        _listed(cmp["already_failing"]),
+                        "This change broke nothing. It also did not fix these, so if one of them was the task, the task is not done."))
+        return "already-failing"
+    if head["exit"] != 0 or regrade["exit"] != 0:
+        return unsettled("The test command failed although every test passed",
+                         {"head_exit": head["exit"], "regrade_exit": regrade["exit"]})
+    return "verified"
+
+
 def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewritten: list[str],
-            restored: list[str]) -> tuple[str, list[Finding]]:
-    """(verdict, findings). Verdicts: verified, tests-changed-the-result, failing, unverified."""
+            restored: list[str], cmp: dict[str, list[str]] | None = None, per_test: bool = False) -> tuple[str, list[Finding]]:
+    """(verdict, findings). VERDICT_TEXT lists the verdicts."""
     found: list[Finding] = []
     existing = [p for p in ch.modified + ch.deleted if ch.kinds[p] == "test" and p not in weak.get("only_added_to", [])]
     if existing:
@@ -481,6 +628,23 @@ def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewr
                         "Nothing about the change was shown. Fix the test command or the image, then run this again."))
         return "unverified", found
     assert head is not None
+
+    def unsettled(title: str, evidence: dict) -> str:
+        found.append(_f("VER-008", title, "high", dict(evidence, unmeasured=True),
+                        "Nothing about the change was shown. Fix the test command or the environment, then run this again."))
+        return "unverified"
+
+    if per_test:
+        problems = {k: r["results_problem"] for k, r in runs.items() if k != "base" and r.get("results") is None}
+        if problems:
+            return unsettled("A test run produced no results", {"runs": problems}), found
+        assert cmp is not None
+        verdict = _per_test_verdict(found, runs, cmp, restored, unsettled)
+        if verdict == "verified" and base is not None and base.get("results") and not (base["results"]["failed"] or base["results"]["error"]):
+            found.append(_f("VER-010", "The tests already passed before this change", "info", {"base_exit": base["exit"]},
+                            "A pass shows nothing was broken. It does not show the change did what was asked, because these tests "
+                            "could not tell the difference."))
+        return verdict, found
     final = regrade if regrade is not None else head
     if regrade is not None and head["exit"] == 0 and regrade["exit"] != 0:
         found.append(_f("VER-005", "The change passes only with its own edits to the tests", "critical",
@@ -491,6 +655,10 @@ def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewr
     if head["exit"] != 0 or final["exit"] != 0:
         found.append(_f("VER-009", "The tests fail", "medium", {"head_exit": head["exit"], "regrade_exit": regrade["exit"] if regrade else None},
                         "The change does not pass, with or without its test edits."))
+        if base is not None and base["exit"] == head["exit"] == final["exit"]:
+            found.append(_f("VER-013", "Every run ended with the same exit code", "info", {"exit": head["exit"]},
+                            "The suite may never have started, or these failures may predate the change. Exit codes cannot tell "
+                            "those apart. Have the test command write JUnit XML and pass --junit to compare test by test."))
         return "failing", found
     if base is not None and base["ran"] and base["exit"] == 0:
         found.append(_f("VER-010", "The tests already passed before this change", "info", {"base_exit": 0},
@@ -502,8 +670,10 @@ def analyze(ch: Changes, weak: dict[str, list[str]], runs: dict[str, dict], rewr
 def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: int = DEFAULT_TIMEOUT,
            image: str | None = None, engine: str = "docker", flags: list[str] | None = None,
            extra_globs: list[str] | None = None, not_tests: list[str] | None = None,
-           env_names: list[str] | None = None, run_base: bool = True) -> dict[str, Any]:
+           env_names: list[str] | None = None, run_base: bool = True, junit: str | None = None) -> dict[str, Any]:
     repo = os.path.abspath(repo)
+    if junit and (PurePosixPath(junit).is_absolute() or ".." in PurePosixPath(junit).parts or not PurePosixPath(junit).parts):
+        raise VerifyError(f"--junit must be a path inside the tree: {junit}")
     base_sha, head_sha = resolve(repo, base_ref), resolve(repo, head_ref)
     base, head = _tree(repo, base_sha), _tree(repo, head_sha)
     ch = diff_trees(repo, base, head, extra_globs, not_tests)
@@ -514,14 +684,30 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
     runs: dict[str, dict] = {}
     rewritten: list[str] = []
     args = (test_cmd, timeout, image, engine, flags or [], env_names or [])
+    tests: dict[str, dict[str, str]] = {}
+
+    def run(name: str, tree: Path) -> None:
+        # Each run gets its own home, so one run cannot leave anything there for the next.
+        home = tree.parent / f"home-{name}"
+        home.mkdir()
+        if junit:
+            _remove(_safe_target(tree, junit))
+        runs[name] = run_tests(tree, *args, home)
+        if junit:
+            found, problem = _read_results(tree, junit) if runs[name]["ran"] else (None, "the run did not finish")
+            runs[name]["results"] = _tally(found) if found is not None else None
+            if found is None:
+                runs[name]["results_problem"] = problem
+            else:
+                tests[name] = found
+
     with tempfile.TemporaryDirectory(prefix="agentsec-verify-") as td:
         work = Path(td)
-        (work / "home").mkdir()
         if run_base:
             materialize(repo, base, work / "base")
-            runs["base"] = run_tests(work / "base", *args, work / "home")
+            run("base", work / "base")
         materialize(repo, head, work / "head")
-        runs["head"] = run_tests(work / "head", *args, work / "home")
+        run("head", work / "head")
         if restored:
             tree = work / "regrade"
             materialize(repo, head, tree)
@@ -531,27 +717,31 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
                     _write_entry(tree, p, base[p][0], blobs[base[p][1]])
                 else:
                     _remove(_safe_target(tree, p))
-            guarded = sorted({p for p in base if classify(p, extra_globs, not_tests)} | {p for p in restored if p in base})
+            guarded = sorted(({p for p in base if classify(p, extra_globs, not_tests)} | {p for p in restored if p in base}) - {junit})
             before = _hash_paths(tree, guarded)
-            runs["regrade"] = run_tests(tree, *args, work / "home")
+            run("regrade", tree)
             after = _hash_paths(tree, guarded)
             rewritten = sorted(p for p in guarded if before[p] != after[p])
-    verdict, findings = analyze(ch, weak, runs, rewritten, restored)
+    cmp = None
+    if junit and "head" in tests and ("regrade" in tests or "regrade" not in runs):
+        cmp = compare_tests(tests.get("base"), tests["head"], tests.get("regrade", tests["head"]))
+    verdict, findings = analyze(ch, weak, runs, rewritten, restored, cmp, bool(junit))
     summary = {"verdict": verdict, "score": min(100, sum(f.weight for f in findings)), "finding_count": len(findings),
                "by_severity": {s: sum(1 for f in findings if f.severity == s) for s in SEVERITY_WEIGHT},
                "findings": [dataclasses.asdict(f) for f in findings]}
     return {"tool": "agentsec-pack", "test": "verifier-integrity", "schema_version": 1, "generated_at": int(time.time()),
             "target": {"repo": repo, "base": base_sha, "head": head_sha, "test_cmd": test_cmd,
-                       "image": image, "engine": engine if image else None, "flags": flags or []},
+                       "image": image, "engine": engine if image else None, "flags": flags or [], "junit": junit},
             "changes": {"added": ch.added, "modified": ch.modified, "deleted": ch.deleted,
                         "test_settings_in_mixed_files": ch.test_settings_in_mixed, "restored_for_regrade": restored},
-            "runs": runs, "summary": summary}
+            "comparison": {k: _listed(v) for k, v in cmp.items()} if cmp else None, "runs": runs, "summary": summary}
 
 
 VERDICT_TEXT = {
     "verified": "the new code passes the tests from the base commit",
     "tests-changed-the-result": "the new code passes only with its own edits to the tests",
     "failing": "the tests fail",
+    "already-failing": "the only failing tests also failed before this change",
     "unverified": "the tests could not be run to a result, so nothing was shown",
 }
 
@@ -564,12 +754,19 @@ def render_markdown(env: dict[str, Any]) -> str:
              f"- base: `{t['base']}`", f"- head: `{t['head']}`", f"- test command: `{t['test_cmd']}`"]
     if t.get("image"):
         lines.append(f"- image: `{t['image']}` ({t['engine']}, no network)")
-    lines += ["", "## Test runs", "", "| Run | Tree | Exit |", "|---|---|---:|"]
+    per_test = bool(t.get("junit"))
+    lines += ["", "## Test runs", ""]
+    lines += ["| Run | Tree | Exit | Passed | Failed | Errors | Skipped |", "|---|---|---:|---:|---:|---:|---:|"] if per_test else [
+        "| Run | Tree | Exit |", "|---|---|---:|"]
     labels = {"base": "the base commit", "head": "the new commit as submitted", "regrade": "the new code with the base commit's tests"}
     for name in ("base", "head", "regrade"):
         r = env["runs"].get(name)
         if r:
-            lines.append(f"| {name} | {labels[name]} | {'timed out' if r['timed_out'] else r['exit']} |")
+            row = f"| {name} | {labels[name]} | {'timed out' if r['timed_out'] else r['exit']} |"
+            if per_test:
+                res = r.get("results")
+                row += (" {passed} | {failed} | {error} | {skipped} |".format(**res) if res else " no results | | | |")
+            lines.append(row)
     if "regrade" not in env["runs"]:
         lines += ["", "No test-related file changed, so re-grading would repeat the run above."]
     lines += ["", "## Findings"]
@@ -578,6 +775,8 @@ def render_markdown(env: dict[str, Any]) -> str:
     for f in s["findings"]:
         lines += [f"### {f['id']} · {f['severity'].upper()} · {f['title']}", f"- evidence: `{f['evidence']}`", f"- {f['remediation']}", ""]
     lines += ["", "## What this does not show",
+              "A change can special-case the tests in its own code, or write a results file of its own."
+              if per_test else
               "A change can special-case the tests in its own code, or make the test runner report success. "
-              "A pass means the base commit's test command exited 0 against the new code."]
+              "A pass means the base commit's test command exited 0 against the new code. Pass --junit to compare test by test."]
     return "\n".join(lines) + "\n"
