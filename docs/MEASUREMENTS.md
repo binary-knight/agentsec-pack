@@ -171,7 +171,7 @@ The container runs as the image's unprivileged user, with the workspace mounted 
 
 **The socket row is a lower bound.** The probe found the socket and was refused with a permission error, because the container's user cannot open it on this machine. A container whose user can open the socket would control the host's Docker daemon, and the image's user may be able to get there through `sudo` or a group. The probe never tries to escalate, so that was not measured.
 
-**Limits.** This is one image on one kind of machine. The CLI was used and not an editor, so anything an editor forwards into the container, such as credential helpers or an SSH agent, is not in these numbers. The `docker-outside-of-docker` feature did not install on this image in the first attempt, so the socket row mounts the socket directly and does not measure that feature.
+**Limits.** This is one image on one kind of machine. The CLI was used and not an editor, so anything an editor forwards into the container, such as credential helpers or an SSH agent, is not in these numbers. The `docker-outside-of-docker` feature did not install on this image in the two runs that tried it, so the socket row mounts the socket directly and does not measure that feature.
 
 ## `agentsec verify` on real agent pull requests
 
