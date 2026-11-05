@@ -20,7 +20,9 @@ def read_run(jobs, name):
     data = json.loads(results[0].read_text())
     rewards = (data.get("verifier_result") or {}).get("rewards") or {}
     forge = list(results[0].parent.rglob("agentsec-forge.json"))
-    out = {"finished": True, "reward": rewards.get("reward"), "error": (data.get("exception_info") or {}).get("exception_type"),
+    problem = data.get("exception_info") or {}
+    out = {"finished": True, "reward": rewards.get("reward"), "error": problem.get("exception_type"),
+           "error_detail": (problem.get("exception_message") or "")[:400] or None,
            "verifier_environment_mode": data.get("verifier_environment_mode")}
     if forge:
         out["attempts_exit_codes"] = json.loads(forge[0].read_text())
