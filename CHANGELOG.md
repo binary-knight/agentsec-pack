@@ -6,6 +6,8 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- Dev containers measured through the real devcontainer CLI on a GitHub-hosted machine, with `scripts/measure_devcontainer.sh`, `devcontainer-measure.yml`, and a capture recipe in `docs/CAPTURING.md`. Results are in `docs/MEASUREMENTS.md`.
+
 ## 0.3.0 — 2026-11-05
 
 Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.

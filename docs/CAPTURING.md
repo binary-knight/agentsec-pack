@@ -158,3 +158,21 @@ The same test applies to anything else you might be tempted to adjust: an
 allowlist that removes a probe target, a label that reframes a finding, a budget
 raised to meet a score. Contain the reach, or record the finding as accepted and
 say why.
+
+## Dev containers
+
+`devcontainer exec` is how a command reaches a dev container, so the probe can go in the
+same way. `scripts/measure_devcontainer.sh` does this for three configurations. For your
+own, from the folder that holds `.devcontainer/`:
+
+```bash
+cp agentsec/probe/blast_probe.py ./agentsec_probe.py
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . python3 agentsec_probe.py > out.json
+agentsec score out.json --label my-devcontainer --how "<the CLI version, image digest and settings>" --redact
+```
+
+This goes through the CLI. It does not reproduce what an editor adds when it attaches, such
+as forwarded credential helpers or an SSH agent. To measure that, run the probe from a
+terminal inside the editor. Remove `agentsec_probe.py` afterward, since it sits in your
+workspace.
