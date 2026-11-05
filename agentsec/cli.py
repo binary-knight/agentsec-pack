@@ -321,13 +321,16 @@ def _load_results(paths: list[str]) -> list[dict]:
 def cmd_verify(args: argparse.Namespace) -> int:
     """Did the change pass its tests, or did it change the tests? See agentsec/verify.py."""
     from . import verify as vf
+    if not args.junit:
+        print("note: without --junit the runs are compared by exit code alone, which cannot separate a suite that "
+              "never started from one that failed.", file=sys.stderr)
     if not args.image:
         print("note: the tests run on this machine with your user's access, and they run the code under "
               "test. Pass --image to run them in a container with no network.", file=sys.stderr)
     try:
         env = vf.verify(args.repo, args.base, args.head, args.test_cmd, timeout=args.timeout, image=args.image,
                         engine=args.engine, flags=args.flags, extra_globs=args.tests, not_tests=args.not_tests,
-                        env_names=args.env, run_base=not args.no_base_run)
+                        env_names=args.env, run_base=not args.no_base_run, junit=args.junit)
     except vf.VerifyError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -549,6 +552,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--base", required=True, help="the commit before the change")
     v.add_argument("--head", required=True, help="the commit to check")
     v.add_argument("--test-cmd", required=True, help="the test command, run with sh -c from the root of each tree")
+    v.add_argument("--junit", metavar="PATH", help="the JUnit XML file the test command writes, relative to the tree, to compare the runs test by test")
     v.add_argument("--repo", default=".")
     v.add_argument("--image", help="run the tests in this container image with no network; everything after -- goes to the engine")
     v.add_argument("--engine", choices=["docker", "podman"], default="docker")
