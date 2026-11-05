@@ -38,5 +38,5 @@ measure() {  # name, the rest of devcontainer.json, how it differs
 
 measure default '' "no other settings"
 measure hardened ', "runArgs": ["--cap-drop=ALL", "--security-opt=no-new-privileges"]' "runArgs --cap-drop=ALL --security-opt=no-new-privileges"
-measure docker-outside ', "features": {"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}}' "the docker-outside-of-docker feature, which mounts the host's Docker socket"
+measure docker-socket ', "mounts": ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"]' "the host's Docker socket mounted into the container"
 echo "reports: $OUT"
