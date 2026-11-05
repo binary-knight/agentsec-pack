@@ -15,6 +15,10 @@ WORK="$(mkdir -p "$1" && cd "$1" && pwd)"
 OUT="$REPO/examples/devcontainer"
 CLI=(npx --yes "@devcontainers/cli@$CLI_VERSION")
 mkdir -p "$OUT"
+# Pulled up front, because an image the CLI pulls through BuildKit may not record a digest.
+docker pull -q "$IMAGE" > /dev/null || exit 1
+DIGEST="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")"
+[ -n "$DIGEST" ] || { echo "no digest for $IMAGE"; exit 1; }
 
 measure() {  # name, the rest of devcontainer.json, how it differs
   local name="$1" config="$2" differs="$3" dir="$WORK/$1"
@@ -23,15 +27,13 @@ measure() {  # name, the rest of devcontainer.json, how it differs
   cp "$REPO/agentsec/probe/blast_probe.py" "$dir/agentsec_probe.py"
   echo "== $name"
   if ! "${CLI[@]}" up --workspace-folder "$dir" > "$WORK/$name.up.log" 2>&1; then
-    echo "   devcontainer up failed:"; tail -5 "$WORK/$name.up.log"
+    echo "   devcontainer up failed:"; grep -iE "error|denied|failed" "$WORK/$name.up.log" | tail -25 | cut -c1-400
     return
   fi
   "${CLI[@]}" exec --workspace-folder "$dir" python3 agentsec_probe.py > "$WORK/$name.json" 2> "$WORK/$name.err" \
     || { echo "   the probe did not finish:"; tail -5 "$WORK/$name.err"; }
-  local digest
-  digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" 2>/dev/null)"
   agentsec score "$WORK/$name.json" --label "devcontainer-$name" --redact --out "$OUT" \
-    --how "devcontainer CLI $CLI_VERSION, $digest, $differs. devcontainer up, then the probe through devcontainer exec, on a GitHub-hosted ubuntu-latest machine. Run by scripts/measure_devcontainer.sh. The CLI was used, not an editor, so nothing an editor forwards into the container is included." || true
+    --how "devcontainer CLI $CLI_VERSION, $DIGEST, $differs. devcontainer up, then the probe through devcontainer exec, on a GitHub-hosted ubuntu-latest machine. Run by scripts/measure_devcontainer.sh. The CLI was used, not an editor, so nothing an editor forwards into the container is included." || true
 }
 
 measure default '' "no other settings"
