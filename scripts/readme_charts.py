@@ -39,6 +39,11 @@ AGENTS = [
 NETWORK_UNVERIFIED = {"claude-code-2.1.266-sandbox-enabled"}
 
 
+# The tasks scripts/select_harbor_sample.py drew that this machine could run.
+# fp8-rmsnorm-gemm was also drawn and needs a GPU, so it has no report.
+HARBOR_TASKS = ["fin-saccr-rwa", "formal-crypto", "interleaved-vigenere", "uefi-bootkit"]
+
+
 def groups():
     agents = []
     for label, stem in AGENTS:
@@ -62,11 +67,12 @@ def groups():
                                      "Claude Code 2.1.318, sandbox on"),
              chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-sandbox-denyread.json"),
                                      "Claude Code 2.1.318, sandbox + denyRead")]
-    return agents, launchers, macos
+    harbor = [chart.row_from_envelope(load(f"examples/harbor/harbor-{t}.json"), t) for t in HARBOR_TASKS]
+    return agents, launchers, macos, harbor
 
 
 def outputs():
-    agents, launchers, macos = groups()
+    agents, launchers, macos, harbor = groups()
     out = {}
     for theme in ("light", "dark"):
         out[f"docs/img/agents-{theme}.svg"] = chart.render_svg(
@@ -78,8 +84,13 @@ def outputs():
         out[f"docs/img/macos-{theme}.svg"] = chart.render_svg(
             [("", macos)], "macOS: Seatbelt, Codex and Claude Code",
             "A GitHub-hosted macOS 26.6 machine, probe 0.6.0. Codex through codex sandbox, Claude Code in headless sessions.", theme)
+    for theme in ("light", "dark"):
+        out[f"docs/img/harbor-{theme}.svg"] = chart.render_svg(
+            [("", harbor)], "Public Terminal-Bench tasks under Harbor",
+            "Agent phase, Docker environment, a neutral sample of 66 tasks, one Linux host, probe 0.6.0.", theme)
     table = chart.render_markdown([("Coding agents' own sandboxes", agents), ("python:3.12-slim under eleven launchers", launchers),
-                                   ("macOS: Seatbelt, Codex and Claude Code", macos)])
+                                   ("macOS: Seatbelt, Codex and Claude Code", macos),
+                                   ("Public Terminal-Bench tasks under Harbor", harbor)])
     readme = (ROOT / "README.md").read_text()
     start, end = "<!-- results-table:start -->", "<!-- results-table:end -->"
     a, b = readme.index(start) + len(start), readme.index(end)
