@@ -153,12 +153,13 @@ Score and findings per image or agent over time, so drift is visible before
 it crosses a gate. The `--baseline` gate covers the CI case; this is the
 trend view.
 
-### 10. Verifier integrity
+### 10. Verifier integrity, past a plain test command
 
-The second test class from `docs/DESIGN.md`: did the agent pass CI by editing
-the tests, the fixtures or the grader? Run a verifier the agent never saw on
-the agent's diff, and diff the tests themselves. Kept on the roadmap,
-deliberately out of the pitch until it exists.
+`agentsec verify` covers what a diff and a re-run can prove. Two things are left.
+
+**A forged result.** A change can make the test runner report success, for example by exiting 0 when the tests import it. A pass today means the command exited 0. Done when a run can show that the tests actually executed, for example with a test that must fail planted in the suite, so a run that reports success anyway is caught. `test_known_limit_code_that_forges_the_runner_exit_still_passes` pins the gap until then.
+
+**Other kinds of grader.** Done when a benchmark's verifier, which is not a plain test command in the repository, can be checked the same way. Public harnesses and tasks only, with their commits recorded.
 
 ## Done
 
@@ -172,3 +173,4 @@ deliberately out of the pitch until it exists.
   persistence; readability proven by opening.
 - `--baseline` and `agentsec diff` regression gate.
 - PyPI release workflow; agentsec-pack 0.1.0 published 2026-11-04.
+- `agentsec verify`: tampering, weakening and re-grading between two commits.

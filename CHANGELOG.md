@@ -6,6 +6,7 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- `agentsec verify` compares two commits and asks whether the change passed its tests or changed them. It reports changes to tests, fixtures, test configuration and CI, and tests that were removed, skipped or lost assertions, then runs the new code with the old tests put back. Exits 2 unless the verdict is `verified`, and `--strict` also fails a passing change that edited its tests. It reads the repository from git objects so hooks, filters and `export-ignore` cannot affect it, and it clears symlinks before restoring a path. It cannot detect a change that forges the test runner's result.
 - A proxy that gave no clear answer no longer counts as containment. NET-003 now needs a refusal from every destination asked about. A timeout, a failed connection, a gateway error or a proxy without `CONNECT` support reports NET-004, not measured, and lists those destinations. No published score changes.
 - Claude Code 2.1.318 measured on macOS in full headless sessions (`macos-claude-code.yml`, approval required for every run): no sandbox 100, sandbox on 53, sandbox with `denyRead` 38. Claude Code protects its own project config and leaves Codex's and Antigravity's writable, the mirror of the Codex result. Sandboxed commands can see `ANTHROPIC_API_KEY` by name.
 - Three `seatbelt-*` presets run the probe under macOS `sandbox-exec`: a profile that allows everything, one that denies the network, and a confined profile.

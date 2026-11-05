@@ -30,6 +30,10 @@ The parts of this project that touch a trust boundary:
   the top of the module. Anything that lets a web page reach the API without the
   token, defeat the `Host` check, or cause a command outside the shipped presets
   to run is in scope.
+* **`agentsec/verify.py`** — the repository it reads is written by the agent being
+  checked. Anything in that repository that can change the verdict, hide a file from
+  the check, or write outside the temporary tree is in scope. The limit stated in the
+  module, that a change can forge the test runner's own result, is known.
 * **`agentsec/redact.py`** — anything `--redact` fails to remove that identifies
   an operator or a machine.
 * **`agentsec/runner.py`** — argument handling that lets a crafted image name,

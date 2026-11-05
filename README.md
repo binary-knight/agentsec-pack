@@ -4,7 +4,7 @@ Installed with `pip install agentsec-pack`, the `agentsec` command measures what
 
 A small standard-library Python probe inside the sandbox opens credential files, connects to hosts and sockets, writes zero-byte marker files, and reports secret names and paths without values. Refused connections count as contained, and a control test checks whether refusals apply to the entire system call or one path. A scorer turns results into findings with fixed weights and a score from 0 to 100, where 0 means the probe reached nothing. The `--max-score` flag fails a CI build above a budget, `--baseline` fails when anything got worse than an accepted report, and both exit with code 2.
 
-A second test class, verifier integrity, will check whether an agent passed CI by editing the tests. It is listed in [`docs/ROADMAP.md`](docs/ROADMAP.md) and is not built yet.
+A second command, `agentsec verify`, checks whether a change passed its tests or changed them.
 
 ## Results at a glance
 
@@ -178,6 +178,16 @@ You should review `AGENTS.md` before passing it over. The brief stays under 100 
 
 Every measurement run writes a machine-readable file to `reports/<label>.json` under `schema_version` 1 alongside a companion report at `reports/<label>.md`. That JSON output captures the specific image and flags from the run, so anyone can reproduce the resulting number. A generated report includes the sandbox hostname and working directory along with secret-looking environment variable names, so you should review it before publishing. Passing `--redact` strips those host and environment details while preserving every score and finding alongside the recorded flags. The reports in `examples/`, which this README cites, were made that way, and git ignores `reports/`.
 
+## Did the change pass its tests, or change them?
+
+Checking an agent's work requires the tests from before the agent started, because a green test run confirms only that the current suite passed. `agentsec verify` compares two commits to report changes to tests, fixtures, test configuration, or CI, alongside tests that lost assertions or were removed or skipped. Once that comparison finishes, the command puts the old test suite back in place to execute the new code.
+
+```bash
+agentsec verify --base main --head agent-branch --test-cmd "pytest -q" --image python:3.12-slim
+```
+
+The tool reports `verified` when the new code passes the base commit's tests, or `tests-changed-the-result` when passing requires its own test edits. A run produces `failing` when the test suite fails, while `unverified` indicates that the tests could not be executed to a result. Every verdict other than `verified` returns exit code 2, while `--strict` also exits with 2 when a passing change modified its tests. Test edits can be legitimate on their own, so a person should read those modifications directly during review. Omit `--image` to run the tests on your machine with your user's access, or pass `--image` to run them in a container with no network. A change can still pass by special-casing the tests within its own code or by making the test runner report success. That limit exists because a pass means only that the old tests' command exited 0 when run against the new code.
+
 ## Seeing it
 
 Two commands render the same page.
@@ -249,7 +259,8 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [x] macOS measurements: Seatbelt presets and Codex's macOS sandbox, on a GitHub-hosted machine
 - [x] Claude Code's macOS sandbox, in full headless sessions on a GitHub-hosted machine (`macos-claude-code.yml`)
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
-- [ ] verifier-integrity test class
+- [x] verifier integrity: `agentsec verify` compares two commits and re-grades the new code against the old tests
+- [ ] verifier integrity past a plain test command: detecting a forged runner result, and measuring benchmark harnesses
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
 - [ ] history across runs

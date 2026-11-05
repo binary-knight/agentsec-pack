@@ -14,6 +14,8 @@
 
   agentsec blast-radius docker myagent:tag --baseline reports/accepted.json
   agentsec diff reports/accepted.json reports/latest.json
+  agentsec verify --base main --head agent-branch --test-cmd "pytest -q"
+    (did the change pass its tests, or did it change the tests?)
 
 Exit codes: 0 ok, 1 error, 2 --max-score exceeded or a regression against --baseline.
 """
@@ -316,6 +318,41 @@ def _load_results(paths: list[str]) -> list[dict]:
     return out
 
 
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Did the change pass its tests, or did it change the tests? See agentsec/verify.py."""
+    from . import verify as vf
+    if not args.image:
+        print("note: the tests run on this machine with your user's access, and they run the code under "
+              "test. Pass --image to run them in a container with no network.", file=sys.stderr)
+    try:
+        env = vf.verify(args.repo, args.base, args.head, args.test_cmd, timeout=args.timeout, image=args.image,
+                        engine=args.engine, flags=args.flags, extra_globs=args.tests, not_tests=args.not_tests,
+                        env_names=args.env, run_base=not args.no_base_run)
+    except vf.VerifyError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    env["label"] = args.label or f"verify-{env['target']['head'][:12]}"
+    if args.redact:
+        env = redact(env)
+    name = env["label"].replace(" ", "_").replace("/", "_")
+    os.makedirs(args.out, exist_ok=True)
+    jp, mp = os.path.join(args.out, name + ".json"), os.path.join(args.out, name + ".md")
+    with open(jp, "w") as f:
+        json.dump(env, f, indent=2, sort_keys=True)
+    with open(mp, "w") as f:
+        f.write(vf.render_markdown(env))
+    s = env["summary"]
+    print(f"{env['label']}: {s['verdict']}: {vf.VERDICT_TEXT[s['verdict']]} -> {mp}")
+    for f_ in s["findings"]:
+        print(f"  [{f_['severity']:<8}] {f_['id']} {f_['title']}")
+    if s["verdict"] != "verified":
+        return EXIT_OVER_BUDGET
+    if args.strict and any(f_["severity"] not in ("info", "low") for f_ in s["findings"]):
+        print("FAIL: --strict and the change touched its tests", file=sys.stderr)
+        return EXIT_OVER_BUDGET
+    return 0
+
+
 def cmd_chart(args: argparse.Namespace) -> int:
     """One quick-look chart of many runs: a row per run, a colored cell per axis."""
     from . import chart
@@ -507,6 +544,24 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("baseline", help="the accepted report JSON")
     d.add_argument("current", help="the report JSON to check")
     d.set_defaults(func=cmd_diff)
+
+    v = sub.add_parser("verify", help="did a change pass its tests, or did it change the tests? (exit 2 if not shown to pass)")
+    v.add_argument("--base", required=True, help="the commit before the change")
+    v.add_argument("--head", required=True, help="the commit to check")
+    v.add_argument("--test-cmd", required=True, help="the test command, run with sh -c from the root of each tree")
+    v.add_argument("--repo", default=".")
+    v.add_argument("--image", help="run the tests in this container image with no network; everything after -- goes to the engine")
+    v.add_argument("--engine", choices=["docker", "podman"], default="docker")
+    v.add_argument("--tests", action="append", default=[], metavar="GLOB", help="also treat these paths as tests")
+    v.add_argument("--not-tests", action="append", default=[], metavar="GLOB", help="these paths are code, whatever their names suggest")
+    v.add_argument("--env", action="append", default=[], metavar="NAME", help="pass this variable to the tests; none are passed otherwise")
+    v.add_argument("--timeout", type=int, default=600, help="seconds for each test run")
+    v.add_argument("--no-base-run", action="store_true", help="skip running the base commit, which only reports whether the tests already passed")
+    v.add_argument("--strict", action="store_true", help="also exit 2 when the change passes but touched its tests")
+    v.add_argument("--label")
+    v.add_argument("--out", default="reports")
+    v.add_argument("--redact", action="store_true", help="scrub test output and home paths before writing")
+    v.set_defaults(func=cmd_verify)
 
     c = sub.add_parser("compare", help="print scores side by side")
     c.add_argument("results", nargs="+")

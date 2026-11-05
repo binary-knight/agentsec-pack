@@ -5,7 +5,7 @@
 Agent observability tools record what an agent did. This pack tries to catch the agent doing what it should not be able to do, or claiming to have done what it did not:
 
 - **Blast radius** is a property of the deployment, not the model. A coding agent that is prompt-injected into `curl`-ing a credential to the internet only succeeds if the sandbox lets it. Measuring the sandbox once, per image and flag set, tells a team what an injection can cost them before any prompt is involved.
-- **Verifier integrity** (next) is the reward-hacking failure: an agent that passes CI by editing the tests. The test is to run a verifier the agent never saw, on the agent's diff, and to diff the tests themselves.
+- **Verifier integrity** (`agentsec verify`, `agentsec/verify.py`) is the reward-hacking failure: an agent that passes CI by editing the tests. The test is to run a verifier the agent never saw, on the agent's diff, and to diff the tests themselves.
 
 Both are adversarial to the agent and independent of any particular model or framework.
 

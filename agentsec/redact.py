@@ -35,7 +35,7 @@ def redact(obj: Any, home: str | None = None, user: str | None = None) -> Any:
                 if k in ("env_secret_names", "names"):
                     items = v if isinstance(v, list) else []
                     out[k] = [{"name": PLACEHOLDER, "length": i.get("length")} if isinstance(i, dict) else PLACEHOLDER for i in items]
-                elif k in ("hostname", "cwd", "pid1_cmdline", "cgroup"):
+                elif k in ("hostname", "cwd", "pid1_cmdline", "cgroup", "output_tail"):
                     out[k] = PLACEHOLDER
                 else:
                     out[k] = walk(v, k)
