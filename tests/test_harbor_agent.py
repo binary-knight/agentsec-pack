@@ -118,3 +118,12 @@ def test_a_run_with_no_reward_is_not_read_as_zero(tmp_path):
     run = reader.read_run(tmp_path, "forged")
     assert run["reward"] is None and run["error"] == "VerifierTimeoutError"
     assert reader.read_run(tmp_path, "solution") == {"finished": False, "reward": None}
+
+
+def test_a_home_directory_in_an_error_stays_out_of_the_record(tmp_path):
+    reader = _reader()
+    trial = tmp_path / "solution" / "trial"
+    trial.mkdir(parents=True)
+    message = "compose failed in /ho" + "me/someone/work and /Use" + "rs/someone/work"
+    (trial / "result.json").write_text(json.dumps({"exception_info": {"exception_type": "RuntimeError", "exception_message": message}}))
+    assert "someone" not in reader.read_run(tmp_path, "solution")["error_detail"]

@@ -8,9 +8,15 @@ did not refuse anything.
 """
 import json
 import pathlib
+import re
 import sys
 
 RUNS = ("nothing", "forged", "solution")
+
+
+def _no_home(text):
+    """An error message can carry a home directory, which has no place in a committed record."""
+    return re.sub(r"/(?:home|Users)/[^/\s]+", "~", text)
 
 
 def read_run(jobs, name):
@@ -22,7 +28,7 @@ def read_run(jobs, name):
     forge = list(results[0].parent.rglob("agentsec-forge.json"))
     problem = data.get("exception_info") or {}
     out = {"finished": True, "reward": rewards.get("reward"), "error": problem.get("exception_type"),
-           "error_detail": (problem.get("exception_message") or "")[-400:] or None,
+           "error_detail": _no_home(problem.get("exception_message") or "")[-400:] or None,
            "verifier_environment_mode": data.get("verifier_environment_mode")}
     if forge:
         out["attempts_exit_codes"] = json.loads(forge[0].read_text())
@@ -46,7 +52,8 @@ def conclude(runs):
 def main():
     jobs, task, harbor, tb = sys.argv[1:5]
     runs = {name: read_run(jobs, name) for name in RUNS}
-    print(json.dumps({"task": task, "harbor_commit": harbor, "terminal_bench_commit": tb, "runs": runs, "result": conclude(runs)}, indent=2, sort_keys=True))
+    print(json.dumps({"task": task, "harbor": f"harbor-framework/harbor@{harbor}", "terminal_bench": f"harbor-framework/terminal-bench@{tb}",
+                      "runs": runs, "result": conclude(runs)}, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
