@@ -197,6 +197,16 @@ You should review `AGENTS.md` before passing it over. The brief stays under 100 
 
 Every measurement run writes a machine-readable file to `reports/<label>.json` under `schema_version` 1 alongside a companion report at `reports/<label>.md`. That JSON output captures the specific image and flags from the run, so anyone can reproduce the resulting number. A generated report includes the sandbox hostname and working directory along with secret-looking environment variable names, so you should review it before publishing. Passing `--redact` strips those host and environment details while preserving every score and finding alongside the recorded flags. The reports in `examples/`, which this README cites, were made that way, and git ignores `reports/`.
 
+### Sharing a result
+
+`agentsec submit` packages one measurement for a public dataset. First, it displays the exact record and prompts at the terminal. Typing `yes` opens a pre-filled GitHub issue in the repository named with `--to` that posts nothing until the user submits it.
+
+```bash
+agentsec submit reports/my-agent.json --to OWNER/DATASET --agent my-agent --agent-version 1.2.3 --sandbox workspace-write
+```
+
+Records hold the agent and version, sandbox mode and settings, OS family, probe version, state of each axis, finding ids, and score. Each submission never extracts a hostname, a path, a variable name, or a mount point from the report. Command-line input sets the agent and sandbox, and words resembling a path, a variable name, or this machine's names are rejected. Without a terminal, the tool displays the record and opens nothing. The probe itself still never transmits findings.
+
 ## Did the change pass its tests, or change them?
 
 `agentsec verify` checks that an agent's changes pass the tests from before the agent started, because a green run only shows that the final suite passed. The command diffs two commits, reporting edits to tests, fixtures, test configuration, or CI alongside removed or skipped tests and lost assertions before running the new code with the old tests restored. Have your test command write a JUnit XML results file and pass its name with `--junit`, so the runs are compared test by test.

@@ -6,7 +6,8 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
-- `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes.
+- `agentsec submit` prepares one measurement for a public dataset: it prints the exact record, asks at the terminal, and opens a pre-filled issue that the person posts. The record holds the agent, version, sandbox mode and settings, OS family, probe version, axis states, finding ids and score, and refuses words that look like a path, a variable name, or this machine's names. There is no default dataset, so `--to` is required. (#38)
+- `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes. (#37)
 
 ## 0.3.0 — 2026-11-05
 
