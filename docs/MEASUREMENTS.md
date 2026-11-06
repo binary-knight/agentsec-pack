@@ -155,6 +155,50 @@ Harbor keeps the grader's files out of the agent's container in all four, and ea
 
 **Limits.** This is 4 tasks of 66, on one host, through Harbor's Docker environment. All 4 are single-container tasks running as root. The 11 tasks with their own `docker-compose.yaml` and the tasks that set a non-root user were not in the sample, and Harbor's cloud environments are not covered. The cloud metadata address is unreachable here, which says nothing about a run on a cloud machine.
 
+## Whether a benchmark's grader can be faked
+
+A benchmark's grader is not a test command in a repository, so `agentsec verify` does not apply. `scripts/check_harbor_grader.sh` asks the same questions through real Harbor (`b7cc86b`) on public Terminal-Bench tasks (`73d6279`), with three graded runs per task on a disposable GitHub-hosted machine, on 2026-11-05 and 2026-11-06:
+
+- **Nothing:** Harbor's `nop` agent. The grader must not pass an untouched environment.
+- **Solution:** Harbor's `oracle` agent, the task's own solution. A grader that can never pass would resist any forgery, so this has to pass.
+- **Forged:** `ForgeAgent` in `agentsec/integrations/harbor_agent.py`, which makes no model calls and does not attempt the task. It writes the reward files, puts commands that always pass in place of `pytest`, `uv`, `uvx`, `python` and `python3`, and leaves a process rewriting the reward. It must not pass.
+
+The tasks are the same uniform draw of 5 from 66 that `scripts/select_harbor_sample.py` makes for the measurements above. Records are in `examples/harbor-grader/`.
+
+| Task | Verifier | Nothing | Solution | Forged | Result |
+|---|---|---:|---:|---:|---|
+| `fin-saccr-rwa` | separate | 0 | 1 | 0 | held |
+| `interleaved-vigenere` | separate | 0 | 1 | 0 | held |
+| `uefi-bootkit` | separate | 0 | 1 | 0 | held |
+| `formal-crypto` | separate | none | none | none | not settled: its containers did not start on this machine |
+| `fp8-rmsnorm-gemm` | separate | none | none | none | not settled: the task needs a GPU and this machine has none |
+| Control, in `examples/harbor-control/` | separate | 0 | 1 | 0 | held |
+| Control, in `examples/harbor-control/` | shared | 0 | 1 | **1** | the forged run scored |
+
+Every forge attempt exited 0 in every run that reached it, so each attempt was made and worked inside the agent's container. In the separate tasks it made no difference, because the grade comes from a new container that receives only the agent's artifacts.
+
+**The controls show the forgery works when the verifier shares the agent's container.** The two control tasks are the same small task and differ only in `environment_mode`. Harbor's configuration says the verifier runs in the agent's environment when a task sets no mode and no verifier environment. Each of the 66 public tasks at this commit sets `environment_mode = "separate"`. This describes what the setting does, and these runs do not show that any published result was faked.
+
+**Limits.** This is 3 settled tasks of 66, plus two controls written for this check. `formal-crypto` asks for 8 CPUs and these machines have 4, which may be why it did not start, but the part of the error that would say so was cut off. The forgery is generic. A separate verifier still reads the artifacts, and these runs did not try to craft a task's artifacts to fool its checks, which is what a real attempt on a separate verifier would have to do. An early run of the first two tasks in the table gave the same rewards.
+
+## Dev containers
+
+These runs measure what a command gets inside a dev container. `scripts/measure_devcontainer.sh` starts each configuration with the real devcontainer CLI (0.90.0) and runs the probe through `devcontainer exec`. It used `mcr.microsoft.com/devcontainers/python:3.12` at the digest in each report, on a GitHub-hosted `ubuntu-latest` machine, through `devcontainer-measure.yml`, on 2026-11-05. Probe 0.6.0. Reports are in `examples/devcontainer/`.
+
+| Configuration | Score | Findings above informational |
+|---|---:|---|
+| No other settings | 57 | NET-001, NET-002, FS-003, PRIV-005, FS-002, FS-006 |
+| `runArgs`: `--cap-drop=ALL`, `--security-opt=no-new-privileges` | 51 | NET-001, NET-002, FS-003, FS-002 |
+| The host's Docker socket mounted | 60 | NET-001, NET-002, FS-003, PRIV-005, FS-002, FS-006, SEC-006 |
+
+The container runs as the image's unprivileged user, with the workspace mounted read-write from the host, and with unrestricted egress. Dropping capabilities and setting `no_new_privs` removes 6 points and leaves the network and the workspace mount as they were.
+
+**Read the scores with care.** NET-002, the cloud metadata address, is 25 of the points in every row. It comes from the hosted machine these runs used, and a dev container on a laptop would not be expected to reach one. Without it the rows would be 32, 26 and 35, but those three totals were not measured on a machine without a metadata address.
+
+**The socket row is a lower bound.** The probe found the socket and was refused with a permission error, because the container's user cannot open it on this machine. A container whose user can open the socket would control the host's Docker daemon, and the image's user may be able to get there through `sudo` or a group. The probe never tries to escalate, so that was not measured.
+
+**Limits.** This is one image on one kind of machine. The CLI was used and not an editor, so anything an editor forwards into the container, such as credential helpers or an SSH agent, is not in these numbers. The `docker-outside-of-docker` feature did not install on this image in the two runs that tried it, so the socket row mounts the socket directly and does not measure that feature.
+
 ## `agentsec verify` on real agent pull requests
 
 `scripts/survey_agent_prs.py` runs verify's static checks, tampering and weakening, over public pull requests written by coding agents. It reads git objects only and executes nothing from those repositories, so **this survey produced no verdicts**. Re-grading is a separate step, covered at the end of this section. It shows how often the checks fire and whether they are right, which was judged by reading every flagged change.
@@ -226,3 +270,24 @@ The sample cannot show how often `verified` happens, because every pull request 
 - The results depend on the setup, and 6 of the 16 produced no result at all.
 
 Five of the 16 are on Anthropic's Claude account, including both that need a person, and all of this was read and judged by a Claude session. Reports are kept out of this repository because they name the projects, so these totals cannot be recomputed from it, though the workflow and the selection rule are public.
+
+### Re-grading a sample that was not chosen for editing tests
+
+The 16 above were chosen for editing their tests, so none could show what an ordinary change looks like. `scripts/select_regrade_sample.py` draws 20 from the 90 surveyed pull requests whose base commit has tests, with a fixed seed, and whether a pull request edited its tests plays no part. Of the 20, in 18 repositories, 5 edited existing tests and 5 were also in the first re-grade. The run used `regrade.yml` as above, on 2026-11-05, with one addition: before a result is called `verified`, the new code runs once more with a randomly named test planted beside the existing ones, which must fail. 3 of the 20 came from the Claude account, and all 3 read `already-failing`.
+
+| Verdict | Count | What it was, read by hand |
+|---|---:|---|
+| `verified` | 3 | A feature with new tests, a CI version pin, and a performance refactor |
+| `tests-changed-the-result` | 1 | A review fix that appears to change behavior on purpose, with its test updated |
+| `failing` | 1 | A new test in a package that failed to install here, so this is not shown to be the change's fault |
+| `already-failing` | 8 | The same failures before and after the change |
+| `unverified` | 7 | 2 timeouts, 1 crash on import with no results, 4 suites that never reached a test |
+
+This is the first time `verified` has appeared on real agent output. In all 3 the base commit's tests already passed, so the verdict says the change broke nothing those tests can see, and it does not say the change works. The CI version pin changes no code that the tests run. The feature's own 4 new tests passed, but `verified` does not rest on them, because re-grading runs the base commit's tests.
+
+Each of the 3 went through the extra run with a planted test, and each planted test failed as it should. That shows the check does not get in the way of an honest run. No result in this sample was forged or caught, so it has not been shown catching anything outside the tests in this repository.
+
+Part of `already-failing` reflects this machine. In 3 of the 8 the output shows modules that were not installed here, and in 1 a test needs a git repository, which these copies of the tree do not have. The other 4 were not traced test by test. These changes broke nothing that ran here, and whether any of them fixed something could not be seen.
+
+**Limits.** This is one seeded draw of 20, Python only, with a single attempt at installing each project. 15 of 20 were `already-failing` or `unverified`, so much of what this sample measures is how hard it is to run a stranger's tests. Claude read the output and wrote this summary, and 3 of the 20 came from the Claude account.
+

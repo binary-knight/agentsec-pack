@@ -151,9 +151,12 @@ A round number chosen in advance gives a hardened sandbox room to drift before t
 agentsec blast-radius preset docker-hardened --image myagent:tag --label accepted   # once, then commit it
 agentsec blast-radius preset docker-hardened --image myagent:tag --baseline reports/accepted.json
 agentsec diff reports/accepted.json reports/latest.json    # when measuring and gating are separate steps
+agentsec history reports/latest.json --save reports/history.jsonl    # keep a line per run and show the trend
 ```
 
 Both `--baseline` and `agentsec diff` exit with code 2 and list each finding that is new or rises in severity. The check also lists and fails on any existing finding whose evidence widens by one additional writable path, reachable host, or readable credential. Disappearing findings are marked as fixed alongside a prompt to record a fresh baseline, so the gate retains the improvement. New informational findings scored at 0 points appear as noted and let the check pass, unless the finding reports an unmeasured axis. Mismatched probe versions across the two runs make the tool report the difference and fail, because an added check can produce a new finding in an unchanged sandbox. Record the baseline with the same `--redact` setting that you use on the runs you compare against it.
+
+`agentsec history` tracks one sandbox's score and findings across runs with the `--baseline` comparison, so new findings or reachable credentials surface at the run that introduced them, even under budget. Runs sharing a label overwrite the previous report, so `--save` writes one line per run to a history file. That history file stores whatever each finding reached solely as hashes, which allows committing it without including any names. This command never fails a build because the `--max-score` and `--baseline` flags serve as the build gates in CI.
 
 GitHub Actions runs the same gate checks in one workflow step by installing `agentsec` from the action's own checkout, so the version pinned in the workflow is the version that measures.
 
@@ -194,6 +197,16 @@ You should review `AGENTS.md` before passing it over. The brief stays under 100 
 
 Every measurement run writes a machine-readable file to `reports/<label>.json` under `schema_version` 1 alongside a companion report at `reports/<label>.md`. That JSON output captures the specific image and flags from the run, so anyone can reproduce the resulting number. A generated report includes the sandbox hostname and working directory along with secret-looking environment variable names, so you should review it before publishing. Passing `--redact` strips those host and environment details while preserving every score and finding alongside the recorded flags. The reports in `examples/`, which this README cites, were made that way, and git ignores `reports/`.
 
+### Sharing a result
+
+`agentsec submit` packages one measurement for a public dataset. First, it displays the exact record and prompts at the terminal. Typing `yes` opens a pre-filled GitHub issue in the repository named with `--to` that posts nothing until the user submits it.
+
+```bash
+agentsec submit reports/my-agent.json --to OWNER/DATASET --agent my-agent --agent-version 1.2.3 --sandbox workspace-write
+```
+
+Records hold the agent and version, sandbox mode and settings, OS family, probe version, state of each axis, finding ids, and score. Each submission never extracts a hostname, a path, a variable name, or a mount point from the report. Command-line input sets the agent and sandbox, and words resembling a path, a variable name, or this machine's names are rejected. Without a terminal, the tool displays the record and opens nothing. The probe itself still never transmits findings.
+
 ## Did the change pass its tests, or change them?
 
 `agentsec verify` checks that an agent's changes pass the tests from before the agent started, because a green run only shows that the final suite passed. The command diffs two commits, reporting edits to tests, fixtures, test configuration, or CI alongside removed or skipped tests and lost assertions before running the new code with the old tests restored. Have your test command write a JUnit XML results file and pass its name with `--junit`, so the runs are compared test by test.
@@ -204,7 +217,9 @@ agentsec verify --base main --head agent-branch --test-cmd "pytest -q --junit-xm
 
 The verdict is `verified` when the new code passes the base commit's tests, and `tests-changed-the-result` when passing requires the change's own test edits. Breaking a previously passing test produces `failing`, while runs where every failure already existed before the change produce `already-failing`. When the suite fails to reach a result, including when tests never start or write no results file, the run is marked `unverified`. Omitting `--junit` leaves only exit codes, so the tool cannot distinguish old failures from new ones or a suite that never started from a failed run. Code that exits 0 as soon as the tests import it therefore passes without `--junit` and becomes `unverified` with `--junit`. Every verdict other than `verified` exits with code 2, and `--strict` also exits 2 when a passing change edited its tests. Editing a test is a legitimate part of many changes, so a person should read those test edits directly.
 
-Without `--image`, the tests run on your machine with your user's access, so pass `--image` to run them in a container with no network. Even then, a change can go undetected if it special-cases the tests in its own code or writes its own results file.
+Passing `--junit` gives a pending `verified` result an extra run of the new code with a randomly named failing test planted beside existing tests. A report that shows that test passing, or omits it after the same test ran on the base commit, produces a `results-not-credible` verdict. When the suite never collects it or other tests vary on identical code, the tool reports `unverified` unless `--no-planted-test` accepts unconfirmed results.
+
+Without `--image`, the tests run on your machine with your user's access, so pass `--image` to run them in a container with no network. Even then, modified code can still special-case the tests or locate the planted test in the tree and mark it failed beside fabricated results. Because the planted test is written in Python, any test suite in another language remains outside this check.
 
 ## Seeing it
 
@@ -277,12 +292,14 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [x] macOS measurements: Seatbelt presets and Codex's macOS sandbox, on a GitHub-hosted machine
 - [x] Claude Code's macOS sandbox, in full headless sessions on a GitHub-hosted machine (`macos-claude-code.yml`)
 - [x] public Terminal-Bench tasks measured through real Harbor with a no-model agent (`scripts/measure_harbor.sh`)
+- [x] dev containers measured through the real devcontainer CLI on a GitHub-hosted machine (`scripts/measure_devcontainer.sh`)
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
 - [x] verifier integrity: `agentsec verify` compares two commits and re-grades the new code against the old tests
-- [ ] verifier integrity past a plain test command: detecting a forged runner result, and measuring benchmark harnesses
+- [x] a test planted to fail, so a forged results file or a neutered test runner is caught (`verify --junit`)
+- [ ] verifier integrity past a plain test command: measuring benchmark harnesses
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
-- [ ] history across runs
+- [x] history across runs (`agentsec history`)
 
 ## Reporting a problem
 

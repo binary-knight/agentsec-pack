@@ -6,6 +6,13 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- `verify --junit` confirms a result before calling it `verified`. The new code runs once more with a randomly named test planted beside the existing ones, which must fail. A new verdict, `results-not-credible`, covers a planted test reported as passing, or missing when the same test ran on the base commit. Code that writes its own results file or neuters assertions or the test runner is now caught. If the suite never collects the planted test, or tests give a different result on the same code, the verdict is `unverified`. `--no-planted-test` accepts the results unconfirmed, and suites with no Python test file are not checked this way. A change can still find the planted test in the tree and report it failed along with invented results. (#41)
+- `verify` reached `verified` on real agent output: 3 of 20 public pull requests in a sample not chosen for editing its tests, drawn by `scripts/select_regrade_sample.py`. Results are in `docs/MEASUREMENTS.md`. (#41)
+- `scripts/check_harbor_grader.sh` checks a benchmark's grader through real Harbor with three graded runs: nothing done, the task's own solution, and `ForgeAgent`, which only tries to fake a pass. Three public Terminal-Bench tasks held and two did not settle. Two control tasks show the forgery scoring when the verifier shares the agent's container and failing when it does not. Results are in `docs/MEASUREMENTS.md`. (#40)
+- Dev containers measured through the real devcontainer CLI on a GitHub-hosted machine, with `scripts/measure_devcontainer.sh`, `devcontainer-measure.yml`, and a capture recipe in `docs/CAPTURING.md`. Results are in `docs/MEASUREMENTS.md`. (#39)
+- `agentsec submit` prepares one measurement for a public dataset: it prints the exact record, asks at the terminal, and opens a pre-filled issue that the person posts. The record holds the agent, version, sandbox mode and settings, OS family, probe version, axis states, finding ids and score, and refuses words that look like a path, a variable name, or this machine's names. There is no default dataset, so `--to` is required. (#38)
+- `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes. (#37)
+
 ## 0.3.0 — 2026-11-05
 
 Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.

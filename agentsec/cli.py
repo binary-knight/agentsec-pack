@@ -268,6 +268,59 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return _against_baseline(current, args.baseline)
 
 
+def cmd_submit(args: argparse.Namespace) -> int:
+    """Prepare a measurement for a public dataset, for a person to send. See agentsec/submit.py."""
+    import webbrowser
+    from . import submit as sb
+    try:
+        with open(args.report) as f:
+            env = json.load(f)
+        record = sb.build_record(env, args.agent, args.agent_version, args.sandbox, args.setting)
+        text = json.dumps(record, indent=2, sort_keys=True)
+        url = sb.issue_url(args.to, text, record)
+    except (OSError, ValueError, sb.SubmitError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"This is everything that would be posted, publicly, as an issue in {args.to}:\n\n{text}\n")
+    if not sys.stdin.isatty():
+        print("Nothing was opened. This needs a person at a terminal to confirm it.", file=sys.stderr)
+        return 1
+    if input("Open a pre-filled issue with exactly this? Type yes to continue: ").strip() != "yes":
+        print("Nothing was opened or sent.")
+        return 0
+    if args.no_browser or not webbrowser.open(url):
+        print(f"Open this address to review and post the issue:\n{url}")
+    else:
+        print("Opened in your browser. Nothing is posted until you submit the issue there.")
+    return 0
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    """How a sandbox's score and findings moved across saved runs. See agentsec/history.py."""
+    from . import history as hs
+    try:
+        entries, skipped = hs.load(args.paths)
+        for note in skipped:
+            print(f"skipped {note}", file=sys.stderr)
+        if args.label:
+            entries = [e for e in entries if e.get("label") == args.label]
+        if not entries:
+            print("error: no blast-radius reports to read", file=sys.stderr)
+            return 1
+        if args.save:
+            added = hs.save(args.save, entries)
+            print(f"saved {added} new run{'' if added == 1 else 's'} to {args.save}", file=sys.stderr)
+            entries, _skipped = hs.load([args.save])
+            if args.label:
+                entries = [e for e in entries if e.get("label") == args.label]
+    except OSError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    history = hs.build(entries, args.max_score)
+    print(json.dumps(history, indent=2, sort_keys=True) if args.json else hs.render(history, args.max_score))
+    return 0
+
+
 def cmd_combine(args: argparse.Namespace) -> int:
     from .integrations import promptfoo_combine as pc
     with open(args.sandbox) as f:
@@ -330,7 +383,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     try:
         env = vf.verify(args.repo, args.base, args.head, args.test_cmd, timeout=args.timeout, image=args.image,
                         engine=args.engine, flags=args.flags, extra_globs=args.tests, not_tests=args.not_tests,
-                        env_names=args.env, run_base=not args.no_base_run, junit=args.junit)
+                        env_names=args.env, run_base=not args.no_base_run, junit=args.junit, plant=not args.no_planted_test)
     except vf.VerifyError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -548,6 +601,24 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("current", help="the report JSON to check")
     d.set_defaults(func=cmd_diff)
 
+    sb = sub.add_parser("submit", help="prepare one measurement for a public dataset, shown to you first, for you to post")
+    sb.add_argument("report", help="the report JSON")
+    sb.add_argument("--to", required=True, metavar="OWNER/REPO", help="the public dataset repository to open the issue in")
+    sb.add_argument("--agent", required=True, help="the agent's name")
+    sb.add_argument("--agent-version", required=True, help="the agent's version")
+    sb.add_argument("--sandbox", required=True, help="the sandbox mode, in the agent's own words")
+    sb.add_argument("--setting", action="append", default=[], help="a setting that changes the sandbox, repeatable; paths and variable names are refused")
+    sb.add_argument("--no-browser", action="store_true", help="print the address instead of opening it")
+    sb.set_defaults(func=cmd_submit)
+
+    hi = sub.add_parser("history", help="how a sandbox's score and findings moved across saved runs")
+    hi.add_argument("paths", nargs="+", metavar="PATH", help="report JSON files, directories of them, or a history file (.jsonl)")
+    hi.add_argument("--save", metavar="FILE", help="add these runs to a history file, which keeps them after a report with the same label is replaced")
+    hi.add_argument("--label", help="only this label")
+    hi.add_argument("--max-score", type=int, help="also show how much of this budget is left")
+    hi.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
+    hi.set_defaults(func=cmd_history)
+
     v = sub.add_parser("verify", help="did a change pass its tests, or did it change the tests? (exit 2 if not shown to pass)")
     v.add_argument("--base", required=True, help="the commit before the change")
     v.add_argument("--head", required=True, help="the commit to check")
@@ -561,6 +632,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--env", action="append", default=[], metavar="NAME", help="pass this variable to the tests; none are passed otherwise")
     v.add_argument("--timeout", type=int, default=600, help="seconds for each test run")
     v.add_argument("--no-base-run", action="store_true", help="skip running the base commit, which only reports whether the tests already passed")
+    v.add_argument("--no-planted-test", action="store_true", help="with --junit, accept the results without the extra run that plants a test that must fail")
     v.add_argument("--strict", action="store_true", help="also exit 2 when the change passes but touched its tests")
     v.add_argument("--label")
     v.add_argument("--out", default="reports")
