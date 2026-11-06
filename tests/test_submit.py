@@ -11,20 +11,20 @@ from agentsec import submit as sb
 from agentsec.cli import main
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PRIVATE = ["box-of-someone", "/home/someone", "/srv/mount-point", "MY_SECRET_TOKEN", "secret-project", "pid1-command"]
+PRIVATE = ["box-of-someone", "/srv/someone", "/srv/mount-point", "MY_SECRET_TOKEN", "secret-project", "pid1-command"]
 
 
 def poisoned():
     """A report with something private in every place a report can hold it."""
     return {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "label": "secret-project on box-of-someone", "generated_at": 1,
-            "target": {"how": "ran from /home/someone/secret-project", "note": "MY_SECRET_TOKEN", "image": "secret-project:latest"},
-            "probe_stderr": "/home/someone", "rc": 0,
-            "probe": {"probe_version": "0.6.0", "platform": "linux", "identity": {"hostname": "box-of-someone", "cwd": "/home/someone"},
+            "target": {"how": "ran from /srv/someone/secret-project", "note": "MY_SECRET_TOKEN", "image": "secret-project:latest"},
+            "probe_stderr": "/srv/someone", "rc": 0,
+            "probe": {"probe_version": "0.6.0", "platform": "linux", "identity": {"hostname": "box-of-someone", "cwd": "/srv/someone"},
                       "process": {"pid1_cmdline": "pid1-command"},
                       "secrets": {"env_secret_names": [{"name": "MY_SECRET_TOKEN", "length": 8}]},
                       "filesystem": {"mounts": ["/srv/mount-point"]}},
-            "summary": {"score": 33, "recommended_flags": ["/home/someone"],
-                        "findings": [{"id": "SEC-001", "severity": "high", "category": "secrets", "title": "title with /home/someone",
+            "summary": {"score": 33, "recommended_flags": ["/srv/someone"],
+                        "findings": [{"id": "SEC-001", "severity": "high", "category": "secrets", "title": "title with /srv/someone",
                                       "evidence": {"names": ["MY_SECRET_TOKEN"], "paths": ["/srv/mount-point"]}, "remediation": "secret-project"},
                                      {"id": "NET-004", "severity": "info", "category": "network", "title": "not measured", "evidence": {"unmeasured": True}}]}}
 
@@ -37,7 +37,7 @@ def test_a_record_holds_exactly_the_listed_fields_and_nothing_private():
     record = good_record()
     assert set(record) == sb.SUBMITTED
     assert record["finding_ids"] == ["NET-004", "SEC-001"]
-    assert record["axes"] == {"privilege": "sealed", "network": "unmeasured", "secrets": "reachable", "filesystem": "sealed", "process": "sealed"}
+    assert record["axes"] == {"privilege": "sealed", "network": "unmeasured", "secrets": "reachable", "filesystem": "sealed", "process": "sealed"}  # pragma: allowlist secret
     assert (record["score"], record["os_family"], record["probe_version"]) == (33, "linux", "0.6.0")
     text = json.dumps(record)
     for private in PRIVATE:
@@ -45,7 +45,7 @@ def test_a_record_holds_exactly_the_listed_fields_and_nothing_private():
 
 
 @pytest.mark.parametrize("field", ["agent", "version", "mode"])
-@pytest.mark.parametrize("bad", ["/home/x/agent", "..\\agent", "~/.config", "user@host", "MY_API_KEY", "a:b", "$HOME", "x\ny", "box-of-someone", "BOX-OF-SOMEONE build", "my_secret_token"])
+@pytest.mark.parametrize("bad", ["/srv/x/agent", "..\\agent", "~/.config", "user@host", "MY_API_KEY", "a:b", "$HOME", "x\ny", "box-of-someone", "BOX-OF-SOMEONE build", "my_secret_token"])
 def test_words_that_look_private_are_refused(field, bad):
     with pytest.raises(sb.SubmitError):
         good_record(**{field: bad})
@@ -101,15 +101,15 @@ def test_other_kinds_of_file_are_refused(env):
 
 @pytest.mark.parametrize("change", [
     {"hostname": "x"},
-    {"agent": "/home/x"},
+    {"agent": "/srv/x"},
     {"settings": ["MY_API_KEY"]},
     {"settings": "plain"},
     {"os_family": "someone's laptop"},
     {"probe_version": "/x"},
     {"probe_version": None},
     {"axes": {"privilege": "sealed"}},
-    {"axes": {"privilege": "/x", "network": "sealed", "secrets": "sealed", "filesystem": "sealed", "process": "sealed"}},
-    {"finding_ids": ["/home/x"]},
+    {"axes": {"privilege": "/x", "network": "sealed", "secrets": "sealed", "filesystem": "sealed", "process": "sealed"}},  # pragma: allowlist secret
+    {"finding_ids": ["/srv/x"]},
     {"finding_ids": ["SEC-001", "MY_SECRET"]},
     {"score": 101},
     {"score": True},
