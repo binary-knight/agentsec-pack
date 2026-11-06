@@ -11,6 +11,8 @@ needed, and what the command can reach does not depend on which model asked for 
 from __future__ import annotations
 
 import argparse
+import base64
+import gzip
 import http.server
 import json
 import os
@@ -26,6 +28,10 @@ SHELL_TOOL = re.compile(r"shell|bash|run_command|terminal", re.I)
 COMMAND_ARGS = ("command", "CommandLine", "commandLine", "cmd")
 NOT_A_KEY = "stub-endpoint-takes-no-key"  # pragma: allowlist secret
 MAX_CALLS = 3
+BEGIN, END = "AGENTSEC-REPORT-BEGIN", "AGENTSEC-REPORT-END"
+# For a sandbox that will not let the command write the report anywhere this script can read.
+ENCODE = f"import sys,gzip,base64;print('{BEGIN}'+base64.b64encode(gzip.compress(sys.stdin.buffer.read())).decode()+'{END}')"
+_REPORTED = re.compile(BEGIN + r"([A-Za-z0-9+/=\\rn\s]+?)" + END)
 KNOWN_ARGS = {"WaitMsBeforeAsync": 10000}  # Antigravity's limit, so the probe stays in the foreground
 
 
@@ -82,11 +88,20 @@ def reply(body: dict[str, Any], command: str, cwd: str, calls_made: int) -> tupl
              "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2}}, kind)
 
 
+def report_in(body: dict[str, Any]) -> str | None:
+    """The report the command printed, if the agent passed it back whole."""
+    found = _REPORTED.search(json.dumps([p["functionResponse"] for c in body.get("contents") or [] for p in c.get("parts") or [] if "functionResponse" in p]))
+    if not found:
+        return None
+    text = re.sub(r"\\[rn]|\s", "", found.group(1))
+    return gzip.decompress(base64.b64decode(text)).decode()
+
+
 def part_sent(answer: dict[str, Any]) -> Any:
     return answer["candidates"][0]["content"]["parts"][0]
 
 
-def serve(host: str, command: str, cwd: str, log_path: Path) -> http.server.ThreadingHTTPServer:
+def serve(host: str, command: str, cwd: str, log_path: Path, result: Path) -> http.server.ThreadingHTTPServer:
     calls = {"made": 0}
     lock = threading.Lock()
 
@@ -116,6 +131,9 @@ def serve(host: str, command: str, cwd: str, log_path: Path) -> http.server.Thre
                 self._note()
                 self._send(b'{"totalTokens": 1}')
                 return
+            printed = report_in(body)
+            if printed is not None:
+                result.write_text(printed)
             with lock:
                 answer, kind = reply(body, command, cwd, calls["made"])
                 calls["made"] += kind == "shell-call"
@@ -149,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--url-host", default="127.0.0.1", help="the address the agent reaches the stub at")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=VALUE", help="also set this for the agent")
     ap.add_argument("--copy-to-project", action="append", default=[], metavar="FILE=RELATIVE", help="also place this file in the project")
+    ap.add_argument("--via-output", action="store_true", help="the command prints the report, for a sandbox it cannot write out of")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("agent", nargs=argparse.REMAINDER, help="-- then the agent's command")
     args = ap.parse_args(argv)
@@ -169,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
 
     result = project / f"out-{args.name}.json"
     command = f"{args.python} probe.py > {result.name}"
-    server = serve("0.0.0.0" if args.url_host != "127.0.0.1" else "127.0.0.1", command, str(project), args.logs / f"{args.name}.stub.jsonl")
+    if args.via_output:
+        command = f'{args.python} probe.py | {args.python} -c "{ENCODE}"'
+    server = serve("0.0.0.0" if args.url_host != "127.0.0.1" else "127.0.0.1", command, str(project), args.logs / f"{args.name}.stub.jsonl", result)
     # Named one at a time, so nothing else on this machine reaches the agent or the probe.
     env = {k: os.environ[k] for k in ("HOME", "PATH", "USER", "TMPDIR") if k in os.environ}
     env.update(TERM="xterm", SHELL="/bin/bash", LANG="C.UTF-8", GEMINI_API_KEY=NOT_A_KEY,
@@ -192,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         print("   " + "\n   ".join((args.logs / f"{args.name}.agent.log").read_text(errors="replace").splitlines()[-15:]), flush=True)
         return 1
     how = (f"{args.how} The model was a local stub reached through GOOGLE_GEMINI_BASE_URL, which asked for one shell command, "
-           f"{command}, and then stopped, so no real model or account was involved. Launched with only HOME, PATH, USER, TMPDIR, "
+           f"{command.split(' -c ')[0]}{' -c (compress and print it)' if args.via_output else ''}, and then stopped, so no real model or account was involved. Launched with only HOME, PATH, USER, TMPDIR, "
            "TERM, SHELL, LANG, the stub's address and a placeholder GEMINI_API_KEY, from a throwaway git repository holding empty "
            "project config directories, by scripts/measure_stubbed_agent.py on a disposable GitHub-hosted machine, whose home "
            "holds no personal credentials.")

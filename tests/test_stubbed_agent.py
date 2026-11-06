@@ -89,3 +89,26 @@ assert done["candidates"][0]["content"]["parts"][0] == {{"text": "DONE"}}
     assert "The model was a local stub" in json.dumps(report)
     requests = [json.loads(line) for line in (tmp_path / "logs" / "fake.stub.jsonl").read_text().splitlines()]
     assert [r["reply"] for r in requests] == ["shell-call", "text"]
+
+
+def printed_report(text):
+    import base64
+    import gzip
+    return stub.BEGIN + base64.b64encode(gzip.compress(text.encode())).decode() + stub.END
+
+
+def response_body(output):
+    return {"contents": [{"parts": [{"functionResponse": {"name": "run_command", "response": {"output": output}}}]}]}
+
+
+def test_reads_a_report_the_command_printed_even_when_a_terminal_wrapped_it():
+    printed = printed_report('{"a": 1}')
+    assert stub.report_in(response_body(f"Command output:\n{printed}\r\n")) == '{"a": 1}'
+    middle = len(printed) // 2
+    assert stub.report_in(response_body(printed[:middle] + "\r\n" + printed[middle:])) == '{"a": 1}'
+
+
+def test_a_cut_off_report_or_the_echoed_command_is_not_a_report():
+    assert stub.report_in(response_body(printed_report("{}")[:-5])) is None
+    assert stub.report_in(response_body(stub.ENCODE)) is None
+    assert stub.report_in({}) is None

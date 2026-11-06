@@ -6,7 +6,7 @@ name: stubbed-agent-measure
 on:
   workflow_dispatch:
   push:
-    branches: [measure-gemini-antigravity]
+    branches: [measure-agents-with-stub]
 
 permissions:
   contents: read
@@ -54,8 +54,11 @@ jobs:
           }
           if [ "$OS_NAME" = macOS ]; then
             run macos-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
-            for p in permissive-open permissive-closed permissive-proxied restrictive-open restrictive-closed; do
-              run "macos-seatbelt-$p" "GEMINI_SANDBOX=sandbox-exec SEATBELT_PROFILE=$p" --env GEMINI_SANDBOX=sandbox-exec --env "SEATBELT_PROFILE=$p"
+            # Outside the home directory, because strict-open refuses reads inside it and
+            # setup-node installs there. The -proxied profiles need a proxy, so they are left out.
+            sudo cp -R "$(dirname "$(dirname "$(command -v node)")")" /opt/node
+            for p in permissive-open restrictive-open strict-open; do
+              run "macos-seatbelt-$p" "GEMINI_SANDBOX=sandbox-exec SEATBELT_PROFILE=$p, with Node in /opt/node" --env GEMINI_SANDBOX=sandbox-exec --env "SEATBELT_PROFILE=$p" --env "PATH=/opt/node/bin:$PATH"
             done
           else
             run linux-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
@@ -110,11 +113,13 @@ jobs:
             python scripts/measure_stubbed_agent.py --name "$name" \
               --label "antigravity-cli-${AGY_VERSION}-$OS-$name" \
               --how "agy ${AGY_VERSION} -p $* on $OS, with modelProvider gemini in settings.json." \
-              --project "$RUNNER_TEMP/$name" --out reports --logs logs --timeout 180 \
+              --project "$RUNNER_TEMP/$name" --out reports --logs logs --timeout 180 --via-output \
               -- agy -p "Run the probe" "$@" || true
           }
           run sandbox --sandbox --dangerously-skip-permissions
           run no-sandbox --dangerously-skip-permissions
+          run sandbox-add-dir --sandbox --dangerously-skip-permissions --add-dir "$RUNNER_TEMP/sandbox-add-dir"
+          run sandbox-proceed --sandbox --settings '{"toolPermission": "proceed-in-sandbox"}'
           grep -h -i -E 'sandbox' logs/*.agent.log | head -20 || true
       - uses: actions/upload-artifact@v4
         if: always()
