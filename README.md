@@ -199,10 +199,10 @@ Every measurement run writes a machine-readable file to `reports/<label>.json` u
 
 ### Sharing a result
 
-`agentsec submit` packages one measurement for a public dataset. First, it displays the exact record and prompts at the terminal. Typing `yes` opens a pre-filled GitHub issue in the repository named with `--to` that posts nothing until the user submits it.
+`agentsec submit` packages one measurement for a public dataset. First, it displays the exact record and prompts at the terminal. Typing `yes` opens a pre-filled GitHub issue in `binary-knight/agentsec-benchmark`, or the repository named with `--to`, that posts nothing until the user submits it. `agentsec benchmark` turns those issues into figures: a configuration appears once 5 different accounts have submitted it, each account counts once, and a figure is a median.
 
 ```bash
-agentsec submit reports/my-agent.json --to OWNER/DATASET --agent my-agent --agent-version 1.2.3 --sandbox workspace-write
+agentsec submit reports/my-agent.json --agent my-agent --agent-version 1.2.3 --sandbox workspace-write
 ```
 
 Records hold the agent and version, sandbox mode and settings, OS family, probe version, state of each axis, finding ids, and score. Each submission never extracts a hostname, a path, a variable name, or a mount point from the report. Command-line input sets the agent and sandbox, and words resembling a path, a variable name, or this machine's names are rejected. Without a terminal, the tool displays the record and opens nothing. The probe itself still never transmits findings.
