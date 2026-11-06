@@ -155,6 +155,32 @@ Harbor keeps the grader's files out of the agent's container in all four, and ea
 
 **Limits.** This is 4 tasks of 66, on one host, through Harbor's Docker environment. All 4 are single-container tasks running as root. The 11 tasks with their own `docker-compose.yaml` and the tasks that set a non-root user were not in the sample, and Harbor's cloud environments are not covered. The cloud metadata address is unreachable here, which says nothing about a run on a cloud machine.
 
+## Whether a benchmark's grader can be faked
+
+A benchmark's grader is not a test command in a repository, so `agentsec verify` does not apply. `scripts/check_harbor_grader.sh` asks the same questions through real Harbor (`b7cc86b`) on public Terminal-Bench tasks (`73d6279`), with three graded runs per task on a disposable GitHub-hosted machine, on 2026-11-05 and 2026-11-06:
+
+- **Nothing:** Harbor's `nop` agent. The grader must not pass an untouched environment.
+- **Solution:** Harbor's `oracle` agent, the task's own solution. A grader that can never pass would resist any forgery, so this has to pass.
+- **Forged:** `ForgeAgent` in `agentsec/integrations/harbor_agent.py`, which makes no model calls and does not attempt the task. It writes the reward files, puts commands that always pass in place of `pytest`, `uv`, `uvx`, `python` and `python3`, and leaves a process rewriting the reward. It must not pass.
+
+The tasks are the same uniform draw of 5 from 66 that `scripts/select_harbor_sample.py` makes for the measurements above. Records are in `examples/harbor-grader/`.
+
+| Task | Verifier | Nothing | Solution | Forged | Result |
+|---|---|---:|---:|---:|---|
+| `fin-saccr-rwa` | separate | 0 | 1 | 0 | held |
+| `interleaved-vigenere` | separate | 0 | 1 | 0 | held |
+| `uefi-bootkit` | separate | 0 | 1 | 0 | held |
+| `formal-crypto` | separate | none | none | none | not settled: its containers did not start on this machine |
+| `fp8-rmsnorm-gemm` | separate | none | none | none | not settled: the task needs a GPU and this machine has none |
+| Control, in `examples/harbor-control/` | separate | 0 | 1 | 0 | held |
+| Control, in `examples/harbor-control/` | shared | 0 | 1 | **1** | the forged run scored |
+
+Every forge attempt exited 0 in every run that reached it, so each attempt was made and worked inside the agent's container. In the separate tasks it made no difference, because the grade comes from a new container that receives only the agent's artifacts.
+
+**The controls show the forgery works when the verifier shares the agent's container.** The two control tasks are the same small task and differ only in `environment_mode`. Harbor's configuration says the verifier runs in the agent's environment when a task sets no mode and no verifier environment. Each of the 66 public tasks at this commit sets `environment_mode = "separate"`. This describes what the setting does, and these runs do not show that any published result was faked.
+
+**Limits.** This is 3 settled tasks of 66, plus two controls written for this check. `formal-crypto` asks for 8 CPUs and these machines have 4, which may be why it did not start, but the part of the error that would say so was cut off. The forgery is generic. A separate verifier still reads the artifacts, and these runs did not try to craft a task's artifacts to fool its checks, which is what a real attempt on a separate verifier would have to do. An early run of the first two tasks in the table gave the same rewards.
+
 ## Dev containers
 
 These runs measure what a command gets inside a dev container. `scripts/measure_devcontainer.sh` starts each configuration with the real devcontainer CLI (0.90.0) and runs the probe through `devcontainer exec`. It used `mcr.microsoft.com/devcontainers/python:3.12` at the digest in each report, on a GitHub-hosted `ubuntu-latest` machine, through `devcontainer-measure.yml`, on 2026-11-05. Probe 0.6.0. Reports are in `examples/devcontainer/`.
