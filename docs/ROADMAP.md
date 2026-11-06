@@ -15,7 +15,7 @@ Last revised 2026-11-06.
 
 **Why first:** `agentsec verify` is the newest part of the tool. It has reached `verified` on real agent output and has a check for forged results, but that check has not yet caught anything outside this repository's tests. Four things are left.
 
-**More of the sample runs.** 15 of the 20 pull requests in the neutral sample were `already-failing` or `unverified`, much of it from installing a stranger's project. Done when a larger sample has been re-graded with better setup and read by hand, with the verdicts reported whichever way they fall.
+**A larger sample.** 15 of the 20 pull requests in the neutral sample were `already-failing` or `unverified`, much of it from installing a stranger's project. Done when a larger sample has been re-graded with better setup and read by hand, with the verdicts reported whichever way they fall.
 
 **The planted test in other languages.** It is Python only, so a suite in another language is not checked for forged results. Done when at least JavaScript and TypeScript suites are covered, from runs on real projects.
 
