@@ -10,6 +10,7 @@
 #
 # This builds the task's public Dockerfile and runs it, and runs the task's solution, so use a
 # machine you can throw away. No API key is used. Writes examples/harbor-grader/<task>.json.
+# TASK_DIR runs a task from somewhere else, such as the controls in examples/harbor-control/.
 set -uo pipefail
 
 HARBOR_COMMIT=b7cc86b617eb5a220c3d6041dbcca4fda8a6f5a8
@@ -33,7 +34,7 @@ uv pip install -q --python "$W/hv/bin/python" "$W/harbor" "$REPO" || exit 1
 run() {  # name, seconds, agent arguments...
   local name="$1" seconds="$2"; shift 2
   echo "== $name"
-  timeout "$seconds" env PATH="$W/hv/bin:$PATH" harbor run --path "$W/terminal-bench/tasks/$TASK" "$@" \
+  timeout "$seconds" env PATH="$W/hv/bin:$PATH" harbor run --path "${TASK_DIR:-$W/terminal-bench/tasks/$TASK}" "$@" \
     --jobs-dir "$W/jobs" --job-name "$name" -n 1 > "$W/$name.out" 2> "$W/$name.err"
   echo "   harbor exit $?"
 }

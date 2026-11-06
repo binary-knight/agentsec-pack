@@ -13,6 +13,7 @@ permissions: {}
 
 jobs:
   plan:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tasks: ${{ steps.draw.outputs.tasks }}
@@ -27,7 +28,35 @@ jobs:
           git -C tb fetch -q --depth 1 origin "$TB" && git -C tb checkout -q FETCH_HEAD
           python3 scripts/select_harbor_sample.py tb 5 | sed -n "s/^measure: //p" | tr "'" '"' | sed 's/^/tasks=/' >> "$GITHUB_OUTPUT"
 
+  # Two small tasks that differ only in where the verifier runs. A forgery that can never
+  # work would make every result below meaningless, so it has to work on the shared one.
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [shared, separate]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv
+      - run: bash scripts/check_harbor_grader.sh "$RUNNER_TEMP/grader" "control-${{ matrix.task }}"
+        env:
+          TASK_DIR: ${{ github.workspace }}/examples/harbor-control/${{ matrix.task }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grader-control-${{ matrix.task }}
+          path: examples/harbor-grader/
+          if-no-files-found: warn
+
   check:
+    if: github.event_name == 'workflow_dispatch'
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 180
