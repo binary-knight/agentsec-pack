@@ -172,7 +172,23 @@ devcontainer exec --workspace-folder . python3 agentsec_probe.py > out.json
 agentsec score out.json --label my-devcontainer --how "<the CLI version, image digest and settings>" --redact
 ```
 
-This goes through the CLI. It does not reproduce what an editor adds when it attaches, such
-as forwarded credential helpers or an SSH agent. To measure that, run the probe from a
-terminal inside the editor. Remove `agentsec_probe.py` afterward, since it sits in your
+This goes through the CLI, which misses what an editor adds when it attaches. Measured with
+VS Code, that added an SSH agent and `~/.gitconfig`, and 30 points. To include it, run the
+same probe from a terminal inside the editor, which sees your real forwarded credentials, so
+pass `--redact` before sharing. Remove `agentsec_probe.py` afterward, since it sits in your
 workspace.
+
+## An agent with a custom model endpoint
+
+An agent that accepts a custom endpoint can be measured with no account or key, because only
+the model is replaced. Gemini CLI and Antigravity CLI read `GOOGLE_GEMINI_BASE_URL`, and
+`scripts/measure_stubbed_agent.py` serves a stand-in that asks for the probe and stops. Run
+it on a disposable machine, because the agent runs with whatever you allow it. Say in `--how`
+that the model was a stand-in. `.github/workflows/stubbed-agent-measure.yml` has working
+settings for both.
+
+## Modal
+
+`scripts/measure_modal.py` runs the probe in a `modal.Sandbox` under your Modal login, with
+the Python that has the `modal` package. Each sandbox is terminated when its probe finishes.
+Modal uses gVisor, so read PRIV-007 in the report before comparing the score with anything.
