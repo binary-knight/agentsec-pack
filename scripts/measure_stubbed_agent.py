@@ -26,6 +26,7 @@ SHELL_TOOL = re.compile(r"shell|bash|run_command|terminal", re.I)
 COMMAND_ARGS = ("command", "CommandLine", "commandLine", "cmd")
 NOT_A_KEY = "stub-endpoint-takes-no-key"  # pragma: allowlist secret
 MAX_CALLS = 3
+KNOWN_ARGS = {"WaitMsBeforeAsync": 10000}  # Antigravity's limit, so the probe stays in the foreground
 
 
 def _declarations(body: dict[str, Any]) -> list[dict[str, Any]]:
@@ -51,9 +52,19 @@ def shell_call(body: dict[str, Any], command: str, cwd: str) -> dict[str, Any] |
             if name == key:
                 continue
             kind = str((properties.get(name) or {}).get("type", "")).lower()
-            args[name] = cwd if kind == "string" and "dir" in name.lower() or name.lower() == "cwd" else "probe" if kind == "string" else False
+            if name in KNOWN_ARGS:
+                args[name] = KNOWN_ARGS[name]
+            elif kind == "string":
+                args[name] = cwd if "dir" in name.lower() or name.lower() == "cwd" else "probe"
+            else:
+                args[name] = 0 if kind in ("integer", "number") else False
         return {"functionCall": {"name": declaration["name"], "args": args}}
     return None
+
+
+def _responses(body: dict[str, Any]) -> list[Any]:
+    """What the agent reported back from its tools, cut short for the log."""
+    return [json.dumps(part["functionResponse"])[:1500] for content in (body.get("contents") or [])[-1:] for part in content.get("parts") or [] if "functionResponse" in part]
 
 
 def _answered(body: dict[str, Any]) -> bool:
@@ -69,6 +80,10 @@ def reply(body: dict[str, Any], command: str, cwd: str, calls_made: int) -> tupl
         part, kind = ({"text": "{}"}, "json") if wants_json else ({"text": "DONE"}, "text")
     return ({"candidates": [{"index": 0, "finishReason": "STOP", "content": {"role": "model", "parts": [part]}}],
              "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2}}, kind)
+
+
+def part_sent(answer: dict[str, Any]) -> Any:
+    return answer["candidates"][0]["content"]["parts"][0]
 
 
 def serve(host: str, command: str, cwd: str, log_path: Path) -> http.server.ThreadingHTTPServer:
@@ -105,7 +120,7 @@ def serve(host: str, command: str, cwd: str, log_path: Path) -> http.server.Thre
                 answer, kind = reply(body, command, cwd, calls["made"])
                 calls["made"] += kind == "shell-call"
             shells = [{"name": d.get("name"), "schema": _schema(d)} for d in _declarations(body) if SHELL_TOOL.search(d.get("name", ""))]
-            self._note(tools=[d.get("name") for d in _declarations(body)], shell_tools=shells, answered=_answered(body), reply=kind)
+            self._note(tools=[d.get("name") for d in _declarations(body)], shell_tools=shells, answered=_answered(body), reply=kind, sent=part_sent(answer), responses=_responses(body))
             data = json.dumps(answer)
             if "alt=sse" in self.path:
                 self._send(f"data: {data}\n\n".encode(), "text/event-stream")

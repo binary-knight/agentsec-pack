@@ -29,10 +29,22 @@ def test_asks_for_the_command_through_the_shell_tool_the_agent_declared():
 
 def test_fills_other_required_arguments_from_the_declared_schema():
     tools = [{"functionDeclarations": [{"name": "run_command", "parameters": {
-        "properties": {"CommandLine": {"type": "STRING"}, "Cwd": {"type": "STRING"}, "Wait": {"type": "BOOLEAN"}},
-        "required": ["CommandLine", "Cwd", "Wait"]}}]}]
+        "properties": {"CommandLine": {"type": "STRING"}, "Cwd": {"type": "STRING"}, "Wait": {"type": "BOOLEAN"}, "WaitMs": {"type": "integer"}, "BypassSandbox": {"type": "boolean"}},
+        "required": ["CommandLine", "Cwd", "Wait", "WaitMs", "BypassSandbox"]}}]}]
     answer, _ = stub.reply({"tools": tools}, "x", "/p", 0)
-    assert part_of(answer)["functionCall"]["args"] == {"CommandLine": "x", "Cwd": "/p", "Wait": False}
+    assert part_of(answer)["functionCall"]["args"] == {"CommandLine": "x", "Cwd": "/p", "Wait": False, "WaitMs": 0, "BypassSandbox": False}
+
+
+def test_keeps_antigravitys_wait_within_its_limit():
+    tools = [{"functionDeclarations": [{"name": "run_command", "parameters": {
+        "properties": {"CommandLine": {"type": "string"}, "WaitMsBeforeAsync": {"type": "integer"}}, "required": ["CommandLine", "WaitMsBeforeAsync"]}}]}]
+    assert part_of(stub.reply({"tools": tools}, "x", "/p", 0)[0])["functionCall"]["args"]["WaitMsBeforeAsync"] == 10000
+
+
+def test_never_asks_to_leave_the_sandbox_when_the_option_is_not_required():
+    tools = [{"functionDeclarations": [{"name": "run_command", "parameters": {
+        "properties": {"CommandLine": {"type": "string"}, "BypassSandbox": {"type": "boolean"}}, "required": ["CommandLine"]}}]}]
+    assert "BypassSandbox" not in part_of(stub.reply({"tools": tools}, "x", "/p", 0)[0])["functionCall"]["args"]
 
 
 def test_stops_once_the_command_has_been_answered():
