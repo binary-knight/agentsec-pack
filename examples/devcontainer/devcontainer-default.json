@@ -1,0 +1,451 @@
+{
+  "generated_at": 1793922551,
+  "label": "devcontainer-default",
+  "probe": {
+    "duration_ms": 99,
+    "filesystem": {
+      "bind_mounts": [
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/root",
+          "target": "/workspaces/default"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/root",
+          "target": "/etc/resolv.conf"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/root",
+          "target": "/etc/hostname"
+        },
+        {
+          "fstype": "ext4",
+          "rw": true,
+          "source": "/dev/root",
+          "target": "/etc/hosts"
+        }
+      ],
+      "cwd_writable": true,
+      "host_root_visible": false,
+      "persistence": [
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bashrc",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.profile",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.zshrc",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.zprofile",
+          "via": "HOME",
+          "writable": true
+        },
+        {
+          "fstype": "overlay",
+          "host_backed": false,
+          "is_dir": true,
+          "kind": "home",
+          "path": "~",
+          "via": "HOME",
+          "writable": true
+        }
+      ],
+      "proc_sysrq_writable": false,
+      "root_rw": true,
+      "setuid_binaries": [
+        "/bin/chage",
+        "/bin/chfn",
+        "/bin/chsh",
+        "/bin/expiry",
+        "/bin/gpasswd",
+        "/bin/mount",
+        "/bin/newgrp",
+        "/bin/passwd",
+        "/bin/sg",
+        "/bin/ssh-agent",
+        "/bin/su",
+        "/bin/sudo",
+        "/bin/sudoedit",
+        "/bin/umount",
+        "/sbin/unix_chkpwd",
+        "/usr/bin/chage",
+        "/usr/bin/chfn",
+        "/usr/bin/chsh",
+        "/usr/bin/expiry",
+        "/usr/bin/gpasswd",
+        "/usr/bin/mount",
+        "/usr/bin/newgrp",
+        "/usr/bin/passwd",
+        "/usr/bin/sg",
+        "/usr/bin/ssh-agent",
+        "/usr/bin/su",
+        "/usr/bin/sudo",
+        "/usr/bin/sudoedit",
+        "/usr/bin/umount",
+        "/usr/sbin/unix_chkpwd"
+      ],
+      "writable_dirs": [
+        "/tmp",
+        "/dev/shm"
+      ]
+    },
+    "identity": {
+      "capabilities": {
+        "CapAmb": [],
+        "CapBnd": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "CapEff": [],
+        "CapInh": [],
+        "CapPrm": []
+      },
+      "cgroup": "<redacted>",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": true
+      },
+      "cwd": "<redacted>",
+      "euid": 1001,
+      "gid": 1001,
+      "hostname": "<redacted>",
+      "in_user_namespace": false,
+      "no_new_privs": 0,
+      "pid": 122,
+      "ptrace_scope": "1",
+      "seccomp_mode": 2,
+      "uid": 1001
+    },
+    "network": {
+      "any_egress": true,
+      "connect_refused_all": false,
+      "interfaces": [
+        "eth0",
+        "lo"
+      ],
+      "metadata_reachable": true,
+      "proxy": {
+        "configured": false
+      },
+      "proxy_env": [],
+      "socket_syscall_blocked": false,
+      "targets": [
+        {
+          "connect": true,
+          "host": "dns.google",
+          "ms": 11,
+          "name": "dns-google",
+          "port": 443,
+          "resolved": "8.8.8.8"
+        },
+        {
+          "connect": true,
+          "host": "pypi.org",
+          "ms": 37,
+          "name": "pypi",
+          "port": 443,
+          "resolved": "151.101.128.223"
+        },
+        {
+          "connect": true,
+          "host": "github.com",
+          "ms": 8,
+          "name": "github",
+          "port": 443,
+          "resolved": "140.82.116.4"
+        },
+        {
+          "connect": true,
+          "host": "1.1.1.1",
+          "ms": 5,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": true,
+          "host": "169.254.169.254",
+          "ms": 0,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "linux",
+    "probe_version": "0.6.0",
+    "process": {
+      "pid1_cmdline": "<redacted>",
+      "pid1_is_self": false,
+      "visible_pid_count": 4,
+      "visible_uids": [
+        0,
+        1001
+      ]
+    },
+    "python": "3.12.16",
+    "resources": {
+      "cpu_max": "max 100000",
+      "memory_max": "max",
+      "pids_max": "17436"
+    },
+    "secrets": {
+      "container_sockets": [],
+      "credential_files": [
+        {
+          "access_bits": false,
+          "is_dir": false,
+          "mode": "0o640",
+          "path": "/etc/shadow",
+          "read_error": "EACCES",
+          "readable": false,
+          "resolved_under_home": false,
+          "size": 502,
+          "via": "absolute"
+        }
+      ],
+      "env_secret_names": [],
+      "env_var_count": 18,
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": false,
+      "unix_control": {
+        "connected": true,
+        "stage": "connect",
+        "supported": true,
+        "where": "/tmp"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
+    },
+    "timestamp": 1793922551
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 1,
+      "high": 1,
+      "info": 2,
+      "low": 3,
+      "medium": 1
+    },
+    "finding_count": 8,
+    "findings": [
+      {
+        "category": "network",
+        "evidence": {
+          "reached": [
+            "dns-google",
+            "pypi",
+            "github",
+            "cloudflare-dns-ip"
+          ]
+        },
+        "id": "NET-001",
+        "owasp": [
+          "ASI02",
+          "ASI10"
+        ],
+        "remediation": "Run the agent with no network (docker --network none) or an allowlisting egress proxy.",
+        "severity": "high",
+        "title": "Unrestricted internet egress from the sandbox"
+      },
+      {
+        "category": "network",
+        "evidence": {
+          "reached": [
+            "cloud-metadata-169.254.169.254"
+          ]
+        },
+        "id": "NET-002",
+        "owasp": [
+          "ASI03",
+          "ASI02"
+        ],
+        "remediation": "Block 169.254.169.254 and metadata.google.internal from the agent's network namespace.",
+        "severity": "critical",
+        "title": "Cloud instance-metadata endpoint reachable"
+      },
+      {
+        "category": "privilege",
+        "evidence": {},
+        "id": "PRIV-005",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "docker --security-opt no-new-privileges.",
+        "severity": "low",
+        "title": "no_new_privs not set (setuid escalation possible)"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "cwd_writable": true
+        },
+        "id": "FS-007",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "Expected for a workspace-write style sandbox: the agent can edit its project and nothing else. Informational, not a defect.",
+        "severity": "info",
+        "title": "Working directory writable, system paths not"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "writable": [
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.bashrc"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.profile"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.zshrc"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "shell-startup",
+              "path": "~/.zprofile"
+            },
+            {
+              "fstype": "overlay",
+              "kind": "home",
+              "path": "~"
+            }
+          ]
+        },
+        "id": "FS-010",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "These live on overlay, which does not outlive the sandbox (a container's overlay, a tmpfs), so writing them changes nothing outside it. Informational; it becomes FS-008 or FS-009 if the same path is ever bind-mounted from the host.",
+        "severity": "info",
+        "title": "Startup or configuration files writable, but only on storage that dies with the sandbox"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {},
+        "id": "FS-002",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "docker --read-only.",
+        "severity": "low",
+        "title": "Root filesystem mounted read-write"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "mounts": [
+            "/workspaces/default"
+          ]
+        },
+        "id": "FS-003",
+        "owasp": [
+          "ASI02",
+          "ASI05"
+        ],
+        "remediation": "Mount only the working tree, read-only where possible; never mount the host root.",
+        "severity": "medium",
+        "title": "Read-write bind mounts from the host"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "count": 30
+        },
+        "id": "FS-006",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Strip setuid bits in the image or set no-new-privileges.",
+        "severity": "low",
+        "title": "setuid binaries present and usable"
+      }
+    ],
+    "raw_score": 57,
+    "recommended_flags": [
+      "--network none",
+      "--security-opt no-new-privileges",
+      "--read-only",
+      "--tmpfs /tmp",
+      "(mount the working tree only, :ro where possible)"
+    ],
+    "score": 57
+  },
+  "target": {
+    "how": "devcontainer CLI 0.90.0, mcr.microsoft.com/devcontainers/python@sha256:79a80515d78783e761af1db255e92767c4e887a2d56dbeb85e7753da8c12dc16, no other settings. devcontainer up, then the probe through devcontainer exec, on a GitHub-hosted ubuntu-latest machine. Run by scripts/measure_devcontainer.sh. The CLI was used, not an editor, so nothing an editor forwards into the container is included.",
+    "kind": "captured",
+    "label": "devcontainer-default",
+    "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}

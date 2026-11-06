@@ -6,7 +6,10 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
-- `scripts/check_harbor_grader.sh` checks a benchmark's grader through real Harbor with three graded runs: nothing done, the task's own solution, and `ForgeAgent`, which only tries to fake a pass. Three public Terminal-Bench tasks held and two did not settle. Two control tasks show the forgery scoring when the verifier shares the agent's container and failing when it does not. Results are in `docs/MEASUREMENTS.md`.
+- `scripts/check_harbor_grader.sh` checks a benchmark's grader through real Harbor with three graded runs: nothing done, the task's own solution, and `ForgeAgent`, which only tries to fake a pass. Three public Terminal-Bench tasks held and two did not settle. Two control tasks show the forgery scoring when the verifier shares the agent's container and failing when it does not. Results are in `docs/MEASUREMENTS.md`. (#40)
+- Dev containers measured through the real devcontainer CLI on a GitHub-hosted machine, with `scripts/measure_devcontainer.sh`, `devcontainer-measure.yml`, and a capture recipe in `docs/CAPTURING.md`. Results are in `docs/MEASUREMENTS.md`. (#39)
+- `agentsec submit` prepares one measurement for a public dataset: it prints the exact record, asks at the terminal, and opens a pre-filled issue that the person posts. The record holds the agent, version, sandbox mode and settings, OS family, probe version, axis states, finding ids and score, and refuses words that look like a path, a variable name, or this machine's names. There is no default dataset, so `--to` is required. (#38)
+- `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes. (#37)
 
 ## 0.3.0 — 2026-11-05
 
