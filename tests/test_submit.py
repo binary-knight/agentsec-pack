@@ -201,9 +201,7 @@ def test_no_browser_prints_the_address(run, capsys):
     assert "https://github.com/owner/dataset/issues/new?" in capsys.readouterr().out
 
 
-def test_there_is_no_default_dataset_and_no_flag_that_skips_the_question():
-    with pytest.raises(SystemExit):
-        main(["submit", "x.json", "--agent", "a", "--agent-version", "1", "--sandbox", "d"])
+def test_no_flag_skips_the_question():
     with open(os.path.join(REPO, "agentsec", "cli.py")) as f:
         source = f.read()
     start = source.index('sub.add_parser("submit"')

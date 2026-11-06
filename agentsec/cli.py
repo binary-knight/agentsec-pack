@@ -33,6 +33,7 @@ from . import runner
 from .report import render_markdown, render_matrix_markdown
 from .redact import redact
 from .scoring import summarize
+from .submit import DATASET
 
 EXIT_OVER_BUDGET = 2
 
@@ -292,6 +293,26 @@ def cmd_submit(args: argparse.Namespace) -> int:
         print(f"Open this address to review and post the issue:\n{url}")
     else:
         print("Opened in your browser. Nothing is posted until you submit the issue there.")
+    return 0
+
+
+def cmd_benchmark(args: argparse.Namespace) -> int:
+    """Published figures from submitted measurements. See agentsec/benchmark.py."""
+    from . import benchmark as bm
+    try:
+        with open(args.issues) as f:
+            issues = json.load(f)
+        if not isinstance(issues, list):
+            raise bm.BenchmarkError("--issues must hold a JSON list of issues")
+        reproduced = []
+        if args.reproduced:
+            with open(args.reproduced) as f:
+                reproduced = [json.loads(line) for line in f if line.strip()]
+        result = bm.aggregate(issues, reproduced, args.min_submitters)
+    except (OSError, ValueError, bm.BenchmarkError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2, sort_keys=True) if args.json else bm.render_markdown(result))
     return 0
 
 
@@ -603,13 +624,20 @@ def main(argv: list[str] | None = None) -> int:
 
     sb = sub.add_parser("submit", help="prepare one measurement for a public dataset, shown to you first, for you to post")
     sb.add_argument("report", help="the report JSON")
-    sb.add_argument("--to", required=True, metavar="OWNER/REPO", help="the public dataset repository to open the issue in")
+    sb.add_argument("--to", default=DATASET, metavar="OWNER/REPO", help=f"the public dataset repository to open the issue in (default: {DATASET})")
     sb.add_argument("--agent", required=True, help="the agent's name")
     sb.add_argument("--agent-version", required=True, help="the agent's version")
     sb.add_argument("--sandbox", required=True, help="the sandbox mode, in the agent's own words")
     sb.add_argument("--setting", action="append", default=[], help="a setting that changes the sandbox, repeatable; paths and variable names are refused")
     sb.add_argument("--no-browser", action="store_true", help="print the address instead of opening it")
     sb.set_defaults(func=cmd_submit)
+
+    bm = sub.add_parser("benchmark", help="published figures from submitted measurements: a median, and only past a threshold of different accounts")
+    bm.add_argument("--issues", required=True, metavar="FILE", help="the output of gh issue list --json author,body,createdAt,labels")
+    bm.add_argument("--reproduced", metavar="FILE", help="results reproduced by the maintainer or a known harness, shown apart: JSON Lines of record and source")
+    bm.add_argument("--min-submitters", type=int, default=5, metavar="N", help="different accounts a configuration needs before it appears (default: 5, lowest: 3)")
+    bm.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
+    bm.set_defaults(func=cmd_benchmark)
 
     hi = sub.add_parser("history", help="how a sandbox's score and findings moved across saved runs")
     hi.add_argument("paths", nargs="+", metavar="PATH", help="report JSON files, directories of them, or a history file (.jsonl)")

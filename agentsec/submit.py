@@ -24,6 +24,8 @@ SUBMITTED = {"schema", "agent", "agent_version", "sandbox_mode", "settings", "os
 AXIS_STATES = {"sealed", "low", "reachable", "unmeasured"}
 OS_FAMILIES = {"linux": "linux", "darwin": "macos", "win32": "windows"}
 MAX_URL = 8000
+DATASET = "binary-knight/agentsec-benchmark"
+DATA_LICENSE = "CC0-1.0"
 
 _WORDS = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+= -]{0,79}")
 _VARIABLE = re.compile(r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b")
@@ -109,7 +111,7 @@ def issue_url(repo: str, record_text: str, record: dict[str, Any]) -> str:
     if not _REPO.fullmatch(repo):
         raise SubmitError(f"--to must be owner/repository: {repo!r}")
     title = f"{record['agent']} {record['agent_version']}, {record['sandbox_mode']}: {record['score']}"
-    body = f"A measurement submitted with `agentsec submit`.\n\n```json\n{record_text}\n```\n"
+    body = f"A measurement submitted with `agentsec submit`. Posting it releases this record under {DATA_LICENSE}.\n\n```json\n{record_text}\n```\n"
     url = f"https://github.com/{repo}/issues/new?" + urllib.parse.urlencode({"title": title, "body": body}, quote_via=urllib.parse.quote)
     if len(url) > MAX_URL:
         raise SubmitError("the record is too long to pre-fill an issue, so shorten --setting")
