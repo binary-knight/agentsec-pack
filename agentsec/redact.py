@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 PLACEHOLDER = "<redacted>"
+_MACOS_USER_TEMP = re.compile(r"/var/folders/[^/\s]+/[^/\s]+")  # a per-user path on macOS
 
 
 def _scrub_str(v: str, home: str, user: str) -> str:
@@ -20,7 +21,7 @@ def _scrub_str(v: str, home: str, user: str) -> str:
         v = v.replace(home, "~")
     if user:
         v = re.sub(r"\b%s\b" % re.escape(user), PLACEHOLDER, v)
-    return v
+    return _MACOS_USER_TEMP.sub("/var/folders/" + PLACEHOLDER, v)
 
 
 def redact(obj: Any, home: str | None = None, user: str | None = None) -> Any:

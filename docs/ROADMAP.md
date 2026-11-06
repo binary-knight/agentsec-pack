@@ -25,18 +25,17 @@ Last revised 2026-11-06.
 
 ### 2. Measurements still missing
 
-**Why:** each of these is a gap in the published results, and each waits on something outside this repository.
-
-**Done when**, each from a real run:
-- **Gemini CLI:** the probe already checks its credential and settings paths, but it is not installed here. *Needs the maintainer to install it and approve its use.*
-- **Antigravity CLI's sandbox:** it cannot start on stock Ubuntu, so only the unsandboxed result is published. *Needs a host that allows unprivileged user namespaces.*
-- **A developer's Mac:** every macOS number comes from a GitHub-hosted machine. *Needs a Mac.*
+**A developer's Mac:** every macOS number comes from a GitHub-hosted machine, whose home holds no personal credentials. That is also why Gemini CLI's three Seatbelt profiles could not be told apart. *Needs a Mac.*
 
 Any result that contradicts a vendor's documentation is raised with the vendor before or at the time it is published (SECURITY.md).
 
 ### 3. Hosted agent sandboxes
 
-Dev containers are measured through the CLI. Still open: E2B, Modal, Daytona and Docker's own sandboxes, and a dev container as an editor attaches to it. Each must say what it does not reproduce, and each recipe must come from a live run. *Needs the maintainer's accounts for E2B, Modal and Daytona, and a machine with Docker Desktop.*
+Still open: E2B, Daytona and Docker's own sandboxes. Each must say what it does not reproduce, and each recipe must come from a live run. *Needs the maintainer's accounts for E2B and Daytona, and a machine with Docker Desktop.*
+
+**Scoring under a user-space kernel.** Modal's 74 raw points for root, capabilities and `/proc` describe gVisor's kernel, and the score still counts them, so it does not compare with a score where those findings describe the host's. PRIV-007 flags this. Done when the score separates the two, or the docs state why it does not. Needs a way to show what a process can do past that kernel, not only that the kernel is there.
+
+**What an editor forwards.** A dev container with VS Code attached adds git credential and IPC sockets that the probe does not test. Done when the probe says whether a command can get a credential through them, from a run with a throwaway credential.
 
 ### 4. A community benchmark from opt-in submissions
 
@@ -61,6 +60,9 @@ The rules `agentsec benchmark` enforces:
 ## Done
 
 **Unreleased, on main**
+- Probe 0.7.0, which no longer reports an allowlist that filters at TLS as open internet, and flags gVisor.
+- Antigravity CLI's sandbox and Gemini CLI measured, with a local stand-in for the model.
+- A dev container measured with VS Code attached, and Modal Sandboxes measured.
 - A test planted to fail, so results that did not come from running the tests are caught, with the new verdict `results-not-credible`.
 - `verified` reached on real agent output: 3 of 20 in a sample not chosen for editing its tests.
 - Benchmark graders checked through real Harbor, with a run that tries to forge a pass and two controls.

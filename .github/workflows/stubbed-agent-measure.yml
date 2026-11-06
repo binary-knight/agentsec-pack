@@ -1,0 +1,129 @@
+name: stubbed-agent-measure
+
+# Measure Gemini CLI's and Antigravity CLI's own sandboxes on disposable machines, with a
+# stand-in for the model, through scripts/measure_stubbed_agent.py. Holds no secrets.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GEMINI_CLI_VERSION: "0.67.0"
+  AGY_VERSION: "1.5.1"
+
+jobs:
+  gemini:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: python -m pip install .
+      - run: |
+          npm install -g "@google/gemini-cli@${GEMINI_CLI_VERSION}"
+          gemini --version
+          # GOOGLE_GEMINI_BASE_URL alone selects an auth type that Gemini CLI's own check refuses.
+          mkdir -p "$HOME/.gemini"
+          echo '{"security": {"auth": {"selectedType": "gemini-api-key"}}}' > "$HOME/.gemini/settings.json"
+      - name: Measure
+        env:
+          OS_NAME: ${{ runner.os }}
+        run: |
+          run() {  # name, how it differs, then --env items for the agent
+            local name="$1" differs="$2"; shift 2
+            python scripts/measure_stubbed_agent.py --name "$name" \
+              --label "gemini-cli-${GEMINI_CLI_VERSION}-$name" \
+              --how "gemini ${GEMINI_CLI_VERSION} -p --yolo --skip-trust --model gemini-2.5-flash, security.auth.selectedType gemini-api-key in settings.json, $differs." \
+              --project "$RUNNER_TEMP/$name" --out reports --logs logs --copy-to-project "$HOME/.gemini/settings.json=.gemini/settings.json" "$@" \
+              -- gemini -p "Run the probe" --yolo --skip-trust --model gemini-2.5-flash || true
+          }
+          if [ "$OS_NAME" = macOS ]; then
+            run macos-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
+            # Outside the home directory, because strict-open refuses reads inside it and
+            # setup-node installs there. The -proxied profiles need a proxy, so they are left out.
+            sudo cp -R "$(dirname "$(dirname "$(command -v node)")")" /opt/node
+            for p in permissive-open restrictive-open strict-open; do
+              run "macos-seatbelt-$p" "GEMINI_SANDBOX=sandbox-exec SEATBELT_PROFILE=$p, with Node in /opt/node" --env GEMINI_SANDBOX=sandbox-exec --env "SEATBELT_PROFILE=$p" --env "PATH=/opt/node/bin:$PATH"
+            done
+          else
+            run linux-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
+            run linux-docker "GEMINI_SANDBOX=docker" --env GEMINI_SANDBOX=docker --url-host host.docker.internal
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-${{ matrix.os }}
+          path: |
+            reports/
+            logs/
+          if-no-files-found: warn
+
+  antigravity:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - name: Whether this machine allows unprivileged user namespaces, without changing it
+        run: |
+          sysctl kernel.apparmor_restrict_unprivileged_userns 2>&1 || true
+          sysctl user.max_user_namespaces 2>&1 || true
+          unshare -Ur true && echo "unshare -Ur: allowed" || echo "unshare -Ur: refused"
+      - name: Install Antigravity CLI from its release
+        run: |
+          curl -fsSL -o agy.tgz "https://github.com/google-antigravity/antigravity-cli/releases/download/${AGY_VERSION}/agy_cli_linux_x64.tar.gz"
+          sha256sum agy.tgz
+          mkdir -p "$HOME/agy" && tar -xzf agy.tgz -C "$HOME/agy" && ls -la "$HOME/agy"
+          ln -s "$HOME/agy/antigravity" "$HOME/agy/agy"
+          echo "$HOME/agy" >> "$GITHUB_PATH"
+      - run: |
+          agy --version
+          mkdir -p "$HOME/.gemini/antigravity-cli"
+          echo '{"modelProvider": "gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
+      - name: Measure
+        env:
+          OS: ${{ matrix.os }}
+        run: |
+          run() {  # name, then the flags under test
+            local name="$1"; shift
+            python scripts/measure_stubbed_agent.py --name "$name" \
+              --label "antigravity-cli-${AGY_VERSION}-$OS-$name" \
+              --how "agy ${AGY_VERSION} -p $* on $OS, with modelProvider gemini in settings.json." \
+              --project "$RUNNER_TEMP/$name" --out reports --logs logs --timeout 180 --via-output \
+              -- agy -p "Run the probe" "$@" || true
+          }
+          run sandbox --sandbox --dangerously-skip-permissions
+          run no-sandbox --dangerously-skip-permissions
+          run sandbox-add-dir --sandbox --dangerously-skip-permissions --add-dir "$RUNNER_TEMP/sandbox-add-dir"
+          run sandbox-proceed --sandbox --settings '{"toolPermission": "proceed-in-sandbox"}'
+          grep -h -i -E 'sandbox' logs/*.agent.log | head -20 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: antigravity-${{ matrix.os }}
+          path: |
+            reports/
+            logs/
+          if-no-files-found: warn

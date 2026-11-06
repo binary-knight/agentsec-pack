@@ -149,8 +149,9 @@ def test_no_file_in_the_repo_carries_an_operator_identity():
         except OSError:
             continue
         for m in re.finditer(r"/(?:home|Users)/([A-Za-z0-9_.-]+)", text):
-            # the probe's own list of paths to check is not an operator identity
-            if m.group(1) in ("<redacted>", "USER", "user"):
+            # the probe's own list of paths to check is not an operator identity, and
+            # node is the user inside Gemini CLI's sandbox image, seen in a measured mount
+            if m.group(1) in ("<redacted>", "USER", "user", "node"):
                 continue
             bad.append(f"{rel}: {m.group(0)}")
     assert not bad, "operator paths in tracked files:\n" + "\n".join(bad[:10])
