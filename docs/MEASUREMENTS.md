@@ -67,6 +67,47 @@ Google's Antigravity CLI, `agy` 1.4.12, failed to start its terminal sandbox on 
 
 When running in print mode for CI, `agy` kept the terminal silent about the sandbox because that notice goes only into its log file. Because of that silence, a pipeline passing `--sandbox` executes an approved command unsandboxed without any warning on the terminal. This outcome creates the same gap between configuration and the running process as Claude Code's fail-open default, described below. Documentation for `agy` lists no setting that converts an unavailable sandbox into a hard failure, so a `--max-score` gate on a probe run catches the exposure. The report is at `examples/agents/antigravity-cli-1.4.12-sandbox-unavailable.md`.
 
+On 2026-11-06, `agy` 1.5.1 was measured on a machine that allows unprivileged user namespaces, so its sandbox started. GitHub's `ubuntu-22.04` machines set `kernel.apparmor_restrict_unprivileged_userns=0` and `ubuntu-latest` sets it to 1, and neither setting was changed. The model was a stand-in, described under Gemini CLI below.
+
+| `agy` 1.5.1 on `ubuntu-22.04`, probe 0.7.0 | Score | Findings above informational |
+|---|---:|---|
+| `--dangerously-skip-permissions`, no sandbox | 100 | NET-001, NET-002, SEC-001, SEC-002, SEC-003, FS-001, FS-008, FS-009, and others |
+| `--sandbox --dangerously-skip-permissions` | 71 | NET-001, NET-002, SEC-002, SEC-004, FS-003 |
+| `--sandbox`, `toolPermission` set to `proceed-in-sandbox` | 31 | SEC-002, SEC-004, FS-003 |
+
+Inside the sandbox the process was in a user namespace with seccomp mode 2 and `no_new_privs`. It could not reach the Docker socket or write to the home directory, the project's `.git/hooks` or any configuration the probe checks.
+
+**The permissions flag decides the network.** With `proceed-in-sandbox` nothing could leave: every direct connection and name lookup failed and there was no proxy. With `--dangerously-skip-permissions`, direct connections still failed, but `HTTPS_PROXY` was set and the proxy accepted tunnels to every target, including the control host and `metadata.google.internal`. Accepting a tunnel does not show that the far end was reached.
+
+**The working directory was read-only.** Each sandboxed run recorded `cwd_writable: false`, and a redirect to a file there failed with `Read-only file system`, so these runs returned the report through the command's output. `--add-dir` naming that directory changed nothing and scored the same 71. Antigravity's sandbox page says workspace folders are mounted read-write. These were headless runs from a throwaway git repository, and why that directory was not treated as a workspace was not established.
+
+**On `ubuntu-latest`, `--sandbox` does nothing.** With `--dangerously-skip-permissions` it scored 100, with the same findings as no sandbox and nothing on the terminal to say so. This is the documented behavior, confirmed for 1.5.1. With `proceed-in-sandbox` on that machine, `agy` denied the command because headless mode cannot ask, so nothing ran.
+
+NET-002 is 25 of the points in the 71 and comes through the proxy. Reports are in `examples/agents/antigravity-cli-1.5.1-*`.
+
+### Gemini CLI
+
+Gemini CLI 0.67.0 was measured on 2026-11-06 on GitHub-hosted machines with probe 0.7.0, through `.github/workflows/stubbed-agent-measure.yml`.
+
+**The model was a stand-in.** Gemini CLI and Antigravity CLI both document `GOOGLE_GEMINI_BASE_URL` for a custom endpoint. `scripts/measure_stubbed_agent.py` serves one that asks for a single shell command, the probe, and then stops. The agent and its sandbox run as shipped, with no account and a placeholder key. Each report's `--how` says so. The placeholder is a secret-shaped variable, as a real key would be, so it can count toward SEC-002.
+
+| Gemini CLI 0.67.0 | Score | Raw | Findings above informational |
+|---|---:|---:|---|
+| Linux, no sandbox | 100 | 170 | NET-001, NET-002, SEC-001, SEC-002, SEC-003, FS-001, FS-008, FS-009, and others |
+| Linux, `GEMINI_SANDBOX=docker` | 100 | 102 | NET-001, NET-002, SEC-002, FS-008, FS-009, FS-003, FS-002, FS-006, PRIV-005 |
+| macOS, no sandbox | 100 | 106 | NET-001, SEC-002, SEC-003, FS-001, FS-008, FS-009, PRIV-006, PROC-001 |
+| macOS, Seatbelt `permissive-open` | 75 | 75 | NET-001, SEC-002, SEC-003, FS-008, FS-009 |
+| macOS, Seatbelt `restrictive-open` | 75 | 75 | the same |
+| macOS, Seatbelt `strict-open` | 75 | 75 | the same |
+
+**The Docker row is capped.** NET-002, the hosted machine's cloud metadata address, is 25 of its 102 raw points, and a laptop would not be expected to reach one. The container removes the Docker socket, host processes and system-path writes, which the cap hides. Compare the raw numbers, 170 and 102.
+
+**What stays writable is the project.** Under Docker and all three Seatbelt profiles, `.git/hooks` and the project's `.gemini/settings.json` can be written, and both act later, outside the sandbox. In the Docker run the probe also found `~/.gemini/settings.json` writable, but Gemini CLI's source mounts a sanitized temporary copy there, so that entry does not reach the person's real settings.
+
+**Identical scores do not show identical profiles.** The machine's home holds only `~/.gitconfig` among the files the probe opens, and all three profiles allow reading it. The profiles' read rules differ, and a home full of credentials could separate them. This was not measured.
+
+**Not measured.** The `-proxied` profiles need a proxy, and without one the agent could not reach the stand-in. `strict-open` refuses reads under the home directory, including Node where `setup-node` installs it, so the Seatbelt runs used Node copied to `/opt/node`. Podman, gVisor and LXC modes were not tried. Reports are in `examples/agents/gemini-cli-0.67.0-*`.
+
 ### Claude Code
 
 Claude Code 2.1.266 was measured the same way in three configurations. Its sandbox stays off until `sandbox.enabled` is set, and on Linux it needs `bubblewrap` and `socat` installed.
@@ -197,7 +238,37 @@ The container runs as the image's unprivileged user, with the workspace mounted 
 
 **The socket row is a lower bound.** The probe found the socket and was refused with a permission error, because the container's user cannot open it on this machine. A container whose user can open the socket would control the host's Docker daemon, and the image's user may be able to get there through `sudo` or a group. The probe never tries to escalate, so that was not measured.
 
-**Limits.** This is one image on one kind of machine. The CLI was used and not an editor, so anything an editor forwards into the container, such as credential helpers or an SSH agent, is not in these numbers. The `docker-outside-of-docker` feature did not install on this image in the two runs that tried it, so the socket row mounts the socket directly and does not measure that feature.
+**Limits.** This is one image on one kind of machine. The `docker-outside-of-docker` feature did not install on this image in the two runs that tried it, so the socket row mounts the socket directly and does not measure that feature.
+
+### The same container with VS Code attached
+
+An editor adds to a dev container, so the default configuration was measured again with VS Code 1.145.1 and the Dev Containers extension 0.469.0 attached. `scripts/measure_devcontainer_editor.sh` opens the folder in the container under a virtual display, and a task that runs on opening the folder runs the probe in the environment an editor terminal gets. The machine had a throwaway SSH agent and git identity, so that there was something to forward.
+
+| Same image and settings | Probe | Score | Findings above informational |
+|---|---|---:|---|
+| Through the CLI | 0.6.0 | 57 | NET-001, NET-002, FS-003, PRIV-005, FS-002, FS-006 |
+| With VS Code attached | 0.7.0 | 87 | those, and SEC-007, SEC-003 |
+
+The 30 points are two things the editor brought in. SEC-007 is the SSH agent, reachable through a socket in `/tmp`. SEC-003 is `~/.gitconfig`, copied into the container. The probe change between the rows only affects a network that filters at TLS, which this one does not.
+
+**What is there but not scored.** The editor also adds sockets for git credentials and its own IPC to `/tmp`, such as `vscode-git-*.sock` and `vscode-remote-containers-ipc-*.sock`, with variables pointing at them, including `GIT_ASKPASS` and `REMOTE_CONTAINERS_IPC`. The probe does not test these. The machine held no credentials, so whether a command can get a token through them was not measured. The SSH finding shows the socket is reachable, not what the throwaway key could do.
+
+**Read the scores with care.** NET-002 is 25 points here as well. On a developer's machine, the same forwarding would carry that person's real agent and git settings.
+
+## Modal Sandboxes
+
+`scripts/measure_modal.py` measures `modal.Sandbox` through Modal's own client, 1.5.3, with `Image.debian_slim` and the probe run through `Sandbox.exec`, on 2026-11-06 with probe 0.7.0. No agent was involved. Reports are in `examples/modal/`.
+
+| Options | Score | Raw | Network finding |
+|---|---:|---:|---|
+| None | 100 | 112 | NET-001, every target reached |
+| `outbound_domain_allowlist=[pypi.org]` | 100 | 105 | NET-005, only `pypi` reached |
+| `outbound_cidr_allowlist=[1.1.1.1/32]` | 100 | 105 | NET-005, only `1.1.1.1` reached |
+| `block_network=True` | 97 | 97 | NET-003, nothing reached |
+
+**These scores overstate what they show.** Modal runs these containers under gVisor: `/proc/version` reads `4.19.0-gvisor`. The process is root with dangerous capabilities, no seccomp filter and a writable `/proc/sysrq-trigger`, but it gets all of that from gVisor's user-space kernel and not the host's. PRIV-001, PRIV-003, PRIV-004, SEC-004, FS-005 and RES-001 add up to 74 raw points, and the probe does not test whether a process can leave gVisor. The rows would be 38, 31, 31 and 23 without those six, but those totals are not measured scores, and the 100s do not compare with a 100 where those findings describe the host's kernel. The probe now reports this as PRIV-007, without changing the score.
+
+**The network rows are the useful part, and they found a bug in the probe.** Under the domain allowlist, TCP connections to any host on port 443 succeed. Probe 0.6.0 counted that as reached and reported open internet. A direct check showed otherwise: `pypi.org` answered HTTP 200, the other four hosts tried were reset during TLS, and port 80 timed out. Probe 0.7.0 counts a connection refused at TLS as not reached, and tries `example.com` directly as a control. Any earlier report of a sandbox that filters this way would have overstated its egress. Earlier reports were not re-run.
 
 ## `agentsec verify` on real agent pull requests
 

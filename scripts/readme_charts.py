@@ -29,6 +29,11 @@ AGENTS = [
     ("Codex CLI 0.164.0, read-only", "codex-cli-0.164.0-read-only"),
     ("Codex CLI 0.164.0, workspace-write", "codex-cli-0.164.0-workspace-write"),
     ("Antigravity CLI 1.4.12, --sandbox unavailable", "antigravity-cli-1.4.12-sandbox-unavailable"),
+    ("Antigravity CLI 1.5.1, no sandbox", "antigravity-cli-1.5.1-ubuntu-22.04-no-sandbox"),
+    ("Antigravity CLI 1.5.1, --sandbox, skipping permissions", "antigravity-cli-1.5.1-ubuntu-22.04-sandbox"),
+    ("Antigravity CLI 1.5.1, --sandbox, proceed-in-sandbox", "antigravity-cli-1.5.1-ubuntu-22.04-sandbox-proceed"),
+    ("Gemini CLI 0.67.0, no sandbox", "gemini-cli-0.67.0-linux-no-sandbox"),
+    ("Gemini CLI 0.67.0, Docker sandbox", "gemini-cli-0.67.0-linux-docker"),
     ("Aider 0.86.2, ships no sandbox", "aider-0.86.2-default"),
 ]
 
@@ -66,7 +71,10 @@ def groups():
              chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-sandbox.json"),
                                      "Claude Code 2.1.318, sandbox on"),
              chart.row_from_envelope(load("examples/agents/claude-code-2.1.318-macos-sandbox-denyread.json"),
-                                     "Claude Code 2.1.318, sandbox + denyRead")]
+                                     "Claude Code 2.1.318, sandbox + denyRead"),
+             chart.row_from_envelope(load("examples/agents/gemini-cli-0.67.0-macos-no-sandbox.json"), "Gemini CLI 0.67.0, no sandbox"),
+             chart.row_from_envelope(load("examples/agents/gemini-cli-0.67.0-macos-seatbelt-permissive-open.json"), "Gemini CLI 0.67.0, permissive-open"),
+             chart.row_from_envelope(load("examples/agents/gemini-cli-0.67.0-macos-seatbelt-strict-open.json"), "Gemini CLI 0.67.0, strict-open")]
     harbor = [chart.row_from_envelope(load(f"examples/harbor/harbor-{t}.json"), t) for t in HARBOR_TASKS]
     return agents, launchers, macos, harbor
 
