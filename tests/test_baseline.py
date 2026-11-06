@@ -127,3 +127,9 @@ def test_losing_a_measurement_is_a_regression_even_at_zero_points():
     r = bl.compare(env([]), env([{"id": "NET-004", "severity": "info", "title": "t",
                                   "evidence": {"unmeasured": True}}]))
     assert [x["id"] for x in r["regressions"]] == ["NET-004"]
+
+
+def test_a_macos_per_user_temp_path_does_not_survive_redaction():
+    from agentsec.redact import redact as scrub
+    out = scrub({"where": "/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/x"}, home="/srv/someone", user="someone")
+    assert out["where"] == "/var/folders/<redacted>/T/x"

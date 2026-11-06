@@ -418,7 +418,9 @@ def _refused_at_tls(sock, host):
     except ImportError:
         return False, "not tested"
     try:
-        wrapped = ssl.create_default_context().wrap_socket(sock, server_hostname=host)
+        context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        wrapped = context.wrap_socket(sock, server_hostname=host)
         wrapped.close()
         return False, "ok"
     except ssl.SSLCertVerificationError:

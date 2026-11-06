@@ -272,7 +272,7 @@
         "connected": true,
         "stage": "connect",
         "supported": true,
-        "where": "/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/"
+        "where": "/var/folders/<redacted>/T/"
       },
       "unix_control_nopath": {
         "error": "FileNotFoundError",
