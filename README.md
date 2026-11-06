@@ -290,6 +290,7 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [x] macOS measurements: Seatbelt presets and Codex's macOS sandbox, on a GitHub-hosted machine
 - [x] Claude Code's macOS sandbox, in full headless sessions on a GitHub-hosted machine (`macos-claude-code.yml`)
 - [x] public Terminal-Bench tasks measured through real Harbor with a no-model agent (`scripts/measure_harbor.sh`)
+- [x] dev containers measured through the real devcontainer CLI on a GitHub-hosted machine (`scripts/measure_devcontainer.sh`)
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
 - [x] verifier integrity: `agentsec verify` compares two commits and re-grades the new code against the old tests
 - [ ] verifier integrity past a plain test command: detecting a forged runner result, and measuring benchmark harnesses

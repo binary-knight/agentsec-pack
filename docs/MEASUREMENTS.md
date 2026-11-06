@@ -155,6 +155,24 @@ Harbor keeps the grader's files out of the agent's container in all four, and ea
 
 **Limits.** This is 4 tasks of 66, on one host, through Harbor's Docker environment. All 4 are single-container tasks running as root. The 11 tasks with their own `docker-compose.yaml` and the tasks that set a non-root user were not in the sample, and Harbor's cloud environments are not covered. The cloud metadata address is unreachable here, which says nothing about a run on a cloud machine.
 
+## Dev containers
+
+These runs measure what a command gets inside a dev container. `scripts/measure_devcontainer.sh` starts each configuration with the real devcontainer CLI (0.90.0) and runs the probe through `devcontainer exec`. It used `mcr.microsoft.com/devcontainers/python:3.12` at the digest in each report, on a GitHub-hosted `ubuntu-latest` machine, through `devcontainer-measure.yml`, on 2026-11-05. Probe 0.6.0. Reports are in `examples/devcontainer/`.
+
+| Configuration | Score | Findings above informational |
+|---|---:|---|
+| No other settings | 57 | NET-001, NET-002, FS-003, PRIV-005, FS-002, FS-006 |
+| `runArgs`: `--cap-drop=ALL`, `--security-opt=no-new-privileges` | 51 | NET-001, NET-002, FS-003, FS-002 |
+| The host's Docker socket mounted | 60 | NET-001, NET-002, FS-003, PRIV-005, FS-002, FS-006, SEC-006 |
+
+The container runs as the image's unprivileged user, with the workspace mounted read-write from the host, and with unrestricted egress. Dropping capabilities and setting `no_new_privs` removes 6 points and leaves the network and the workspace mount as they were.
+
+**Read the scores with care.** NET-002, the cloud metadata address, is 25 of the points in every row. It comes from the hosted machine these runs used, and a dev container on a laptop would not be expected to reach one. Without it the rows would be 32, 26 and 35, but those three totals were not measured on a machine without a metadata address.
+
+**The socket row is a lower bound.** The probe found the socket and was refused with a permission error, because the container's user cannot open it on this machine. A container whose user can open the socket would control the host's Docker daemon, and the image's user may be able to get there through `sudo` or a group. The probe never tries to escalate, so that was not measured.
+
+**Limits.** This is one image on one kind of machine. The CLI was used and not an editor, so anything an editor forwards into the container, such as credential helpers or an SSH agent, is not in these numbers. The `docker-outside-of-docker` feature did not install on this image in the two runs that tried it, so the socket row mounts the socket directly and does not measure that feature.
+
 ## `agentsec verify` on real agent pull requests
 
 `scripts/survey_agent_prs.py` runs verify's static checks, tampering and weakening, over public pull requests written by coding agents. It reads git objects only and executes nothing from those repositories, so **this survey produced no verdicts**. Re-grading is a separate step, covered at the end of this section. It shows how often the checks fire and whether they are right, which was judged by reading every flagged change.
