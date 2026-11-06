@@ -292,6 +292,30 @@ def cmd_submit(args: argparse.Namespace) -> int:
         print(f"Open this address to review and post the issue:\n{url}")
     else:
         print("Opened in your browser. Nothing is posted until you submit the issue there.")
+
+def cmd_history(args: argparse.Namespace) -> int:
+    """How a sandbox's score and findings moved across saved runs. See agentsec/history.py."""
+    from . import history as hs
+    try:
+        entries, skipped = hs.load(args.paths)
+        for note in skipped:
+            print(f"skipped {note}", file=sys.stderr)
+        if args.label:
+            entries = [e for e in entries if e.get("label") == args.label]
+        if not entries:
+            print("error: no blast-radius reports to read", file=sys.stderr)
+            return 1
+        if args.save:
+            added = hs.save(args.save, entries)
+            print(f"saved {added} new run{'' if added == 1 else 's'} to {args.save}", file=sys.stderr)
+            entries, _skipped = hs.load([args.save])
+            if args.label:
+                entries = [e for e in entries if e.get("label") == args.label]
+    except OSError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    history = hs.build(entries, args.max_score)
+    print(json.dumps(history, indent=2, sort_keys=True) if args.json else hs.render(history, args.max_score))
     return 0
 
 
@@ -584,6 +608,14 @@ def main(argv: list[str] | None = None) -> int:
     sb.add_argument("--setting", action="append", default=[], help="a setting that changes the sandbox, repeatable; paths and variable names are refused")
     sb.add_argument("--no-browser", action="store_true", help="print the address instead of opening it")
     sb.set_defaults(func=cmd_submit)
+
+    hi = sub.add_parser("history", help="how a sandbox's score and findings moved across saved runs")
+    hi.add_argument("paths", nargs="+", metavar="PATH", help="report JSON files, directories of them, or a history file (.jsonl)")
+    hi.add_argument("--save", metavar="FILE", help="add these runs to a history file, which keeps them after a report with the same label is replaced")
+    hi.add_argument("--label", help="only this label")
+    hi.add_argument("--max-score", type=int, help="also show how much of this budget is left")
+    hi.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
+    hi.set_defaults(func=cmd_history)
 
     v = sub.add_parser("verify", help="did a change pass its tests, or did it change the tests? (exit 2 if not shown to pass)")
     v.add_argument("--base", required=True, help="the commit before the change")
