@@ -6,6 +6,8 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes.
+
 ## 0.3.0 — 2026-11-05
 
 Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.
