@@ -6,6 +6,8 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- `scripts/check_harbor_grader.sh` checks a benchmark's grader through real Harbor with three graded runs: nothing done, the task's own solution, and `ForgeAgent`, which only tries to fake a pass. Three public Terminal-Bench tasks held and two did not settle. Two control tasks show the forgery scoring when the verifier shares the agent's container and failing when it does not. Results are in `docs/MEASUREMENTS.md`.
+
 ## 0.3.0 — 2026-11-05
 
 Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.

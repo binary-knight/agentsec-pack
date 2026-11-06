@@ -6,14 +6,11 @@ name: harbor-grader-check
 
 on:
   workflow_dispatch:
-  push:
-    branches: [harbor-grader-check]
 
 permissions: {}
 
 jobs:
   plan:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tasks: ${{ steps.draw.outputs.tasks }}
@@ -56,7 +53,6 @@ jobs:
           if-no-files-found: warn
 
   check:
-    if: github.event_name == 'workflow_dispatch'
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 180

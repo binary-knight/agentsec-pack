@@ -1,0 +1,35 @@
+{
+  "harbor_commit": "b7cc86b617eb5a220c3d6041dbcca4fda8a6f5a8",
+  "result": "forged-run-scored",
+  "runs": {
+    "forged": {
+      "attempts_exit_codes": {
+        "passing-commands": 0,
+        "replaced-python": 0,
+        "reward-files": 0,
+        "rewriting-process": 0
+      },
+      "error": null,
+      "error_detail": null,
+      "finished": true,
+      "reward": 1.0,
+      "verifier_environment_mode": "shared"
+    },
+    "nothing": {
+      "error": null,
+      "error_detail": null,
+      "finished": true,
+      "reward": 0.0,
+      "verifier_environment_mode": "shared"
+    },
+    "solution": {
+      "error": null,
+      "error_detail": null,
+      "finished": true,
+      "reward": 1.0,
+      "verifier_environment_mode": "shared"
+    }
+  },
+  "task": "control-shared",
+  "terminal_bench_commit": "73d6279f91eb773bd51af2e2572a6fa044342e7a"
+}
