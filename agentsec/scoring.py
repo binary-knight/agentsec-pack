@@ -209,7 +209,14 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                            "No action: nothing the probe tried could leave this sandbox over the network."))
     reached = [t for t in net.get("targets", []) if t.get("connect")]
     egress = [t["name"] for t in reached if not t["name"].startswith(("cloud-metadata", "gcp-metadata"))]
-    if egress:
+    control = net.get("direct_control") or {}
+    if egress and control and not control.get("reached"):
+        findings.append(_f("NET-005", "Egress is allowlisted", "medium", "network",
+                           {"reached": egress, "control": control}, ["ASI02", "ASI10"],
+                           "These hosts were reached directly and the control host, example.com, was not, so the network is "
+                           "filtered and these are what an injected command can reach at least. Keep the list to what the agent "
+                           "needs; a host that accepts uploads, such as a code host or a package index, is an exfiltration route."))
+    elif egress:
         findings.append(_f("NET-001", "Unrestricted internet egress from the sandbox", "high", "network",
                            {"reached": egress}, ["ASI02", "ASI10"],
                            "Run the agent with no network (docker --network none) or an allowlisting egress proxy."))
@@ -219,6 +226,12 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
                            ["ASI03", "ASI02"], "Block 169.254.169.254 and metadata.google.internal from the agent's network namespace."))
 
     # --- Identity / privilege ----------------------------------------------
+    if ident.get("user_space_kernel"):
+        findings.append(_f("PRIV-007", "The kernel seen here is a user-space kernel", "info", "privilege",
+                           {"kernel": ident["user_space_kernel"]}, ["ASI02"],
+                           "Privilege, capability, seccomp, /proc and resource findings in this report describe what the process "
+                           "gets from this kernel, not from the host's. The score still counts them, so it overstates what they "
+                           "show. This probe does not test whether a process can leave this kernel."))
     if ident.get("euid") == 0 and not ident.get("in_user_namespace"):
         findings.append(_f("PRIV-001", "Agent runs as real root (uid 0, not in a user namespace)", "high", "privilege",
                            {"euid": 0}, ["ASI03", "ASI05"], "Run as an unprivileged user (docker --user) or inside a user namespace."))

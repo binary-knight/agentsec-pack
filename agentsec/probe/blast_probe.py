@@ -41,7 +41,7 @@ import sys
 import tempfile
 import time
 
-PROBE_VERSION = "0.6.0"
+PROBE_VERSION = "0.7.0"
 IS_DARWIN = sys.platform == "darwin"
 
 # Fixed egress targets. Add nothing dynamic here; buyers read this list.
@@ -207,6 +207,8 @@ def read_text(path, limit=65536):
 def probe_identity():
     info = {"uid": os.getuid(), "gid": os.getgid(), "euid": os.geteuid(), "pid": os.getpid(),
             "hostname": socket.gethostname(), "cwd": os.getcwd()}
+    if "gvisor" in (read_text("/proc/version") or "").lower():
+        info["user_space_kernel"] = "gvisor"
     status = read_text("/proc/self/status") or ""
     caps = {}
     for line in status.splitlines():
@@ -403,6 +405,54 @@ def probe_proxy(environ=None, targets=None):
     return out
 
 
+def _refused_at_tls(sock, host):
+    """Whether a connection that opened was then refused during TLS. Returns (refused, what happened).
+
+    A sandbox that filters by TLS hostname accepts the TCP connection first, so an open
+    connection alone does not show that anything got out. Only an explicit refusal counts:
+    a stall gives no clear answer, and a certificate that does not verify means something
+    answered, so both stay counted as reached.
+    """
+    try:
+        import ssl
+    except ImportError:
+        return False, "not tested"
+    try:
+        wrapped = ssl.create_default_context().wrap_socket(sock, server_hostname=host)
+        wrapped.close()
+        return False, "ok"
+    except ssl.SSLCertVerificationError:
+        return False, "certificate did not verify"
+    except (socket.timeout, TimeoutError):
+        return False, "stalled"
+    except (ssl.SSLError, ConnectionError, EOFError) as e:
+        return True, type(e).__name__
+    except OSError as e:
+        return False, type(e).__name__
+
+
+def _is_hostname(host):
+    return not re.fullmatch(r"[0-9.]+", host)
+
+
+def _direct_control():
+    """Can this process reach a host no allowlist has a reason to contain, without a proxy?"""
+    host, port = PROXY_CANARY["host"], PROXY_CANARY["port"]
+    try:
+        s = socket.create_connection((host, port), timeout=CONNECT_TIMEOUT)
+    except Exception as e:
+        return {"name": PROXY_CANARY["name"], "reached": False, "detail": type(e).__name__}
+    try:
+        s.settimeout(CONNECT_TIMEOUT)
+        refused, what = _refused_at_tls(s, host)
+        return {"name": PROXY_CANARY["name"], "reached": not refused, "detail": what}
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
 def probe_network():
     results = []
     blocked = 0
@@ -431,6 +481,11 @@ def probe_network():
         try:
             s.connect(addr)
             r["connect"] = True
+            if t["port"] == 443 and _is_hostname(t["host"]):
+                refused, r["tls"] = _refused_at_tls(s, t["host"])
+                if refused:
+                    r["connect"] = False
+                    r["refused_at_tls"] = True
         except Exception as e:
             r["connect_error"] = type(e).__name__
         finally:
@@ -450,7 +505,7 @@ def probe_network():
         except Exception:
             pass
     return {"targets": results, "interfaces": sorted(ifaces), "proxy_env": proxy_env_names(),
-            "proxy": probe_proxy(),
+            "proxy": probe_proxy(), "direct_control": _direct_control(),
             "socket_syscall_blocked": blocked == len(results) and blocked > 0,
             "connect_refused_all": bool(results) and not any(r.get("connect") for r in results),
             "any_egress": any(x["connect"] for x in results if not x["name"].startswith(("cloud-metadata", "gcp-metadata"))),

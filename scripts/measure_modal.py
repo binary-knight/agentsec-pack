@@ -21,11 +21,13 @@ PYTHON = "3.12"
 PROBE_IN_SANDBOX = "/root/agentsec_probe.py"
 LIMIT_SECONDS = 300
 ALLOWED_DOMAIN = "pypi.org"
+ALLOWED_CIDR = "1.1.1.1/32"
 REPO = Path(__file__).resolve().parent.parent
 CONFIGS = {
     "default": ({}, "no other options"),
     "block-network": ({"block_network": True}, "block_network=True"),
     "domain-allowlist": ({"outbound_domain_allowlist": [ALLOWED_DOMAIN]}, f"outbound_domain_allowlist=[{ALLOWED_DOMAIN}]"),
+    "cidr-allowlist": ({"outbound_cidr_allowlist": [ALLOWED_CIDR]}, f"outbound_cidr_allowlist=[{ALLOWED_CIDR}]"),
 }
 
 
@@ -52,7 +54,7 @@ def measure(name: str, options: dict, differs: str, app: modal.App, image: modal
     raw = scratch / f"{name}.json"
     raw.write_text(report)
     how = (f"modal client {modal.__version__}, modal.Sandbox.create with Image.debian_slim(python_version={PYTHON}), {differs}. "
-           "The probe ran through Sandbox.exec, by scripts/measure_modal.py. No agent was involved, and the container holds no personal credentials.")
+           "The probe ran through Sandbox.exec, by scripts/measure_modal.py. No agent was involved, and the container holds no personal credentials. Modal runs this under gVisor, so privilege, capability, seccomp, /proc and resource findings describe gVisor's kernel, not the host's, and escaping gVisor was not tested.")
     return subprocess.run([agentsec, "score", str(raw), "--label", f"modal-sandbox-{name}", "--redact", "--out", str(out), "--how", how]).returncode in (0, 2)
 
 
