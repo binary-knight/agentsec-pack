@@ -6,7 +6,7 @@ name: devcontainer-editor-measure
 on:
   workflow_dispatch:
   push:
-    branches: [measure-editor-devcontainer]
+    branches: [measure-agents-with-stub]
 
 permissions:
   contents: read

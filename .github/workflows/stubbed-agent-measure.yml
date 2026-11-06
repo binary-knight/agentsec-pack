@@ -5,8 +5,6 @@ name: stubbed-agent-measure
 
 on:
   workflow_dispatch:
-  push:
-    branches: [measure-agents-with-stub]
 
 permissions:
   contents: read
