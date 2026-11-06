@@ -85,9 +85,9 @@ def test_the_budget_margin_is_shown_either_way():
 
 
 def test_the_saved_line_holds_no_name_a_report_holds():
-    env = report(8, [f("SEC-001", names=["SECRET_NAME_A"], paths=["/home/someone/secret-path"], other="/home/someone/other-evidence")], 100)
-    env["target"]["how"] = "run from /home/someone/project"
-    env["probe_stderr"] = "/home/someone/stderr"
+    env = report(8, [f("SEC-001", names=["SECRET_NAME_A"], paths=["/srv/someone/secret-path"], other="/srv/someone/other-evidence")], 100)
+    env["target"]["how"] = "run from /srv/someone/project"
+    env["probe_stderr"] = "/srv/someone/stderr"
     line = json.dumps(hs.entry(env))
     for name in ("SECRET_NAME_A", "someone", "host-name", "secret-path", "other-evidence"):
         assert name not in line
@@ -173,6 +173,6 @@ def test_label_narrows_what_is_shown_and_saved(tmp_path, capsys):
 
 def test_a_history_line_is_not_changed_by_reading_it_back(tmp_path):
     p = tmp_path / "h.jsonl"
-    e = hs.entry(report(8, [f("FS-003", paths=["/home/someone"])], 100))
+    e = hs.entry(report(8, [f("FS-003", paths=["/srv/someone"])], 100))
     hs.save(str(p), [copy.deepcopy(e)])
     assert hs.load([str(p)])[0] == [e]
