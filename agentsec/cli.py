@@ -292,6 +292,8 @@ def cmd_submit(args: argparse.Namespace) -> int:
         print(f"Open this address to review and post the issue:\n{url}")
     else:
         print("Opened in your browser. Nothing is posted until you submit the issue there.")
+    return 0
+
 
 def cmd_history(args: argparse.Namespace) -> int:
     """How a sandbox's score and findings moved across saved runs. See agentsec/history.py."""
