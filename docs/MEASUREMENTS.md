@@ -175,7 +175,7 @@ The tasks are the same uniform draw of 5 from 66 that `scripts/select_harbor_sam
 | Control, in `examples/harbor-control/` | separate | 0 | 1 | 0 | held |
 | Control, in `examples/harbor-control/` | shared | 0 | 1 | **1** | the forged run scored |
 
-Every forge attempt exited 0 in every run that reached it, so each attempt was made and worked inside the agent's container. In the separate tasks it made no difference, because the grade comes from a new container that receives only the files the task declares as artifacts.
+Every forge attempt exited 0 in every run that reached it, so each attempt was made and worked inside the agent's container. In the separate tasks it made no difference, because the grade comes from a new container that receives only the agent's artifacts.
 
 **The controls show the forgery works when the verifier shares the agent's container.** The two control tasks are the same small task and differ only in `environment_mode`. Harbor's configuration says the verifier runs in the agent's environment when a task sets no mode and no verifier environment. Each of the 66 public tasks at this commit sets `environment_mode = "separate"`. This describes what the setting does, and these runs do not show that any published result was faked.
 
