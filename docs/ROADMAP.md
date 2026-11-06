@@ -43,15 +43,19 @@ Still open: E2B, Daytona and Docker's own sandboxes. Each must say what it does 
 
 **What it ranks:** agents, sandbox modes and settings, and hosts. Blast radius is a property of the sandbox, and every measured profile records that the model choice does not change it. Ranking models needs a behavioral test, such as how often a model is prompt-injected or tries to leave its sandbox, which belongs with the promptfoo integration and item 1.
 
-`agentsec submit` is built: it shows the exact record, asks at the terminal, and opens a pre-filled issue for the person to post. `--to` is required because no dataset exists yet.
+`agentsec submit` opens a pre-filled issue in `binary-knight/agentsec-benchmark` by default, and `agentsec benchmark` turns those issues into figures. Records are released under CC0 1.0, so anyone can reuse them.
+
+The rules `agentsec benchmark` enforces:
+- A configuration appears once 5 different GitHub accounts have submitted it. The threshold cannot be set below 3.
+- Each account counts once per configuration, using its newest record, so posting repeatedly does not move a figure.
+- A figure is a median, the most common state of each axis, and how many accounts it rests on. Reproduced results are shown apart and say where they came from.
 
 **Done when:**
-- A public dataset repository exists and is the default for `--to`.
-- Published figures are aggregates, and a configuration appears only after enough independent submissions that no single one can be picked out of it.
-- Results reproduced by the maintainer or a known harness are shown apart from community submissions, and every figure states how many runs it rests on, so that one person cannot move a vendor's ranking with invented reports.
+- A public figures page is built from the issues on a schedule, which needs a release that includes these commands.
+- Enough people have submitted that a configuration crosses the threshold.
 - A hosted endpoint waits until volume calls for one, along with the privacy policy, abuse protection and hosting cost it brings.
 
-*Needs the maintainer to decide on the dataset repository and its license, and on the threshold for publishing a configuration.*
+**Known limit.** Submissions are not checked against a re-run, and one person with five accounts can still cross the threshold. A community figure reports what accounts posted, which is why reproduced results are shown apart.
 
 ## Done
 
@@ -65,6 +69,7 @@ Still open: E2B, Daytona and Docker's own sandboxes. Each must say what it does 
 - Dev containers measured through the devcontainer CLI, with a capture recipe.
 - `agentsec submit`, which prepares a measurement for a person to post.
 - `agentsec history`, with score and findings across saved runs.
+- `agentsec benchmark`, which publishes a median past a threshold of different accounts.
 
 **0.3.0, published 2026-11-05**
 - `agentsec verify`: tampering, weakening and re-grading between two commits,
