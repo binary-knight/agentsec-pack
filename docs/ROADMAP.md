@@ -7,102 +7,62 @@ that is not the implementer's to make.
 The rule that governs every measurement item still applies: a number goes in
 only from a run that was actually made, and says how it was made.
 
-Last revised 2026-11-05, after 0.3.0.
+Last revised 2026-11-06.
 
 ## Next
 
 ### 1. Verifier integrity, past what it has been shown to do
 
-**Why first:** `agentsec verify` is the newest part of the tool and the least
-proven. It works on the scenarios in its tests, and the one trial on real work
-produced no `verified` verdict. Three things are left.
+**Why first:** `agentsec verify` is the newest part of the tool. It has reached `verified` on real agent output and has a check for forged results, but that check has not yet caught anything outside this repository's tests. Four things are left.
 
-**`verified` on real agent output.** All 16 pull requests in
-`docs/MEASUREMENTS.md` were chosen for editing their tests, and 6 produced no
-result. Done when a sample that was not chosen that way has been re-graded and
-read by hand, with the verdicts reported whichever way they fall.
+**More of the sample runs.** 15 of the 20 pull requests in the neutral sample were `already-failing` or `unverified`, much of it from installing a stranger's project. Done when a larger sample has been re-graded with better setup and read by hand, with the verdicts reported whichever way they fall.
 
-**A forged result.** With `--junit`, a change that exits 0 when the tests
-import it is caught, because the run writes no results. A change can still
-write a results file of its own. Done when a run can show that the tests
-executed, for example with a test that must fail planted in the suite, so a
-results file that reports success anyway is caught.
-`test_known_limit_code_that_writes_its_own_results_still_passes` pins the gap
-until then.
+**The planted test in other languages.** It is Python only, so a suite in another language is not checked for forged results. Done when at least JavaScript and TypeScript suites are covered, from runs on real projects.
 
-**Other kinds of grader.** Done when a benchmark's verifier, which is not a
-plain test command in the repository, can be checked the same way. Public
-harnesses and tasks only, with their commits recorded.
+**Code that finds the planted test.** A change can look through the tree for it and report it failed along with invented results. `test_known_limit_code_that_finds_the_planted_test_can_still_invent_results` pins this. Done when the results can be shown to come from a run the code under test could not write to, or when this is stated as a permanent limit with the reason.
+
+**Graders, past a generic forgery.** `scripts/check_harbor_grader.sh` shows a generic forgery failing on 3 public Terminal-Bench tasks with a separate verifier and working on a control with a shared one. Done when more tasks have settled and crafted artifacts, the route open against a separate verifier, have been tried. Public harnesses and tasks only, with their commits recorded.
 
 ### 2. Measurements still missing
 
-**Why:** each of these is a gap in the published results, and each waits on
-something outside this repository.
+**Why:** each of these is a gap in the published results, and each waits on something outside this repository.
 
 **Done when**, each from a real run:
-- **Gemini CLI:** the probe already checks its credential and settings paths,
-  but it is not installed here. *Needs the maintainer to install it and
-  approve its use.*
-- **Antigravity CLI's sandbox:** it cannot start on stock Ubuntu, so only the
-  unsandboxed result is published. *Needs a host that allows unprivileged user
-  namespaces.*
-- **A developer's Mac:** every macOS number comes from a GitHub-hosted machine.
-  *Needs a Mac.*
+- **Gemini CLI:** the probe already checks its credential and settings paths, but it is not installed here. *Needs the maintainer to install it and approve its use.*
+- **Antigravity CLI's sandbox:** it cannot start on stock Ubuntu, so only the unsandboxed result is published. *Needs a host that allows unprivileged user namespaces.*
+- **A developer's Mac:** every macOS number comes from a GitHub-hosted machine. *Needs a Mac.*
 
-Any result that contradicts a vendor's documentation is raised with the
-vendor before or at the time it is published (SECURITY.md).
+Any result that contradicts a vendor's documentation is raised with the vendor before or at the time it is published (SECURITY.md).
 
 ### 3. Hosted agent sandboxes
 
-Presets or capture recipes for the sandboxes agents are increasingly deployed
-into: devcontainers, E2B, Modal, Daytona, Docker's own sandboxes. Each preset
-must say what it does not reproduce, and each recipe must come from a live
-run.
+Dev containers are measured through the CLI. Still open: E2B, Modal, Daytona and Docker's own sandboxes, and a dev container as an editor attaches to it. Each must say what it does not reproduce, and each recipe must come from a live run. *Needs the maintainer's accounts for E2B, Modal and Daytona, and a machine with Docker Desktop.*
 
 ### 4. A community benchmark from opt-in submissions
 
-**Why:** every number in this repository comes from one machine. Results that
-other people capture on their own hosts would show how agents and sandbox
-settings behave in practice, and the chart code in `agentsec chart` can already
-draw a leaderboard from them.
+**Why:** every number in this repository comes from one machine or a GitHub-hosted one. Results that other people capture on their own hosts would show how agents and sandbox settings behave in practice, and the chart code in `agentsec chart` can already draw a leaderboard from them.
 
-**What it ranks:** agents, sandbox modes and settings, and hosts. Blast radius
-is a property of the sandbox, and every measured profile records that the model
-choice does not change it. Ranking models needs a behavioral test, such as how
-often a model is prompt-injected or tries to leave its sandbox, which belongs
-with the promptfoo integration and item 1.
+**What it ranks:** agents, sandbox modes and settings, and hosts. Blast radius is a property of the sandbox, and every measured profile records that the model choice does not change it. Ranking models needs a behavioral test, such as how often a model is prompt-injected or tries to leave its sandbox, which belongs with the promptfoo integration and item 1.
+
+`agentsec submit` is built: it shows the exact record, asks at the terminal, and opens a pre-filled issue for the person to post. `--to` is required because no dataset exists yet.
 
 **Done when:**
-- `agentsec submit <report>` sends a result only when a person runs it. Nothing
-  is sent automatically, and the probe's rule that it never transmits what it
-  finds stays true.
-- The command prints the exact record before sending and asks for confirmation.
-  The record holds the agent and version, the sandbox mode and settings, the OS
-  family, the probe version, the axis states, the finding ids and the score. It
-  never holds a hostname, a path, a variable name or a mount point, because
-  those carry usernames and project names.
-- The first version needs no server. The command opens a pre-filled issue in a
-  public dataset repository, where every submission is visible and can be
-  moderated. A hosted endpoint waits until volume calls for one, along with the
-  privacy policy, abuse protection and hosting cost it brings.
-- Published figures are aggregates, and a configuration appears only after
-  enough independent submissions that no single one can be picked out of it.
-- Results reproduced by the maintainer or a known harness are shown apart from
-  community submissions, and every figure states how many runs it rests on, so
-  that one person cannot move a vendor's ranking with invented reports.
+- A public dataset repository exists and is the default for `--to`.
+- Published figures are aggregates, and a configuration appears only after enough independent submissions that no single one can be picked out of it.
+- Results reproduced by the maintainer or a known harness are shown apart from community submissions, and every figure states how many runs it rests on, so that one person cannot move a vendor's ranking with invented reports.
+- A hosted endpoint waits until volume calls for one, along with the privacy policy, abuse protection and hosting cost it brings.
 
-*Needs the maintainer to decide on the dataset repository and its license, and
-on the threshold for publishing a configuration.*
-
-## Later
-
-### 5. History across runs
-
-Score and findings per image or agent over time, so drift is visible before
-it crosses a gate. The `--baseline` gate covers the CI case; this is the
-trend view.
+*Needs the maintainer to decide on the dataset repository and its license, and on the threshold for publishing a configuration.*
 
 ## Done
+
+**Unreleased, on main**
+- A test planted to fail, so results that did not come from running the tests are caught, with the new verdict `results-not-credible`.
+- `verified` reached on real agent output: 3 of 20 in a sample not chosen for editing its tests.
+- Benchmark graders checked through real Harbor, with a run that tries to forge a pass and two controls.
+- Dev containers measured through the devcontainer CLI, with a capture recipe.
+- `agentsec submit`, which prepares a measurement for a person to post.
+- `agentsec history`, with score and findings across saved runs.
 
 **0.3.0, published 2026-11-05**
 - `agentsec verify`: tampering, weakening and re-grading between two commits,

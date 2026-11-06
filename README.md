@@ -296,7 +296,9 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
 - [x] verifier integrity: `agentsec verify` compares two commits and re-grades the new code against the old tests
 - [x] a test planted to fail, so a forged results file or a neutered test runner is caught (`verify --junit`)
-- [ ] verifier integrity past a plain test command: measuring benchmark harnesses
+- [x] benchmark graders checked through real Harbor, with a run that tries to forge a pass (`scripts/check_harbor_grader.sh`)
+- [x] a measurement prepared for a person to post to a public dataset (`agentsec submit`)
+- [ ] the planted test for suites in other languages, and graders tested past a generic forgery
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
 - [x] history across runs (`agentsec history`)
