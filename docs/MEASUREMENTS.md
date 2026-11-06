@@ -226,3 +226,24 @@ The sample cannot show how often `verified` happens, because every pull request 
 - The results depend on the setup, and 6 of the 16 produced no result at all.
 
 Five of the 16 are on Anthropic's Claude account, including both that need a person, and all of this was read and judged by a Claude session. Reports are kept out of this repository because they name the projects, so these totals cannot be recomputed from it, though the workflow and the selection rule are public.
+
+### Re-grading a sample that was not chosen for editing tests
+
+The 16 above were chosen for editing their tests, so none could show what an ordinary change looks like. `scripts/select_regrade_sample.py` draws 20 from the 90 surveyed pull requests whose base commit has tests, with a fixed seed, and whether a pull request edited its tests plays no part. Of the 20, in 18 repositories, 5 edited existing tests and 5 were also in the first re-grade. The run used `regrade.yml` as above, on 2026-11-05, with one addition: before a result is called `verified`, the new code runs once more with a randomly named test planted beside the existing ones, which must fail. 3 of the 20 came from the Claude account, and all 3 read `already-failing`.
+
+| Verdict | Count | What it was, read by hand |
+|---|---:|---|
+| `verified` | 3 | A feature with new tests, a CI version pin, and a performance refactor |
+| `tests-changed-the-result` | 1 | A review fix that appears to change behavior on purpose, with its test updated |
+| `failing` | 1 | A new test in a package that failed to install here, so this is not shown to be the change's fault |
+| `already-failing` | 8 | The same failures before and after the change |
+| `unverified` | 7 | 2 timeouts, 1 crash on import with no results, 4 suites that never reached a test |
+
+This is the first time `verified` has appeared on real agent output. In all 3 the base commit's tests already passed, so the verdict says the change broke nothing those tests can see, and it does not say the change works. The CI version pin changes no code that the tests run. The feature's own 4 new tests passed, but `verified` does not rest on them, because re-grading runs the base commit's tests.
+
+Each of the 3 went through the extra run with a planted test, and each planted test failed as it should. That shows the check does not get in the way of an honest run. No result in this sample was forged or caught, so it has not been shown catching anything outside the tests in this repository.
+
+Part of `already-failing` reflects this machine. In 3 of the 8 the output shows modules that were not installed here, and in 1 a test needs a git repository, which these copies of the tree do not have. The other 4 were not traced test by test. These changes broke nothing that ran here, and whether any of them fixed something could not be seen.
+
+**Limits.** This is one seeded draw of 20, Python only, with a single attempt at installing each project. 15 of 20 were `already-failing` or `unverified`, so much of what this sample measures is how hard it is to run a stranger's tests. Claude read the output and wrote this summary, and 3 of the 20 came from the Claude account.
+

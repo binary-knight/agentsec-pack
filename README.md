@@ -204,7 +204,9 @@ agentsec verify --base main --head agent-branch --test-cmd "pytest -q --junit-xm
 
 The verdict is `verified` when the new code passes the base commit's tests, and `tests-changed-the-result` when passing requires the change's own test edits. Breaking a previously passing test produces `failing`, while runs where every failure already existed before the change produce `already-failing`. When the suite fails to reach a result, including when tests never start or write no results file, the run is marked `unverified`. Omitting `--junit` leaves only exit codes, so the tool cannot distinguish old failures from new ones or a suite that never started from a failed run. Code that exits 0 as soon as the tests import it therefore passes without `--junit` and becomes `unverified` with `--junit`. Every verdict other than `verified` exits with code 2, and `--strict` also exits 2 when a passing change edited its tests. Editing a test is a legitimate part of many changes, so a person should read those test edits directly.
 
-Without `--image`, the tests run on your machine with your user's access, so pass `--image` to run them in a container with no network. Even then, a change can go undetected if it special-cases the tests in its own code or writes its own results file.
+Passing `--junit` gives a pending `verified` result an extra run of the new code with a randomly named failing test planted beside existing tests. A report that shows that test passing, or omits it after the same test ran on the base commit, produces a `results-not-credible` verdict. When the suite never collects it or other tests vary on identical code, the tool reports `unverified` unless `--no-planted-test` accepts unconfirmed results.
+
+Without `--image`, the tests run on your machine with your user's access, so pass `--image` to run them in a container with no network. Even then, modified code can still special-case the tests or locate the planted test in the tree and mark it failed beside fabricated results. Because the planted test is written in Python, any test suite in another language remains outside this check.
 
 ## Seeing it
 
@@ -279,7 +281,8 @@ The list below shows what is built and what is still open. [`docs/ROADMAP.md`](d
 - [x] public Terminal-Bench tasks measured through real Harbor with a no-model agent (`scripts/measure_harbor.sh`)
 - [ ] more agents as they become installable here, with a preset only where the argv can be captured live
 - [x] verifier integrity: `agentsec verify` compares two commits and re-grades the new code against the old tests
-- [ ] verifier integrity past a plain test command: detecting a forged runner result, and measuring benchmark harnesses
+- [x] a test planted to fail, so a forged results file or a neutered test runner is caught (`verify --junit`)
+- [ ] verifier integrity past a plain test command: measuring benchmark harnesses
 - [x] browser front end: static HTML report and a localhost console, sharing one template
 - [x] a CI gate that fails on any regression against an accepted baseline (`--baseline`, `agentsec diff`)
 - [ ] history across runs

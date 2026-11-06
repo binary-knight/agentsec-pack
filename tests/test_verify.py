@@ -3,6 +3,7 @@
 Each case commits a small project with a bug and then applies what an agent might
 do about it. The project's "test suite" is tests/test_calc.py, run with unittest.
 """
+import importlib.util
 import json
 import os
 import shutil
@@ -760,3 +761,21 @@ def test_results_come_back_from_a_container(project):
     env = vf.verify(str(project), "base", "HEAD", "pip install -q pytest 2>/dev/null; python3 -B -m unittest discover -s tests -t . && "
                     "printf '<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>' > results.xml", image="python:3.12-slim", junit="results.xml")
     assert env["runs"]["head"]["results"] == {"passed": 1, "failed": 0, "error": 0, "skipped": 0}
+
+
+def _sampler():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "select_regrade_sample.py")
+    spec = importlib.util.spec_from_file_location("select_regrade_sample", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_regrade_sample_is_repeatable_and_ignores_whether_tests_were_edited():
+    rows = [{"url": f"u{i}", "base_has_tests": i % 3 != 0, "existing_tests_edited": ["t"] if i % 2 else []} for i in range(60)]
+    draw = _sampler().draw
+    first = draw(rows, 20)
+    assert first == draw(list(reversed(rows)), 20), "the order of the file does not change the draw"
+    assert all(r["base_has_tests"] for r in first)
+    assert {bool(r["existing_tests_edited"]) for r in first} == {True, False}
+    assert len(draw(rows[:6], 20)) == 4, "a short list gives what it has"

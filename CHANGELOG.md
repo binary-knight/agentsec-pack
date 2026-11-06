@@ -6,6 +6,9 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- `verify --junit` confirms a result before calling it `verified`. The new code runs once more with a randomly named test planted beside the existing ones, which must fail. A new verdict, `results-not-credible`, covers a planted test reported as passing, or missing when the same test ran on the base commit. Code that writes its own results file or neuters assertions or the test runner is now caught. If the suite never collects the planted test, or tests give a different result on the same code, the verdict is `unverified`. `--no-planted-test` accepts the results unconfirmed, and suites with no Python test file are not checked this way. A change can still find the planted test in the tree and report it failed along with invented results.
+- `verify` reached `verified` on real agent output: 3 of 20 public pull requests in a sample not chosen for editing its tests, drawn by `scripts/select_regrade_sample.py`. Results are in `docs/MEASUREMENTS.md`.
+
 ## 0.3.0 — 2026-11-05
 
 Probe **0.6.0**, which adds macOS. On Linux, the stricter proxy rule below changes no published score.
