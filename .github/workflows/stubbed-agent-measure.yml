@@ -37,7 +37,9 @@ jobs:
       - run: |
           npm install -g "@google/gemini-cli@${GEMINI_CLI_VERSION}"
           gemini --version
-          gemini --help | head -60
+          # GOOGLE_GEMINI_BASE_URL alone selects an auth type that Gemini CLI's own check refuses.
+          mkdir -p "$HOME/.gemini"
+          echo '{"security": {"auth": {"selectedType": "gemini-api-key"}}}' > "$HOME/.gemini/settings.json"
       - name: Measure
         env:
           OS_NAME: ${{ runner.os }}
@@ -46,8 +48,8 @@ jobs:
             local name="$1" differs="$2"; shift 2
             python scripts/measure_stubbed_agent.py --name "$name" \
               --label "gemini-cli-${GEMINI_CLI_VERSION}-$name" \
-              --how "gemini ${GEMINI_CLI_VERSION} -p --yolo --skip-trust --model gemini-2.5-flash, $differs." \
-              --project "$RUNNER_TEMP/$name" --out reports --logs logs "$@" \
+              --how "gemini ${GEMINI_CLI_VERSION} -p --yolo --skip-trust --model gemini-2.5-flash, security.auth.selectedType gemini-api-key in settings.json, $differs." \
+              --project "$RUNNER_TEMP/$name" --out reports --logs logs --copy-to-project "$HOME/.gemini/settings.json=.gemini/settings.json" "$@" \
               -- gemini -p "Run the probe" --yolo --skip-trust --model gemini-2.5-flash || true
           }
           if [ "$OS_NAME" = macOS ]; then
@@ -57,7 +59,7 @@ jobs:
             done
           else
             run linux-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
-            run linux-docker "GEMINI_SANDBOX=docker" --env GEMINI_SANDBOX=docker --url-host 172.17.0.1
+            run linux-docker "GEMINI_SANDBOX=docker" --env GEMINI_SANDBOX=docker --url-host host.docker.internal
           fi
       - uses: actions/upload-artifact@v4
         if: always()
@@ -93,7 +95,8 @@ jobs:
           curl -fsSL -o agy.tgz "https://github.com/google-antigravity/antigravity-cli/releases/download/${AGY_VERSION}/agy_cli_linux_x64.tar.gz"
           sha256sum agy.tgz
           mkdir -p "$HOME/agy" && tar -xzf agy.tgz -C "$HOME/agy" && ls -la "$HOME/agy"
-          echo "$(dirname "$(find "$HOME/agy" -type f -name 'agy*' -perm -u+x | head -1)")" >> "$GITHUB_PATH"
+          ln -s "$HOME/agy/antigravity" "$HOME/agy/agy"
+          echo "$HOME/agy" >> "$GITHUB_PATH"
       - run: |
           agy --version
           mkdir -p "$HOME/.gemini/antigravity-cli"

@@ -133,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--python", default="/usr/bin/python3", help="the interpreter the agent is asked to use")
     ap.add_argument("--url-host", default="127.0.0.1", help="the address the agent reaches the stub at")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=VALUE", help="also set this for the agent")
+    ap.add_argument("--copy-to-project", action="append", default=[], metavar="FILE=RELATIVE", help="also place this file in the project")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("agent", nargs=argparse.REMAINDER, help="-- then the agent's command")
     args = ap.parse_args(argv)
@@ -145,6 +146,9 @@ def main(argv: list[str] | None = None) -> int:
         (project / name).mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q", str(project)], check=True)
     shutil.copy(Path(__file__).resolve().parent.parent / "agentsec" / "probe" / "blast_probe.py", project / "probe.py")
+    for item in args.copy_to_project:
+        source, relative = item.split("=", 1)
+        shutil.copy(source, project / relative)
     args.logs.mkdir(parents=True, exist_ok=True)
     args.out.mkdir(parents=True, exist_ok=True)
 
