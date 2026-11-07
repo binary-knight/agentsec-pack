@@ -4,6 +4,10 @@ What changed in each release of `agentsec-pack`, newest first. Probe versions
 are listed separately because a report records the probe version that took it,
 and two reports are only comparable when it matches or the difference is known.
 
+## Unreleased
+
+- Anthropic's sandbox runtime, `srt` 0.0.81, measured on macOS in four configurations. With `allowWrite ["."]` it leaves Claude Code's project settings files writable, which its documentation describes, and naming them in `denyWrite` protects them.
+
 ## 0.4.0 — 2026-11-07
 
 Probe **0.7.0**. Earlier reports were not re-run, and a sandbox that allowlists at TLS reads differently from what 0.6.0 reported for it.

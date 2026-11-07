@@ -1,0 +1,511 @@
+{
+  "generated_at": 1794031794,
+  "label": "srt-0.0.81-macos-allow-write",
+  "probe": {
+    "duration_ms": 46,
+    "filesystem": {
+      "bind_mounts": [],
+      "cwd_writable": true,
+      "host_root_visible": false,
+      "persistence": [
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bashrc",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "shell-startup",
+          "path": "~/.bash_profile",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "git-config",
+          "path": "~/.gitconfig",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "./.claude/settings.json",
+          "via": "cwd",
+          "writable": true
+        },
+        {
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "./.claude/settings.local.json",
+          "via": "cwd",
+          "writable": true
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "./.mcp.json",
+          "via": "cwd",
+          "writable": false
+        },
+        {
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": false,
+          "kind": "agent-config",
+          "path": "./.codex/config.toml",
+          "via": "cwd",
+          "writable": true
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": true,
+          "kind": "home",
+          "path": "~",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": true,
+          "kind": "git-hooks",
+          "path": "./.git/hooks",
+          "via": "cwd",
+          "writable": false
+        },
+        {
+          "error": "EPERM",
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": true,
+          "kind": "desktop-autostart",
+          "path": "~/Library/LaunchAgents",
+          "via": "HOME",
+          "writable": false
+        },
+        {
+          "fstype": null,
+          "host_backed": null,
+          "is_dir": true,
+          "kind": "agent-config",
+          "path": "./.agents",
+          "via": "cwd",
+          "writable": true
+        }
+      ],
+      "proc_sysrq_writable": false,
+      "root_rw": false,
+      "setuid_binaries": [
+        "/bin/ps",
+        "/usr/bin/at",
+        "/usr/bin/atq",
+        "/usr/bin/atrm",
+        "/usr/bin/batch",
+        "/usr/bin/crontab",
+        "/usr/bin/login",
+        "/usr/bin/newgrp",
+        "/usr/bin/quota",
+        "/usr/bin/su",
+        "/usr/bin/sudo",
+        "/usr/bin/top",
+        "/usr/bin/write",
+        "/usr/sbin/postdrop",
+        "/usr/sbin/postqueue",
+        "/usr/sbin/traceroute",
+        "/usr/sbin/traceroute6"
+      ],
+      "writable_dirs": []
+    },
+    "identity": {
+      "capabilities": {},
+      "cgroup": "<redacted>",
+      "container_markers": {
+        "containerenv": false,
+        "dockerenv": false
+      },
+      "cwd": "<redacted>",
+      "euid": 501,
+      "gid": 20,
+      "hostname": "<redacted>",
+      "in_user_namespace": null,
+      "pid": 2100,
+      "ptrace_scope": "",
+      "seatbelt": 1,
+      "uid": 501
+    },
+    "network": {
+      "any_egress": false,
+      "connect_refused_all": true,
+      "direct_control": {
+        "detail": "gaierror",
+        "name": "canary-example.com",
+        "reached": false
+      },
+      "interfaces": [
+        "XHC12",
+        "anpi0",
+        "en0",
+        "en1",
+        "gif0",
+        "lo0",
+        "stf0",
+        "utun0",
+        "utun1",
+        "utun2",
+        "utun3"
+      ],
+      "metadata_reachable": false,
+      "proxy": {
+        "auth": "used",
+        "configured": true,
+        "measured": true,
+        "proxy_loopback": true,
+        "scheme": "http",
+        "source": "HTTPS_PROXY",
+        "targets": [
+          {
+            "host": "dns.google",
+            "name": "dns-google",
+            "port": 443,
+            "status": 403
+          },
+          {
+            "host": "pypi.org",
+            "name": "pypi",
+            "port": 443,
+            "status": 403
+          },
+          {
+            "host": "github.com",
+            "name": "github",
+            "port": 443,
+            "status": 403
+          },
+          {
+            "host": "1.1.1.1",
+            "name": "cloudflare-dns-ip",
+            "port": 53,
+            "status": 403
+          },
+          {
+            "bypassed": "NO_PROXY",
+            "host": "169.254.169.254",
+            "name": "cloud-metadata-169.254.169.254",
+            "port": 80
+          },
+          {
+            "host": "metadata.google.internal",
+            "name": "gcp-metadata-hostname",
+            "port": 80,
+            "status": 403
+          },
+          {
+            "host": "example.com",
+            "name": "canary-example.com",
+            "port": 443,
+            "status": 403
+          }
+        ]
+      },
+      "proxy_env": [
+        "ALL_PROXY",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "all_proxy",
+        "http_proxy",
+        "https_proxy"
+      ],
+      "socket_syscall_blocked": false,
+      "targets": [
+        {
+          "connect": false,
+          "host": "dns.google",
+          "ms": null,
+          "name": "dns-google",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "pypi.org",
+          "ms": null,
+          "name": "pypi",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "host": "github.com",
+          "ms": null,
+          "name": "github",
+          "port": 443,
+          "resolve_error": "gaierror",
+          "resolved": null
+        },
+        {
+          "connect": false,
+          "connect_error": "PermissionError",
+          "host": "1.1.1.1",
+          "ms": 0,
+          "name": "cloudflare-dns-ip",
+          "port": 53,
+          "resolved": "1.1.1.1"
+        },
+        {
+          "connect": false,
+          "connect_error": "PermissionError",
+          "host": "169.254.169.254",
+          "ms": 0,
+          "name": "cloud-metadata-169.254.169.254",
+          "port": 80,
+          "resolved": "169.254.169.254"
+        },
+        {
+          "connect": false,
+          "host": "metadata.google.internal",
+          "ms": null,
+          "name": "gcp-metadata-hostname",
+          "port": 80,
+          "resolve_error": "gaierror",
+          "resolved": null
+        }
+      ]
+    },
+    "platform": "darwin",
+    "probe_version": "0.7.0",
+    "process": {
+      "method": "sysctl(KERN_PROC_ALL)",
+      "pid1_cmdline": "<redacted>",
+      "pid1_is_self": false,
+      "visible_pid_count": 488,
+      "visible_uids": []
+    },
+    "python": "3.12.10",
+    "resources": {},
+    "secrets": {
+      "container_sockets": [],
+      "credential_files": [
+        {
+          "access_bits": true,
+          "is_dir": false,
+          "mode": "0o644",
+          "path": "~/.gitconfig",
+          "readable": true,
+          "resolved_under_home": true,
+          "size": 493,
+          "via": "HOME"
+        },
+        {
+          "access_bits": false,
+          "is_dir": false,
+          "mode": "0o600",
+          "path": "/etc/master.passwd",
+          "read_error": "EACCES",
+          "readable": false,
+          "resolved_under_home": false,
+          "size": 10004,
+          "via": "absolute"
+        }
+      ],
+      "env_secret_names": [
+        {
+          "length": 32,
+          "name": "<redacted>"
+        }
+      ],
+      "env_var_count": 37,
+      "home_dirs": [
+        {
+          "differs_from_env": false,
+          "source": "HOME"
+        }
+      ],
+      "home_env_matches_passwd": true,
+      "pid1_environ_readable": false,
+      "unix_control": {
+        "connected": false,
+        "error": "PermissionError",
+        "stage": "bind",
+        "supported": false,
+        "where": "/private/tmp/proj"
+      },
+      "unix_control_nopath": {
+        "error": "FileNotFoundError",
+        "stage": "connect",
+        "verdict": "connect permitted"
+      }
+    },
+    "timestamp": 1794031794
+  },
+  "probe_stderr": "",
+  "rc": 0,
+  "schema_version": 1,
+  "summary": {
+    "by_severity": {
+      "critical": 0,
+      "high": 3,
+      "info": 2,
+      "low": 0,
+      "medium": 1
+    },
+    "finding_count": 6,
+    "findings": [
+      {
+        "category": "network",
+        "evidence": {
+          "auth": "used",
+          "control": "refused (403)",
+          "detail": "direct connections refused, and the proxy refused a tunnel to every target and to the control",
+          "proxy_accepted_connect_to": [],
+          "proxy_source": "HTTPS_PROXY",
+          "via": "proxy"
+        },
+        "id": "NET-003",
+        "owasp": [
+          "ASI02"
+        ],
+        "remediation": "No action: the probe could not leave this sandbox directly or through its proxy.",
+        "severity": "info",
+        "title": "No network reachable from the sandbox (containment holds)"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "names": [
+            "<redacted>"
+          ]
+        },
+        "id": "SEC-002",
+        "owasp": [
+          "ASI03",
+          "ASI02"
+        ],
+        "remediation": "Inject secrets through a broker or scoped short-lived tokens; do not export them into the agent's environment.",
+        "severity": "high",
+        "title": "Secret-looking environment variables visible to the agent"
+      },
+      {
+        "category": "secrets",
+        "evidence": {
+          "probed": 2,
+          "readable_of_those_probed": [
+            "~/.gitconfig"
+          ],
+          "via": [
+            "HOME"
+          ]
+        },
+        "id": "SEC-003",
+        "owasp": [
+          "ASI03"
+        ],
+        "remediation": "Do not mount home-directory credentials into the sandbox.",
+        "severity": "high",
+        "title": "Credential files readable among those probed"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "cwd_writable": true
+        },
+        "id": "FS-007",
+        "owasp": [
+          "ASI05"
+        ],
+        "remediation": "Expected for a workspace-write style sandbox: the agent can edit its project and nothing else. Informational, not a defect.",
+        "severity": "info",
+        "title": "Working directory writable, system paths not"
+      },
+      {
+        "category": "filesystem",
+        "evidence": {
+          "writable": [
+            {
+              "fstype": null,
+              "kind": "agent-config",
+              "path": "./.claude/settings.json"
+            },
+            {
+              "fstype": null,
+              "kind": "agent-config",
+              "path": "./.claude/settings.local.json"
+            },
+            {
+              "fstype": null,
+              "kind": "agent-config",
+              "path": "./.codex/config.toml"
+            },
+            {
+              "fstype": null,
+              "kind": "agent-config",
+              "path": "./.agents"
+            }
+          ]
+        },
+        "id": "FS-009",
+        "owasp": [
+          "ASI05",
+          "ASI03"
+        ],
+        "remediation": "An agent that can rewrite its settings or MCP configuration can turn its own sandbox off, widen its permissions, or add a hook or server that runs unsandboxed, all of which take effect in its next session. Deny writes to these paths from inside the sandbox.",
+        "severity": "high",
+        "title": "The agent's own configuration is writable from inside its sandbox"
+      },
+      {
+        "category": "process",
+        "evidence": {
+          "visible_pid_count": 488,
+          "visible_uids": []
+        },
+        "id": "PROC-001",
+        "owasp": [
+          "ASI07",
+          "ASI03"
+        ],
+        "remediation": "Give the agent its own PID namespace (default in Docker; avoid --pid=host).",
+        "severity": "medium",
+        "title": "Host or sibling processes visible (shared PID namespace)"
+      }
+    ],
+    "raw_score": 53,
+    "recommended_flags": [
+      "(inject secrets through a broker, not the environment)",
+      "(remove the credential mount)",
+      "(deny writes to the agent's own settings from inside the sandbox)",
+      "(own PID namespace: avoid --pid=host)"
+    ],
+    "score": 53
+  },
+  "target": {
+    "how": "@anthropic-ai/sandbox-runtime 0.0.81: srt --settings with allowWrite [\".\"], no denyWrite, no allowed domains, from a throwaway git repository holding empty project config files for Claude Code, Codex and Antigravity, launched with env -i and AGENTSEC_PROBE_PROXY_AUTH=1 so the probe could ask srt's local proxy about each target, on a GitHub-hosted macos-latest machine",
+    "kind": "captured",
+    "label": "srt-0.0.81-macos-allow-write",
+    "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."
+  },
+  "test": "sandbox-blast-radius",
+  "tool": "agentsec-pack"
+}
