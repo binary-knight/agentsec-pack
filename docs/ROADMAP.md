@@ -7,7 +7,7 @@ that is not the implementer's to make.
 The rule that governs every measurement item still applies: a number goes in
 only from a run that was actually made, and says how it was made.
 
-Last revised 2026-11-06.
+Last revised 2026-11-07.
 
 ## Next
 
@@ -51,7 +51,7 @@ The rules `agentsec benchmark` enforces:
 - A figure is a median, the most common state of each axis, and how many accounts it rests on. Reproduced results are shown apart and say where they came from.
 
 **Done when:**
-- A public figures page is built from the issues on a schedule, which needs a release that includes these commands.
+- A public figures page is built from the issues on a schedule.
 - Enough people have submitted that a configuration crosses the threshold.
 - A hosted endpoint waits until volume calls for one, along with the privacy policy, abuse protection and hosting cost it brings.
 
@@ -59,7 +59,7 @@ The rules `agentsec benchmark` enforces:
 
 ## Done
 
-**Unreleased, on main**
+**0.4.0, 2026-11-07**
 - Probe 0.7.0, which no longer reports an allowlist that filters at TLS as open internet, and flags gVisor.
 - Antigravity CLI's sandbox and Gemini CLI measured, with a local stand-in for the model.
 - A dev container measured with VS Code attached, and Modal Sandboxes measured.

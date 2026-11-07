@@ -4,19 +4,28 @@ What changed in each release of `agentsec-pack`, newest first. Probe versions
 are listed separately because a report records the probe version that took it,
 and two reports are only comparable when it matches or the difference is known.
 
-## Unreleased
+## 0.4.0 — 2026-11-07
 
-- Probe **0.7.0**. A connection refused during TLS no longer counts as reached, and only an explicit refusal counts, so a stall stays reached. The probe tries `example.com` directly as a control, and reached hosts with the control unreachable score as NET-005, allowlisted, instead of NET-001. PRIV-007 flags gVisor, whose kernel is what the privilege findings describe, without changing the score. Earlier reports were not re-run.
-- Antigravity CLI 1.5.1's sandbox measured for the first time, on a machine that allows unprivileged user namespaces: 31 with `proceed-in-sandbox`, 71 with `--dangerously-skip-permissions`, and 100 without a sandbox. Gemini CLI 0.67.0 measured on Linux and macOS: 100 under Docker with 102 raw, and 75 under each Seatbelt profile tried. Both use `scripts/measure_stubbed_agent.py`, which replaces the model with a local stand-in through `GOOGLE_GEMINI_BASE_URL`, so no account or key is needed.
-- A dev container measured with VS Code attached, through `scripts/measure_devcontainer_editor.sh`: 87, against 57 through the CLI, with an SSH agent and `~/.gitconfig` as the difference.
-- Modal Sandboxes measured through `scripts/measure_modal.py`. The scores overstate what they show, because most of the points describe gVisor's kernel.
+Probe **0.7.0**. Earlier reports were not re-run, and a sandbox that allowlists at TLS reads differently from what 0.6.0 reported for it.
+
+**Checking an agent's work**
 - `verify --junit` confirms a result before calling it `verified`. The new code runs once more with a randomly named test planted beside the existing ones, which must fail. A new verdict, `results-not-credible`, covers a planted test reported as passing, or missing when the same test ran on the base commit. Code that writes its own results file or neuters assertions or the test runner is now caught. If the suite never collects the planted test, or tests give a different result on the same code, the verdict is `unverified`. `--no-planted-test` accepts the results unconfirmed, and suites with no Python test file are not checked this way. A change can still find the planted test in the tree and report it failed along with invented results. (#41)
 - `verify` reached `verified` on real agent output: 3 of 20 public pull requests in a sample not chosen for editing its tests, drawn by `scripts/select_regrade_sample.py`. Results are in `docs/MEASUREMENTS.md`. (#41)
 - `scripts/check_harbor_grader.sh` checks a benchmark's grader through real Harbor with three graded runs: nothing done, the task's own solution, and `ForgeAgent`, which only tries to fake a pass. Three public Terminal-Bench tasks held and two did not settle. Two control tasks show the forgery scoring when the verifier shares the agent's container and failing when it does not. Results are in `docs/MEASUREMENTS.md`. (#40)
-- Dev containers measured through the real devcontainer CLI on a GitHub-hosted machine, with `scripts/measure_devcontainer.sh`, `devcontainer-measure.yml`, and a capture recipe in `docs/CAPTURING.md`. Results are in `docs/MEASUREMENTS.md`. (#39)
-- `agentsec submit` prepares one measurement for a public dataset: it prints the exact record, asks at the terminal, and opens a pre-filled issue that the person posts. The record holds the agent, version, sandbox mode and settings, OS family, probe version, axis states, finding ids and score, and refuses words that look like a path, a variable name, or this machine's names. There is no default dataset, so `--to` is required. (#38)
+
+**Measuring**
+- A connection refused during TLS no longer counts as reached, and only an explicit refusal counts, so a stall stays reached. The probe tries `example.com` directly as a control, and reached hosts with the control unreachable score as NET-005, allowlisted, instead of NET-001. PRIV-007 flags gVisor, whose kernel is what the privilege findings describe, without changing the score. (#42)
 - `agentsec history` shows how a sandbox's score and findings moved across saved runs, using the same comparison as the `--baseline` gate. `--save FILE` keeps a line per run after a report with that label is replaced, with what each finding reached stored only as hashes. (#37)
-- `agentsec benchmark` turns submitted issues into figures: a configuration appears once 5 different GitHub accounts have submitted it, each account counts once, and a figure is a median with the number of accounts behind it. Reproduced results are shown apart. `agentsec submit` now opens its issue in `binary-knight/agentsec-benchmark` by default, and says that posting releases the record under CC0 1.0.
+
+**Sharing results**
+- `agentsec submit` prepares one measurement for a public dataset: it prints the exact record, asks at the terminal, and opens a pre-filled issue that the person posts. The record holds the agent, version, sandbox mode and settings, OS family, probe version, axis states, finding ids and score, and refuses words that look like a path, a variable name, or this machine's names. It opens its issue in `binary-knight/agentsec-benchmark` unless `--to` names another repository, and says that posting releases the record under CC0 1.0. (#38, #43)
+- `agentsec benchmark` turns submitted issues into figures: a configuration appears once 5 different GitHub accounts have submitted it, each account counts once, and a figure is a median with the number of accounts behind it. Reproduced results are shown apart. (#43)
+
+**Measured profiles**
+- Antigravity CLI 1.5.1's sandbox measured for the first time, on a machine that allows unprivileged user namespaces: 31 with `proceed-in-sandbox`, 71 with `--dangerously-skip-permissions`, and 100 without a sandbox. Gemini CLI 0.67.0 measured on Linux and macOS: 100 under Docker with 102 raw, and 75 under each Seatbelt profile tried. Both use `scripts/measure_stubbed_agent.py`, which replaces the model with a local stand-in through `GOOGLE_GEMINI_BASE_URL`, so no account or key is needed. (#42)
+- A dev container measured with VS Code attached, through `scripts/measure_devcontainer_editor.sh`: 87, against 57 through the CLI, with an SSH agent and `~/.gitconfig` as the difference. (#42)
+- Dev containers measured through the real devcontainer CLI on a GitHub-hosted machine, with `scripts/measure_devcontainer.sh`, `devcontainer-measure.yml`, and a capture recipe in `docs/CAPTURING.md`. Results are in `docs/MEASUREMENTS.md`. (#39)
+- Modal Sandboxes measured through `scripts/measure_modal.py`. The scores overstate what they show, because most of the points describe gVisor's kernel. (#42)
 
 ## 0.3.0 — 2026-11-05
 
