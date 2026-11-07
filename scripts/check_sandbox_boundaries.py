@@ -95,8 +95,10 @@ def request(sock: socket.socket, host: str, tls: bool) -> dict[str, object]:
     """Send one request down an open connection, and say what came back. Nothing of the body is kept."""
     if not tls:
         return _first_line(sock, host)
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     try:
-        with ssl.create_default_context().wrap_socket(sock, server_hostname=host) as wrapped:
+        with context.wrap_socket(sock, server_hostname=host) as wrapped:
             return {"tls": "verified", "issuer": _issuer(wrapped.getpeercert()), **_first_line(wrapped, host)}
     except ssl.SSLCertVerificationError as e:
         return {"tls": "certificate not verified", "error": e.verify_message}
