@@ -4,6 +4,10 @@ What changed in each release of `agentsec-pack`, newest first. Probe versions
 are listed separately because a report records the probe version that took it,
 and two reports are only comparable when it matches or the difference is known.
 
+## Unreleased
+
+- Antigravity CLI 1.5.2 measured, with writes and proxy traffic tested for real by `scripts/check_sandbox_boundaries.py`. `--dangerously-skip-permissions` now scores 100 under `--sandbox`, and the 1.5.1 proxy did not appear. With `proceed-in-sandbox` the score stays 31 and the working directory stays read-only, while files written to the build caches it leaves writable, including `~/.cargo/bin`, persist on the host. `measure_stubbed_agent.py` gains `--script` to run a check in place of the probe.
+
 ## 0.4.0 — 2026-11-07
 
 Probe **0.7.0**. Earlier reports were not re-run, and a sandbox that allowlists at TLS reads differently from what 0.6.0 reported for it.

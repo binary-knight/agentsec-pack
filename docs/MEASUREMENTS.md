@@ -85,6 +85,28 @@ Inside the sandbox the process was in a user namespace with seccomp mode 2 and `
 
 NET-002 is 25 of the points in the 71 and comes through the proxy. Reports are in `examples/agents/antigravity-cli-1.5.1-*`.
 
+Both 1.5.1 results that differ from the sandbox page were raised with Google on 2026-11-07, as [google-antigravity/antigravity-cli#1452](https://github.com/google-antigravity/antigravity-cli/issues/1452) (the read-only working directory) and [#1453](https://github.com/google-antigravity/antigravity-cli/issues/1453) (the proxy).
+
+#### 1.5.2, with writes and proxy traffic tested for real
+
+On 2026-11-07 `agy` 1.5.2 was measured the same way, and `scripts/check_sandbox_boundaries.py` tested what the reports above only infer. Run inside the sandbox, it tries a write in each directory and sends real requests through any proxy. Run on the host afterward, it reports which writes are visible outside the sandbox and runs the one file it left in `~/.cargo/bin`. Records are in `examples/antigravity-boundaries/`.
+
+| `agy` 1.5.2 on `ubuntu-22.04`, probe 0.7.0 | Score | Working directory writable | Network |
+|---|---:|---|---|
+| `--dangerously-skip-permissions`, no sandbox | 100 | yes | direct |
+| `--sandbox --dangerously-skip-permissions` | 100 | yes | direct |
+| `--sandbox`, `toolPermission` set to `proceed-in-sandbox` | 31 | no | none: every connection and lookup refused, no proxy |
+| the same, with an allow rule `write_file(<project>)` | | yes | none |
+| the same, with the project in `trustedWorkspaces` | | no | none |
+
+**`--dangerously-skip-permissions` no longer leaves a sandbox to measure.** Under `--sandbox` it scored 100 with the same findings as no sandbox, and writes to the home directory and the project persisted on the host. The 1.5.2 release notes change how the flag handles writes outside the workspace. The proxy from 1.5.1 did not appear. The check's own report from inside that run did not come back, because the agent went idle waiting on a background task, so only the host side of it is recorded.
+
+**With `proceed-in-sandbox` the sandbox still holds, and the working directory is still read-only.** Writes to the project, its `.git/hooks`, the home directory and `~/.config` were refused, and nothing left over the network. The project became writable only with an explicit `write_file` rule. Adding it to `trustedWorkspaces` changed nothing.
+
+**The build caches it leaves writable persist on the host.** In every `proceed-in-sandbox` run, files written to `~/.cache`, `~/.cargo`, `~/.cargo/bin`, `~/.dotnet`, `~/.nvm` and `~/.rustup` were visible on the host afterward, and the file left in `~/.cargo/bin` ran when the host check executed it. The sandbox page says commands can write to common build caches, so the writability is documented. What it does not say is that some of those directories hold programs that later run outside the sandbox, such as `~/.cargo/bin`, which Rust's installer usually puts on `PATH`. Whether it was on `PATH` on this machine was not checked.
+
+Reports are in `examples/agents/antigravity-cli-1.5.2-*`.
+
 ### Gemini CLI
 
 Gemini CLI 0.67.0 was measured on 2026-11-06 on GitHub-hosted machines with probe 0.7.0, through `.github/workflows/stubbed-agent-measure.yml`.
