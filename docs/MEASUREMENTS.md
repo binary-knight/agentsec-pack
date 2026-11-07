@@ -94,12 +94,14 @@ On 2026-11-07 `agy` 1.5.2 was measured the same way, and `scripts/check_sandbox_
 | `agy` 1.5.2 on `ubuntu-22.04`, probe 0.7.0 | Score | Working directory writable | Network |
 |---|---:|---|---|
 | `--dangerously-skip-permissions`, no sandbox | 100 | yes | direct |
-| `--sandbox --dangerously-skip-permissions` | 100 | yes | direct |
+| `--sandbox --dangerously-skip-permissions` | 100 | yes | direct connections refused, a proxy accepting tunnels to any hostname |
 | `--sandbox`, `toolPermission` set to `proceed-in-sandbox` | 31 | no | none: every connection and lookup refused, no proxy |
 | the same, with an allow rule `write_file(<project>)` | | yes | none |
 | the same, with the project in `trustedWorkspaces` | | no | none |
 
-**`--dangerously-skip-permissions` no longer leaves a sandbox to measure.** Under `--sandbox` it scored 100 with the same findings as no sandbox, and writes to the home directory and the project persisted on the host. The 1.5.2 release notes change how the flag handles writes outside the workspace. The proxy from 1.5.1 did not appear. The check's own report from inside that run did not come back, because the agent went idle waiting on a background task, so only the host side of it is recorded.
+**Under `--sandbox`, `--dangerously-skip-permissions` now opens most of the filesystem.** The sandbox still started, in a user namespace with seccomp mode 2, and direct connections still failed. But the working directory, the home directory and its shell startup files, `.agents` and `/opt` were writable, and the score rose from 71 to 100, 109 raw. Writes to the home directory and the project persisted on the host. The 1.5.2 release notes say reads and writes outside the workspace now go through under this flag without a prompt.
+
+**The 1.5.1 proxy is still there.** It accepted tunnels to every hostname tried, including the control host and `metadata.google.internal`, and answered 400 to IP addresses. Whether traffic went through it is still not shown: the check's own report from inside that run did not come back, because the agent went idle waiting on a background task, so only the host side of it is recorded.
 
 **With `proceed-in-sandbox` the sandbox still holds, and the working directory is still read-only.** Writes to the project, its `.git/hooks`, the home directory and `~/.config` were refused, and nothing left over the network. The project became writable only with an explicit `write_file` rule. Adding it to `trustedWorkspaces` changed nothing.
 
