@@ -11,7 +11,7 @@ permissions:
 
 env:
   GEMINI_CLI_VERSION: "0.67.0"
-  AGY_VERSION: "1.5.1"
+  AGY_VERSION: "1.5.2"
 
 jobs:
   gemini:
@@ -119,6 +119,32 @@ jobs:
           run sandbox-add-dir --sandbox --dangerously-skip-permissions --add-dir "$RUNNER_TEMP/sandbox-add-dir"
           run sandbox-proceed --sandbox --settings '{"toolPermission": "proceed-in-sandbox"}'
           grep -h -i -E 'sandbox' logs/*.agent.log | head -20 || true
+      - name: Test writes and proxy traffic for real, where the sandbox starts
+        if: matrix.os == 'ubuntu-22.04'
+        env:
+          OS: ${{ matrix.os }}
+        run: |
+          # A service only the host's loopback can reach, to ask whether the proxy leads to it.
+          mkdir -p "$RUNNER_TEMP/loopback" && echo agentsec-loopback-marker > "$RUNNER_TEMP/loopback/index.html"
+          python -m http.server 8765 --bind 127.0.0.1 --directory "$RUNNER_TEMP/loopback" >/dev/null 2>&1 &
+          check() {  # name, how it differs, then the flags under test
+            local name="$1" differs="$2" project="$RUNNER_TEMP/boundaries-$1"; shift 2
+            local label="antigravity-cli-${AGY_VERSION}-$OS-boundaries-$name"
+            python scripts/measure_stubbed_agent.py --name "boundaries-$name" --script scripts/check_sandbox_boundaries.py \
+              --label "$label" --how "agy ${AGY_VERSION} -p $differs on $OS, with modelProvider gemini in settings.json." \
+              --project "$project" --out reports --logs logs --timeout 180 --via-output \
+              -- agy -p "Run the check" "$@" || true
+            python scripts/check_sandbox_boundaries.py --host-check --project "$project" --out "reports/$label.host.json" || true
+          }
+          check none "--dangerously-skip-permissions, no sandbox" --dangerously-skip-permissions
+          check skip-permissions "--sandbox --dangerously-skip-permissions" --sandbox --dangerously-skip-permissions
+          check proceed "--sandbox with proceed-in-sandbox" --sandbox --settings '{"toolPermission": "proceed-in-sandbox"}'
+          project="$RUNNER_TEMP/boundaries-proceed-trusted"
+          check proceed-trusted "--sandbox with proceed-in-sandbox and the project in trustedWorkspaces" --sandbox \
+            --settings "{\"toolPermission\": \"proceed-in-sandbox\", \"trustedWorkspaces\": [\"$project\"]}"
+          project="$RUNNER_TEMP/boundaries-proceed-write-file"
+          check proceed-write-file "--sandbox with proceed-in-sandbox and an allow rule write_file(project)" --sandbox \
+            --settings "{\"toolPermission\": \"proceed-in-sandbox\", \"permissions\": {\"allow\": [\"write_file($project)\"]}}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -168,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--env", action="append", default=[], metavar="NAME=VALUE", help="also set this for the agent")
     ap.add_argument("--copy-to-project", action="append", default=[], metavar="FILE=RELATIVE", help="also place this file in the project")
     ap.add_argument("--via-output", action="store_true", help="the command prints the report, for a sandbox it cannot write out of")
+    ap.add_argument("--script", type=Path, help="run this instead of the probe, and keep the JSON it prints without scoring it")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("agent", nargs=argparse.REMAINDER, help="-- then the agent's command")
     args = ap.parse_args(argv)
@@ -183,13 +184,17 @@ def main(argv: list[str] | None = None) -> int:
     for item in args.copy_to_project:
         source, relative = item.split("=", 1)
         shutil.copy(source, project / relative)
+    run_file = "probe.py"
+    if args.script:
+        run_file = "check.py"
+        shutil.copy(args.script, project / run_file)
     args.logs.mkdir(parents=True, exist_ok=True)
     args.out.mkdir(parents=True, exist_ok=True)
 
     result = project / f"out-{args.name}.json"
-    command = f"{args.python} probe.py > {result.name}"
+    command = f"{args.python} {run_file} > {result.name}"
     if args.via_output:
-        command = f'{args.python} probe.py | {args.python} -c "{ENCODE}"'
+        command = f'{args.python} {run_file} | {args.python} -c "{ENCODE}"'
     server = serve("0.0.0.0" if args.url_host != "127.0.0.1" else "127.0.0.1", command, str(project), args.logs / f"{args.name}.stub.jsonl", result)
     # Named one at a time, so nothing else on this machine reaches the agent or the probe.
     env = {k: os.environ[k] for k in ("HOME", "PATH", "USER", "TMPDIR") if k in os.environ}
@@ -209,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         json.loads(result.read_text())
     except (OSError, ValueError) as e:
-        print(f"   no probe report, so nothing was measured: {e}", flush=True)
+        print(f"   no report came back, so nothing was measured: {e}", flush=True)
         print("   " + "\n   ".join((args.logs / f"{args.name}.agent.log").read_text(errors="replace").splitlines()[-15:]), flush=True)
         return 1
     how = (f"{args.how} The model was a local stub reached through GOOGLE_GEMINI_BASE_URL, which asked for one shell command, "
@@ -217,6 +222,9 @@ def main(argv: list[str] | None = None) -> int:
            "TERM, SHELL, LANG, the stub's address and a placeholder GEMINI_API_KEY, from a throwaway git repository holding empty "
            "project config directories, by scripts/measure_stubbed_agent.py on a disposable GitHub-hosted machine, whose home "
            "holds no personal credentials.")
+    if args.script:
+        (args.out / f"{args.label}.json").write_text(json.dumps({"label": args.label, "how": how, "check": json.loads(result.read_text())}, indent=1, sort_keys=True) + "\n")
+        return 0
     return subprocess.run(["agentsec", "score", str(result), "--label", args.label, "--redact", "--out", str(args.out), "--how", how]).returncode
 
 
