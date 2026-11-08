@@ -1,0 +1,17 @@
+{
+ "markers_visible_on_host": {
+  ".": true,
+  ".agents": true,
+  ".git/hooks": true,
+  "/tmp": true,
+  "~": true,
+  "~/.cache": true,
+  "~/.cargo": true,
+  "~/.cargo/bin": true,
+  "~/.config": true,
+  "~/.dotnet": true,
+  "~/.nvm": true,
+  "~/.rustup": true
+ },
+ "planted_ran_on_host": true
+}

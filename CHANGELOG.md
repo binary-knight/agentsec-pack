@@ -6,6 +6,7 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- Antigravity CLI 1.5.2 measured, with writes and proxy traffic tested for real by `scripts/check_sandbox_boundaries.py`. Under `--sandbox`, `--dangerously-skip-permissions` now leaves the home directory, its shell startup files and the project writable and scores 100, and the 1.5.1 proxy still accepts tunnels to any hostname. With `proceed-in-sandbox` the score stays 31 and the working directory stays read-only, while files written to the build caches it leaves writable, including `~/.cargo/bin`, persist on the host. `measure_stubbed_agent.py` gains `--script` to run a check in place of the probe.
 - Anthropic's sandbox runtime, `srt` 0.0.81, measured on macOS in four configurations. With `allowWrite ["."]` it leaves Claude Code's project settings files writable, which its documentation describes, and naming them in `denyWrite` protects them.
 
 ## 0.4.0 — 2026-11-07
