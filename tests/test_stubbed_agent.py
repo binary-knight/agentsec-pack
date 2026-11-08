@@ -112,3 +112,28 @@ def test_a_cut_off_report_or_the_echoed_command_is_not_a_report():
     assert stub.report_in(response_body(printed_report("{}")[:-5])) is None
     assert stub.report_in(response_body(stub.ENCODE)) is None
     assert stub.report_in({}) is None
+
+
+def test_a_script_runs_in_place_of_the_probe_and_its_output_is_kept_unscored(tmp_path, monkeypatch):
+    agent = tmp_path / "fake-agent"
+    agent.write_text(f"""#!{sys.executable}
+import json, os, subprocess, urllib.request
+def ask(body):
+    request = urllib.request.Request(os.environ["GOOGLE_GEMINI_BASE_URL"] + "/v1beta/models/m:generateContent", json.dumps(body).encode())
+    return json.load(urllib.request.urlopen(request))
+tools = {json.dumps(GEMINI_TOOLS)}
+part = ask({{"tools": tools, "contents": []}})["candidates"][0]["content"]["parts"][0]
+subprocess.run(part["functionCall"]["args"]["command"], shell=True, check=True)
+""")
+    agent.chmod(agent.stat().st_mode | stat.S_IEXEC)
+    script = tmp_path / "script.py"
+    script.write_text('import json\nprint(json.dumps({"from": "script"}))\n')
+    monkeypatch.setenv("PATH", str(Path(sys.executable).parent), prepend=":")
+    out = tmp_path / "reports"
+    code = stub.main(["--name", "fake", "--label", "fake-check", "--how", "a test.", "--project", str(tmp_path / "p"), "--out", str(out), "--logs", str(tmp_path / "logs"),
+                      "--python", sys.executable, "--timeout", "120", "--script", str(script), "--", str(agent)])
+    assert code == 0
+    kept = json.loads((out / "fake-check.json").read_text())
+    assert kept["check"] == {"from": "script"}
+    assert "The model was a local stub" in kept["how"]
+    assert not list(out.glob("*.md"))

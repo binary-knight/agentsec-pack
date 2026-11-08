@@ -1,0 +1,116 @@
+{
+ "check": {
+  "direct": [
+   {
+    "connected": false,
+    "error": "gaierror",
+    "host": "example.com",
+    "port": 443
+   },
+   {
+    "connected": false,
+    "error": "ConnectionRefusedError",
+    "host": "127.0.0.1",
+    "port": 8765
+   }
+  ],
+  "existing_tools": [
+   {
+    "exists": true,
+    "open_for_append": true,
+    "path": "~/.cargo/bin/cargo"
+   },
+   {
+    "exists": true,
+    "open_for_append": true,
+    "path": "~/.cargo/bin/rustup"
+   },
+   {
+    "exists": false,
+    "path": "~/.dotnet/dotnet"
+   },
+   {
+    "exists": true,
+    "open_for_append": true,
+    "path": "~/.nvm/nvm.sh"
+   }
+  ],
+  "proxy": {
+   "configured": false
+  },
+  "writes": [
+   {
+    "errno": 30,
+    "error": "OSError",
+    "exists": true,
+    "path": ".",
+    "written": false
+   },
+   {
+    "errno": 30,
+    "error": "OSError",
+    "exists": true,
+    "path": ".git/hooks",
+    "written": false
+   },
+   {
+    "errno": 30,
+    "error": "OSError",
+    "exists": true,
+    "path": ".agents",
+    "written": false
+   },
+   {
+    "errno": 30,
+    "error": "OSError",
+    "exists": true,
+    "path": "~",
+    "written": false
+   },
+   {
+    "errno": 30,
+    "error": "OSError",
+    "exists": true,
+    "path": "~/.config",
+    "written": false
+   },
+   {
+    "exists": true,
+    "path": "~/.cache",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "~/.cargo",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "~/.cargo/bin",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "~/.dotnet",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "~/.nvm",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "~/.rustup",
+    "written": true
+   },
+   {
+    "exists": true,
+    "path": "/tmp",
+    "written": true
+   }
+  ]
+ },
+ "how": "agy 1.5.2 -p --sandbox with proceed-in-sandbox on ubuntu-22.04, with modelProvider gemini in settings.json. The model was a local stub reached through GOOGLE_GEMINI_BASE_URL, which asked for one shell command, /usr/bin/python3 check.py | /usr/bin/python3 -c (compress and print it), and then stopped, so no real model or account was involved. Launched with only HOME, PATH, USER, TMPDIR, TERM, SHELL, LANG, the stub's address and a placeholder GEMINI_API_KEY, from a throwaway git repository holding empty project config directories, by scripts/measure_stubbed_agent.py on a disposable GitHub-hosted machine, whose home holds no personal credentials.",
+ "label": "antigravity-cli-1.5.2-ubuntu-22.04-boundaries-proceed"
+}
