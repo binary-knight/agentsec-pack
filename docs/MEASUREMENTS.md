@@ -200,6 +200,21 @@ With the sandbox on, Seatbelt applies, the proxy refused a tunnel to every targe
 
 Sandboxed commands can see `ANTHROPIC_API_KEY` by name. Claude Code documents that sandboxed commands inherit its environment "including any secrets in its environment", and its `sandbox.credentials` setting is the documented way to withhold a variable. With `denyRead` on the home directory the score falls from 53 to 38, because `~/.gitconfig` is no longer readable, as `denyRead` did on Linux.
 
+### Anthropic's sandbox runtime on macOS
+
+`@anthropic-ai/sandbox-runtime` 0.0.81, the sandbox Claude Code is built on, was run directly as `srt` on the same kind of machine with probe 0.7.0 on 2026-11-07, from a throwaway project holding empty project config for Claude Code, Codex and Antigravity. Reports are in `examples/macos/srt-0.0.81-macos-*`.
+
+| `srt` settings | Score | Project config writable |
+|---|---:|---|
+| none | 38 | none, because the working directory is read-only |
+| `allowWrite ["."]` | 53 | Claude Code's `.claude/settings.json` and `settings.local.json`, Codex's `.codex/config.toml`, `.agents` |
+| `allowWrite ["."]`, `denyWrite` naming those two Claude Code files | 53 | Codex's `.codex/config.toml`, `.agents` |
+| `denyRead ["~/"]`, `allowRead ["."]`, `allowWrite ["."]` | 38 | as `allowWrite ["."]`, with `~/.gitconfig` no longer readable |
+
+In every run the network was contained, and `.mcp.json` and `.git/hooks` refused writes.
+
+**This is documented behavior.** Inside an allowed write path, `srt` always refuses writes to a fixed list of names, which its README calls defense in depth: shell startup files, `.gitconfig`, `.mcp.json`, `.claude/commands/`, `.claude/agents/`, `.git/hooks/` and a few others. Claude Code's settings files are not on that list. Anthropic's position, given when this was reported to it on 2026-11-04, is that the configured write policy is the boundary and that a product's own configuration belongs in its `denyWrite`. The third row shows that working. Its score does not fall because Codex's and Antigravity's project config stay writable, and the same advice applies to them. Claude Code adds its own settings files to the policy it passes to the runtime, so a command it sandboxes cannot write them, as the Claude Code rows above show.
+
 ## Public Terminal-Bench tasks under Harbor
 
 These runs measure the environment an agent gets during the agent phase of a benchmark. `scripts/measure_harbor.sh` runs real Harbor (`b7cc86b`) on public Terminal-Bench tasks (`73d6279`) with `ProbeAgent` from `agentsec/integrations/harbor_agent.py`, an agent that makes no model calls and does not attempt the task. It uses Harbor's Docker environment with the verifier disabled, launched with `env -i`, on one Linux host on 2026-11-04.

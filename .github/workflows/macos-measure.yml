@@ -1,8 +1,8 @@
 name: macos-measure
 
 # Measure sandboxes on a GitHub-hosted macOS runner and keep the reports:
-# the runner with and without Seatbelt, the seatbelt-* presets, and Codex's
-# own sandbox through `codex sandbox`.
+# the runner with and without Seatbelt, the seatbelt-* presets, Codex's own
+# sandbox through `codex sandbox`, and Anthropic's sandbox runtime (srt).
 # Started by hand only, so it never runs on someone else's pull request.
 # Every command that runs a probe ends in `|| true` so one failure does not
 # hide the others; the report files are the record of what ran.
@@ -15,6 +15,7 @@ permissions:
 
 env:
   CODEX_VERSION: "0.164.0"
+  SRT_VERSION: "0.0.81"
 
 jobs:
   measure:
@@ -46,8 +47,8 @@ jobs:
             agentsec matrix --presets seatbelt-allow-default,seatbelt-deny-network,seatbelt-confined \
             --label macos-seatbelt-presets --out reports --redact || true
 
-      - name: Install Codex
-        run: npm install -g "@openai/codex@${CODEX_VERSION}"
+      - name: Install Codex and srt
+        run: npm install -g "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/sandbox-runtime@${SRT_VERSION}"
 
       - name: Prepare a throwaway project
         run: |
@@ -55,7 +56,7 @@ jobs:
           # sandbox lets a command rewrite what an agent loads in its next session.
           mkdir -p /tmp/proj/.codex /tmp/proj/.agents /tmp/proj/.claude
           cd /tmp/proj && git init -q && : > .codex/config.toml
-          echo '{}' > .claude/settings.json && echo '{}' > .mcp.json
+          echo '{}' > .claude/settings.json && echo '{}' > .claude/settings.local.json && echo '{}' > .mcp.json
           cp "$GITHUB_WORKSPACE/agentsec/probe/blast_probe.py" /tmp/proj/probe.py
 
       - name: Codex sandbox, read-only and workspace-write
@@ -70,6 +71,31 @@ jobs:
               --out "$GITHUB_WORKSPACE/reports" \
               --how "codex ${CODEX_VERSION}: codex sandbox -c sandbox_mode=\"$mode\" python probe.py, from a throwaway git repository holding empty project config files for Codex, Claude Code and Antigravity, launched with env -i, GitHub-hosted macos-latest machine. The helper runs a command under Codex's sandbox policy with no model; it is not a full agent session." || true
           done
+
+      - name: Anthropic sandbox runtime (srt)
+        working-directory: /tmp/proj
+        run: |
+          # AGENTSEC_PROBE_PROXY_AUTH=1 lets the probe ask srt's local proxy, which needs its own
+          # credentials, about each target. denyRead ["~/"] makes the home directory unreadable,
+          # and setup-python installs its interpreter there, so that run uses the system Python.
+          NET='"network": {"allowedDomains": [], "deniedDomains": []}'
+          echo "{\"filesystem\": {\"denyRead\": [], \"allowWrite\": [\".\"], \"denyWrite\": []}, $NET}" > /tmp/srt-allow-write.json
+          echo "{\"filesystem\": {\"denyRead\": [], \"allowWrite\": [\".\"], \"denyWrite\": [\".claude/settings.json\", \".claude/settings.local.json\"]}, $NET}" > /tmp/srt-deny-write.json
+          echo "{\"filesystem\": {\"denyRead\": [\"~/\"], \"allowRead\": [\".\"], \"allowWrite\": [\".\"], \"denyWrite\": []}, $NET}" > /tmp/srt-deny-read.json
+          SYS=/usr/bin/python3
+          PY="$(command -v python)"
+          srt_run() {  # name, what it was, then the srt arguments and command
+            local name="$1" what="$2"; shift 2
+            env -i HOME="$HOME" PATH="$PATH" TERM=xterm USER="$USER" SHELL=/bin/zsh LANG=C.UTF-8 AGENTSEC_PROBE_PROXY_AUTH=1 \
+              srt "$@" > "srt-$name.json" 2> "srt-$name.err" || true
+            tail -3 "srt-$name.err"
+            agentsec score "srt-$name.json" --label "srt-${SRT_VERSION}-macos-$name" --redact --out "$GITHUB_WORKSPACE/reports" \
+              --how "@anthropic-ai/sandbox-runtime ${SRT_VERSION}: $what, from a throwaway git repository holding empty project config files for Claude Code, Codex and Antigravity, launched with env -i and AGENTSEC_PROBE_PROXY_AUTH=1 so the probe could ask srt's local proxy about each target, on a GitHub-hosted macos-latest machine" || true
+          }
+          srt_run default 'srt -- python probe.py, no settings file' -- "$PY" probe.py
+          srt_run allow-write 'srt --settings with allowWrite ["."], no denyWrite, no allowed domains' --settings /tmp/srt-allow-write.json -- "$PY" probe.py
+          srt_run deny-write 'srt --settings with allowWrite ["."], denyWrite [".claude/settings.json", ".claude/settings.local.json"], no allowed domains' --settings /tmp/srt-deny-write.json -- "$PY" probe.py
+          srt_run deny-read 'srt --settings with denyRead ["~/"], allowRead ["."], allowWrite ["."], no denyWrite, no allowed domains, using /usr/bin/python3' --settings /tmp/srt-deny-read.json -- "$SYS" probe.py
 
       - uses: actions/upload-artifact@v4
         with:
