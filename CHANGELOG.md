@@ -6,6 +6,9 @@ and two reports are only comparable when it matches or the difference is known.
 
 ## Unreleased
 
+- Under a user-space kernel such as gVisor, findings that describe what that kernel grants the process (PRIV-001 to PRIV-005, FS-005, FS-006 and RES-001) are reported at info, with their usual severity kept in the evidence, because that kernel is the sandbox's boundary and not the host's. Findings about what the sandbox exposes beyond it keep their severity. The rule does not apply when something is mounted over `/proc` or `/proc/version`. This is an exception, made before 1.0, to the compatibility policy's rule that an existing finding's severity changes only in a new major version.
+- Modal's four reports were rescored from the same probe output and now read 46, 39, 39 and 31, where they read 100, 100, 100 and 97. A Modal baseline taken before this change has no `agentsec_version`, so `--baseline` shows the drop without a version note. Nothing fails, since a drop is not a regression.
+- The version on `main` is 0.5.0.dev0, so a report written from it says which scorer produced it.
 - `docs/COMPATIBILITY.md` states what stays the same from one version to the next: the commands, flags and exit codes, the report format, the scoring and the GitHub Action's inputs and outputs. `tests/test_compatibility.py` checks each of those. `verify`, `submit` and `benchmark` are marked experimental in their help text.
 - Reports now record `agentsec_version`, the version that wrote and scored them, beside the probe's `probe_version`. `--baseline` and `agentsec history` note when it differs, as they already did for the probe. JSON Schemas for the blast-radius report and the `assert` result ship in `agentsec/data/`.
 - `agentsec --version` prints the package and probe versions.

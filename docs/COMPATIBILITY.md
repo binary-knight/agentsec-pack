@@ -23,12 +23,13 @@ From 1.0 on, the promises below hold for every 1.x release, and anything that br
 
 Both carry `schema_version` 1. A field can be added without changing it, so a reader should ignore fields it does not know. Removing, renaming or changing the type of a field raises `schema_version`, and only in a new major version. The `probe` block inside a report belongs to the probe. Its contents are versioned by `probe_version`, and only `probe_version` itself is covered here.
 
-**Scoring.** Each finding has a severity with a fixed weight: critical 25, high 15, medium 8, low 3, info 0. The score is the sum of the weights, capped at 100, and `raw_score` is the uncapped sum. A finding ID is never reused or given a different meaning. Most findings have one severity. Two take theirs from the evidence by a fixed rule:
+**Scoring.** Each finding has a severity with a fixed weight: critical 25, high 15, medium 8, low 3, info 0. The score is the sum of the weights, capped at 100, and `raw_score` is the uncapped sum. A finding ID is never reused or given a different meaning. Most findings have one severity. These rules set the others from the evidence:
 
 - FS-001 is high when `/`, `/etc`, `/usr/bin` or `/usr/local/bin` is writable, and medium for other system paths.
 - PRIV-003 takes the severity of the most dangerous Linux capability in the effective set.
+- Under a user-space kernel such as gVisor (PRIV-007), PRIV-001, PRIV-002, PRIV-003, PRIV-004, PRIV-005, FS-005, FS-006 and RES-001 are info, and their evidence records the severity they would have on a shared kernel. They describe what that kernel grants the process, and that kernel is the sandbox's boundary rather than the host's. The rule does not apply when the probe sees something mounted over `/proc` or `/proc/version`. The probe does not list tmpfs mounts, so a tmpfs file mounted there is not seen.
 
-Changing a weight, the severity of an existing finding, or either of those rules needs a new major version.
+Changing a weight, the severity of an existing finding, or any of these rules needs a new major version.
 
 **The GitHub Action.** The inputs and outputs in `action.yml` keep their names and meaning. A new input is optional, and its default keeps the earlier behavior.
 

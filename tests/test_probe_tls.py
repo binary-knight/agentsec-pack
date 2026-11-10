@@ -73,9 +73,11 @@ def test_a_report_from_before_the_control_existed_scores_as_it_did():
     assert "NET-001" in found and "NET-005" not in found
 
 
-def test_a_user_space_kernel_is_flagged_and_does_not_change_the_score():
+def test_a_user_space_kernel_is_flagged_and_root_inside_it_counts_as_info():
     plain = ids(network(), {"uid": 0, "euid": 0})
     flagged = ids(network(), {"uid": 0, "euid": 0, "user_space_kernel": "gvisor"})
     assert "PRIV-007" in flagged and "PRIV-007" not in plain
     assert flagged["PRIV-007"].weight == 0
-    assert "PRIV-001" in flagged
+    assert plain["PRIV-001"].severity == "high"
+    assert flagged["PRIV-001"].severity == "info"
+    assert flagged["PRIV-001"].evidence["severity_on_shared_kernel"] == "high"

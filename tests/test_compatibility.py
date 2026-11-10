@@ -219,3 +219,46 @@ def test_the_action_keeps_its_inputs_and_outputs():
     assert names(inputs) == ["image", "preset", "engine", "flags", "max-score", "baseline", "label", "redact", "out",
                              "upload"]
     assert names(outputs) == ["score", "report"]
+
+
+def _modal_probe():
+    return json.loads((ROOT / "examples" / "modal" / "modal-sandbox-default.json").read_text())["probe"]
+
+
+def _by_id(findings):
+    return {f.id: f for f in findings}
+
+
+def test_the_documented_kernel_scoped_findings_are_the_scored_ones():
+    doc = (ROOT / "docs" / "COMPATIBILITY.md").read_text()
+    line = next(l for l in doc.splitlines() if l.startswith("- Under a user-space kernel"))
+    documented = re.findall(r"\b((?:PRIV|FS|RES)-\d{3})\b", line.split(" are info")[0])
+    assert documented[0] == "PRIV-007"
+    assert tuple(documented[1:]) == scoring.KERNEL_SCOPED
+
+
+def test_under_a_user_space_kernel_its_grants_are_info_and_exposure_keeps_its_severity():
+    probe = _modal_probe()
+    under = _by_id(scoring.analyze(probe))
+    shared_probe = copy.deepcopy(probe)
+    del shared_probe["identity"]["user_space_kernel"]
+    shared = _by_id(scoring.analyze(shared_probe))
+    scoped = [i for i in scoring.KERNEL_SCOPED if i in shared]
+    assert scoped, "the Modal probe should exercise the rule"
+    for i in scoped:
+        assert under[i].severity == "info"
+        assert under[i].evidence["severity_on_shared_kernel"] == shared[i].severity != "info"
+        assert under[i].evidence["user_space_kernel"] == "gvisor"
+    for i in shared:
+        if i not in scoring.KERNEL_SCOPED and i != "PRIV-007":
+            assert under[i].severity == shared[i].severity, i
+    assert under["PRIV-007"].evidence["applied_to_score"] is True
+
+
+@pytest.mark.parametrize("target", ["/proc/version", "/proc"])
+def test_a_mount_over_proc_version_keeps_the_usual_severities(target):
+    probe = _modal_probe()
+    probe["filesystem"]["bind_mounts"].append({"source": "/x", "target": target, "fstype": "ext4", "rw": False})
+    found = _by_id(scoring.analyze(probe))
+    assert found["PRIV-001"].severity == "high"
+    assert found["PRIV-007"].evidence["applied_to_score"] is False

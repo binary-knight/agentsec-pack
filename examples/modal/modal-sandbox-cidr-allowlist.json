@@ -1,5 +1,6 @@
 {
-  "generated_at": 1793944888,
+  "agentsec_version": "0.5.0.dev0",
+  "generated_at": 1794296285,
   "label": "modal-sandbox-cidr-allowlist",
   "probe": {
     "duration_ms": 12069,
@@ -344,11 +345,11 @@
   "schema_version": 1,
   "summary": {
     "by_severity": {
-      "critical": 1,
-      "high": 3,
-      "info": 3,
-      "low": 1,
-      "medium": 4
+      "critical": 0,
+      "high": 1,
+      "info": 8,
+      "low": 0,
+      "medium": 3
     },
     "finding_count": 12,
     "findings": [
@@ -376,20 +377,23 @@
       {
         "category": "privilege",
         "evidence": {
+          "applied_to_score": true,
           "kernel": "gvisor"
         },
         "id": "PRIV-007",
         "owasp": [
           "ASI02"
         ],
-        "remediation": "Privilege, capability, seccomp, /proc and resource findings in this report describe what the process gets from this kernel, not from the host's. The score still counts them, so it overstates what they show. This probe does not test whether a process can leave this kernel.",
+        "remediation": "The score treats this kernel as the sandbox boundary. Root, capability, seccomp, no_new_privs, setuid, /proc/sysrq-trigger and resource findings describe what the process gets from this kernel, not from the host's, so they are reported at info. Network, secret, mount and file findings keep their severity. This probe does not test whether a process can leave this kernel.",
         "severity": "info",
         "title": "The kernel seen here is a user-space kernel"
       },
       {
         "category": "privilege",
         "evidence": {
-          "euid": 0
+          "euid": 0,
+          "severity_on_shared_kernel": "high",
+          "user_space_kernel": "gvisor"
         },
         "id": "PRIV-001",
         "owasp": [
@@ -397,7 +401,7 @@
           "ASI05"
         ],
         "remediation": "Run as an unprivileged user (docker --user) or inside a user namespace.",
-        "severity": "high",
+        "severity": "info",
         "title": "Agent runs as real root (uid 0, not in a user namespace)"
       },
       {
@@ -410,7 +414,9 @@
             "CAP_SETUID",
             "CAP_SYS_CHROOT",
             "CAP_SYS_PTRACE"
-          ]
+          ],
+          "severity_on_shared_kernel": "high",
+          "user_space_kernel": "gvisor"
         },
         "id": "PRIV-003",
         "owasp": [
@@ -418,20 +424,22 @@
           "ASI03"
         ],
         "remediation": "docker --cap-drop ALL, then add back only what the workload needs.",
-        "severity": "high",
+        "severity": "info",
         "title": "Dangerous Linux capabilities in the effective set"
       },
       {
         "category": "privilege",
         "evidence": {
-          "seccomp_mode": 0
+          "seccomp_mode": 0,
+          "severity_on_shared_kernel": "medium",
+          "user_space_kernel": "gvisor"
         },
         "id": "PRIV-004",
         "owasp": [
           "ASI05"
         ],
         "remediation": "Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.",
-        "severity": "medium",
+        "severity": "info",
         "title": "No seccomp filter applied"
       },
       {
@@ -529,44 +537,43 @@
       },
       {
         "category": "filesystem",
-        "evidence": {},
+        "evidence": {
+          "severity_on_shared_kernel": "critical",
+          "user_space_kernel": "gvisor"
+        },
         "id": "FS-005",
         "owasp": [
           "ASI05"
         ],
         "remediation": "Mask /proc/sysrq-trigger; do not run privileged.",
-        "severity": "critical",
+        "severity": "info",
         "title": "/proc/sysrq-trigger writable"
       },
       {
         "category": "resources",
         "evidence": {
-          "memory_limit_v1": "728677150720"
+          "memory_limit_v1": "728677150720",
+          "severity_on_shared_kernel": "low",
+          "user_space_kernel": "gvisor"
         },
         "id": "RES-001",
         "owasp": [
           "ASI08"
         ],
         "remediation": "docker --memory and --pids-limit.",
-        "severity": "low",
+        "severity": "info",
         "title": "No memory or PID limits on the sandbox"
       }
     ],
-    "raw_score": 105,
+    "raw_score": 39,
     "recommended_flags": [
       "(keep the proxy allowlist to the hosts the agent needs)",
-      "--user 65534:65534",
-      "--cap-drop ALL",
-      "(do not disable the engine's default seccomp profile)",
       "(own PID namespace: avoid --pid=host)",
       "--read-only",
       "--tmpfs /tmp",
-      "(mount the working tree only, :ro where possible)",
-      "(do not run --privileged)",
-      "--pids-limit 256",
-      "--memory 512m"
+      "(mount the working tree only, :ro where possible)"
     ],
-    "score": 100
+    "score": 39
   },
   "target": {
     "how": "modal client 1.5.3, modal.Sandbox.create with Image.debian_slim(python_version=3.12), outbound_cidr_allowlist=[1.1.1.1/32]. The probe ran through Sandbox.exec, by scripts/measure_modal.py. No agent was involved, and the container holds no personal credentials. Modal runs this under gVisor, so privilege, capability, seccomp, /proc and resource findings describe gVisor's kernel, not the host's, and escaping gVisor was not tested.",

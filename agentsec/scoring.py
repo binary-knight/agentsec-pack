@@ -227,11 +227,16 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
 
     # --- Identity / privilege ----------------------------------------------
     if ident.get("user_space_kernel"):
+        trusted = user_space_kernel(probe) is not None
         findings.append(_f("PRIV-007", "The kernel seen here is a user-space kernel", "info", "privilege",
-                           {"kernel": ident["user_space_kernel"]}, ["ASI02"],
-                           "Privilege, capability, seccomp, /proc and resource findings in this report describe what the process "
-                           "gets from this kernel, not from the host's. The score still counts them, so it overstates what they "
-                           "show. This probe does not test whether a process can leave this kernel."))
+                           {"kernel": ident["user_space_kernel"], "applied_to_score": trusted}, ["ASI02"],
+                           ("The score treats this kernel as the sandbox boundary. Root, capability, seccomp, no_new_privs, "
+                            "setuid, /proc/sysrq-trigger and resource findings describe what the process gets from this kernel, "
+                            "not from the host's, so they are reported at info. Network, secret, mount and file findings keep "
+                            "their severity. This probe does not test whether a process can leave this kernel.")
+                           if trusted else
+                           ("Something is mounted over /proc/version or /proc, so the probe cannot tell whether this kernel is "
+                            "real, and every finding keeps its usual severity.")))
     if ident.get("euid") == 0 and not ident.get("in_user_namespace"):
         findings.append(_f("PRIV-001", "Agent runs as real root (uid 0, not in a user namespace)", "high", "privilege",
                            {"euid": 0}, ["ASI03", "ASI05"], "Run as an unprivileged user (docker --user) or inside a user namespace."))
@@ -392,7 +397,40 @@ def analyze(probe: dict[str, Any]) -> list[Finding]:
     if res and res.get("memory_max", "max") == "max" and res.get("pids_max", "max") == "max":
         findings.append(_f("RES-001", "No memory or PID limits on the sandbox", "low", "resources", dict(res), ["ASI08"],
                            "docker --memory and --pids-limit."))
+
+    # --- A user-space kernel is the boundary --------------------------------
+    # These findings measure what a process gets from the kernel it talks to. Under a
+    # user-space kernel that is the sandbox's own kernel, not the host's, so they say
+    # nothing about the boundary and are reported at info. What the sandbox exposes
+    # beyond that kernel (network, secrets, mounts, files) keeps its severity.
+    kernel = user_space_kernel(probe)
+    if kernel:
+        for f in findings:
+            if f.id in KERNEL_SCOPED:
+                f.evidence = {**f.evidence, "user_space_kernel": kernel, "severity_on_shared_kernel": f.severity}
+                f.severity = "info"
     return findings
+
+
+# Findings that describe the kernel's grant to the process rather than what the sandbox exposes.
+KERNEL_SCOPED = ("PRIV-001", "PRIV-002", "PRIV-003", "PRIV-004", "PRIV-005", "FS-005", "FS-006", "RES-001")
+
+
+def user_space_kernel(probe: dict[str, Any]) -> str | None:
+    """The user-space kernel the probe saw, unless something is mounted over what it read.
+
+    The probe reads /proc/version. A bind mount over /proc or /proc/version could make a
+    shared kernel look like a user-space one, so the claim is not trusted when the
+    probe's own mount list shows one. Mounts of types the probe does not list, such as
+    tmpfs, are not seen.
+    """
+    kernel = (probe.get("identity") or {}).get("user_space_kernel")
+    if not kernel:
+        return None
+    mounts = (probe.get("filesystem") or {}).get("bind_mounts") or []
+    if any(m.get("target") in ("/proc", "/proc/version") for m in mounts if isinstance(m, dict)):
+        return None
+    return kernel
 
 
 def raw_score(findings: list[Finding]) -> int:
@@ -447,6 +485,8 @@ def recommended_flags(findings: list[Finding]) -> list[str]:
     """Ordered, de-duplicated flag suggestions closing the observed findings."""
     out: list[str] = []
     for f in findings:
+        if f.severity == "info":
+            continue
         for flag in FINDING_FLAGS.get(f.id, []):
             if flag not in out:
                 out.append(flag)

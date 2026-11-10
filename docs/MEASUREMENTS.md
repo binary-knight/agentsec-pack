@@ -300,12 +300,14 @@ The 30 points are two things the editor brought in. SEC-007 is the SSH agent, re
 
 | Options | Score | Raw | Network finding |
 |---|---:|---:|---|
-| None | 100 | 112 | NET-001, every target reached |
-| `outbound_domain_allowlist=[pypi.org]` | 100 | 105 | NET-005, only `pypi` reached |
-| `outbound_cidr_allowlist=[1.1.1.1/32]` | 100 | 105 | NET-005, only `1.1.1.1` reached |
-| `block_network=True` | 97 | 97 | NET-003, nothing reached |
+| None | 46 | 46 | NET-001, every target reached |
+| `outbound_domain_allowlist=[pypi.org]` | 39 | 39 | NET-005, only `pypi` reached |
+| `outbound_cidr_allowlist=[1.1.1.1/32]` | 39 | 39 | NET-005, only `1.1.1.1` reached |
+| `block_network=True` | 31 | 31 | NET-003, nothing reached |
 
-**These scores overstate what they show.** Modal runs these containers under gVisor: `/proc/version` reads `4.19.0-gvisor`. The process is root with dangerous capabilities, no seccomp filter and a writable `/proc/sysrq-trigger`, but it gets all of that from gVisor's user-space kernel and not the host's. PRIV-001, PRIV-003, PRIV-004, SEC-004, FS-005 and RES-001 add up to 74 raw points, and the probe does not test whether a process can leave gVisor. The rows would be 38, 31, 31 and 23 without those six, but those totals are not measured scores, and the 100s do not compare with a 100 where those findings describe the host's kernel. The probe now reports this as PRIV-007, without changing the score.
+**The score treats gVisor as the boundary.** Modal runs these containers under gVisor: `/proc/version` reads `4.19.0-gvisor`. The process is root with dangerous capabilities, no seccomp filter and a writable `/proc/sysrq-trigger`, but it gets all of that from gVisor's user-space kernel and not the host's. Those findings, PRIV-001, PRIV-003, PRIV-004, FS-005 and RES-001, are reported at info with their usual severity kept in the evidence, and count 0. What the sandbox exposes beyond gVisor keeps its severity: the network, PID 1's environment (SEC-004), the writable system paths of the container's own filesystem (FS-001) and the read-write mounts `/dev` and `/__modal/mounts` (FS-003). The score does not measure gVisor's own strength, and the probe does not test whether a process can leave it.
+
+The reports were rescored on 2026-11-10 by agentsec 0.5.0.dev0 from the same probe output, which is unchanged. Scored before this rule, the rows read 100, 100, 100 and 97, because 66 raw points described gVisor's kernel. The rule applies only when nothing is mounted over `/proc` or `/proc/version`, since a process that could mount there could make a shared kernel look like gVisor. The probe does not list tmpfs mounts, so a tmpfs file mounted there would not be seen.
 
 **The network rows are the useful part, and they found a bug in the probe.** Under the domain allowlist, TCP connections to any host on port 443 succeed. Probe 0.6.0 counted that as reached and reported open internet. A direct check showed otherwise: `pypi.org` answered HTTP 200, the other four hosts tried were reset during TLS, and port 80 timed out. Probe 0.7.0 counts a connection refused at TLS as not reached, and tries `example.com` directly as a control. Any earlier report of a sandbox that filters this way would have overstated its egress. Earlier reports were not re-run.
 

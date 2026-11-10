@@ -1,7 +1,7 @@
 # Sandbox blast radius: modal-sandbox-block-network
 
-**Score: 97 / 100** (0 = fully contained; higher = larger blast radius)  
-Findings: 12 (critical 1, high 3, medium 3, low 1)
+**Score: 31 / 100** (0 = fully contained; higher = larger blast radius)  
+Findings: 12 (critical 0, high 1, medium 2, low 0)
 
 ## Target (reproduce with this)
 - kind: `captured`
@@ -17,22 +17,22 @@ Findings: 12 (critical 1, high 3, medium 3, low 1)
 - fix: No action: nothing the probe tried could leave this sandbox over the network.
 
 ### PRIV-007 · INFO · The kernel seen here is a user-space kernel
-- evidence: `{'kernel': 'gvisor'}`
+- evidence: `{'kernel': 'gvisor', 'applied_to_score': True}`
 - OWASP agentic: ASI02 Tool Misuse & Exploitation
-- fix: Privilege, capability, seccomp, /proc and resource findings in this report describe what the process gets from this kernel, not from the host's. The score still counts them, so it overstates what they show. This probe does not test whether a process can leave this kernel.
+- fix: The score treats this kernel as the sandbox boundary. Root, capability, seccomp, no_new_privs, setuid, /proc/sysrq-trigger and resource findings describe what the process gets from this kernel, not from the host's, so they are reported at info. Network, secret, mount and file findings keep their severity. This probe does not test whether a process can leave this kernel.
 
-### PRIV-001 · HIGH · Agent runs as real root (uid 0, not in a user namespace)
-- evidence: `{'euid': 0}`
+### PRIV-001 · INFO · Agent runs as real root (uid 0, not in a user namespace)
+- evidence: `{'euid': 0, 'user_space_kernel': 'gvisor', 'severity_on_shared_kernel': 'high'}`
 - OWASP agentic: ASI03 Agent Identity & Privilege Abuse, ASI05 Unexpected Code Execution
 - fix: Run as an unprivileged user (docker --user) or inside a user namespace.
 
-### PRIV-003 · HIGH · Dangerous Linux capabilities in the effective set
-- evidence: `{'capabilities': ['CAP_DAC_OVERRIDE', 'CAP_MKNOD', 'CAP_SETGID', 'CAP_SETUID', 'CAP_SYS_CHROOT', 'CAP_SYS_PTRACE']}`
+### PRIV-003 · INFO · Dangerous Linux capabilities in the effective set
+- evidence: `{'capabilities': ['CAP_DAC_OVERRIDE', 'CAP_MKNOD', 'CAP_SETGID', 'CAP_SETUID', 'CAP_SYS_CHROOT', 'CAP_SYS_PTRACE'], 'user_space_kernel': 'gvisor', 'severity_on_shared_kernel': 'high'}`
 - OWASP agentic: ASI05 Unexpected Code Execution, ASI03 Agent Identity & Privilege Abuse
 - fix: docker --cap-drop ALL, then add back only what the workload needs.
 
-### PRIV-004 · MEDIUM · No seccomp filter applied
-- evidence: `{'seccomp_mode': 0}`
+### PRIV-004 · INFO · No seccomp filter applied
+- evidence: `{'seccomp_mode': 0, 'user_space_kernel': 'gvisor', 'severity_on_shared_kernel': 'medium'}`
 - OWASP agentic: ASI05 Unexpected Code Execution
 - fix: Docker and podman apply a default seccomp profile unless you pass --security-opt seccomp=unconfined; seeing mode 0 means the sandbox is running without one. bubblewrap needs --seccomp with a compiled BPF filter.
 
@@ -60,12 +60,13 @@ Findings: 12 (critical 1, high 3, medium 3, low 1)
 - OWASP agentic: ASI02 Tool Misuse & Exploitation, ASI05 Unexpected Code Execution
 - fix: Mount only the working tree, read-only where possible; never mount the host root.
 
-### FS-005 · CRITICAL · /proc/sysrq-trigger writable
+### FS-005 · INFO · /proc/sysrq-trigger writable
+- evidence: `{'user_space_kernel': 'gvisor', 'severity_on_shared_kernel': 'critical'}`
 - OWASP agentic: ASI05 Unexpected Code Execution
 - fix: Mask /proc/sysrq-trigger; do not run privileged.
 
-### RES-001 · LOW · No memory or PID limits on the sandbox
-- evidence: `{'memory_limit_v1': '353061625856'}`
+### RES-001 · INFO · No memory or PID limits on the sandbox
+- evidence: `{'memory_limit_v1': '353061625856', 'user_space_kernel': 'gvisor', 'severity_on_shared_kernel': 'low'}`
 - OWASP agentic: ASI08 Cascading Agent Failures
 - fix: docker --memory and --pids-limit.
 
@@ -76,16 +77,10 @@ This target is not a container, so the flags below are the docker/podman spellin
 A starting point, not a policy: each entry closes at least one finding observed here. Anything in parentheses is a change to how the sandbox is composed rather than a flag. A workload that genuinely needs the network or a dropped capability will break under these, and that is the operator's call to make deliberately.
 
 ```
---user 65534:65534
---cap-drop ALL
-(do not disable the engine's default seccomp profile)
 (own PID namespace: avoid --pid=host)
 --read-only
 --tmpfs /tmp
 (mount the working tree only, :ro where possible)
-(do not run --privileged)
---pids-limit 256
---memory 512m
 ```
 
 ## What the probe does not do
