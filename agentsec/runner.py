@@ -11,6 +11,7 @@ Every result records the exact target so a run can be reproduced.
 """
 from __future__ import annotations
 
+from agentsec import __version__
 import json
 import os
 import shlex
@@ -176,7 +177,7 @@ def run_command(template: str, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]
 
 
 def result_envelope(run: dict[str, Any], summary: dict[str, Any], label: str | None = None) -> dict[str, Any]:
-    return {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "label": label,
+    return {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "agentsec_version": __version__, "label": label,
             "generated_at": int(time.time()), "target": run["target"], "rc": run["rc"], "summary": summary, "probe": run["probe"],
             "probe_stderr": run.get("stderr", "")}
 

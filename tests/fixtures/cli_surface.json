@@ -1,0 +1,90 @@
+{
+ "assert": [
+  "--exists",
+  "--image",
+  "--kind",
+  "--not-exists",
+  "--not-readable",
+  "--not-writable",
+  "--out",
+  "--python",
+  "--readable",
+  "--template",
+  "--timeout",
+  "--writable"
+ ],
+ "blast-radius": [
+  "--baseline",
+  "--image",
+  "--label",
+  "--max-score",
+  "--out",
+  "--print-findings",
+  "--python",
+  "--redact",
+  "--template",
+  "--timeout"
+ ],
+ "chart": [
+  "--out",
+  "--sort",
+  "--subtitle",
+  "--theme",
+  "--title"
+ ],
+ "combine": [
+  "--deployed-in",
+  "--label",
+  "--out",
+  "--promptfoo",
+  "--sandbox"
+ ],
+ "compare": [],
+ "diff": [],
+ "history": [
+  "--json",
+  "--label",
+  "--max-score",
+  "--save"
+ ],
+ "matrix": [
+  "--label",
+  "--max-score",
+  "--out",
+  "--presets",
+  "--redact",
+  "--timeout"
+ ],
+ "presets": [
+  "--verbose"
+ ],
+ "probe": [
+  "--baseline",
+  "--how",
+  "--label",
+  "--max-score",
+  "--out",
+  "--proxy-auth",
+  "--redact",
+  "--timeout"
+ ],
+ "report": [
+  "--out"
+ ],
+ "score": [
+  "--baseline",
+  "--how",
+  "--label",
+  "--max-score",
+  "--out",
+  "--print-findings",
+  "--redact"
+ ],
+ "ui": [
+  "--allow-remote-runs",
+  "--bind",
+  "--open",
+  "--port",
+  "--results"
+ ]
+}

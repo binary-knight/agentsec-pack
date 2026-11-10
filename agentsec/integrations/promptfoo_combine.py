@@ -11,6 +11,7 @@ carry a plugin id somewhere in the row's metadata; it is treated as optional.
 """
 from __future__ import annotations
 
+from agentsec import __version__
 import json
 import re
 from importlib import resources
@@ -108,7 +109,7 @@ def combine(pf: dict[str, Any], sandbox: dict[str, Any], deployed_in: str) -> di
         if hits:
             overlap.append({"asi": cat, "failed_tests": [r["description"] for r in pfs["failed_rows"] if cat in r.get("asi", [])][:5],
                             "sandbox_findings": [{"id": f["id"], "title": f["title"], "severity": f["severity"]} for f in hits]})
-    return {"tool": "agentsec-pack", "test": "promptfoo-sandbox-combined", "schema_version": 1,
+    return {"tool": "agentsec-pack", "test": "promptfoo-sandbox-combined", "schema_version": 1, "agentsec_version": __version__,
             "overlap": overlap, "failed_asi": failed_asi,
             "assumption": {"stated_by": "operator", "deployed_in": deployed_in,
                            "text": ("The agent evaluated by promptfoo runs in the sandbox measured here. "

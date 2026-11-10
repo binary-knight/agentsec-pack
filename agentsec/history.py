@@ -116,7 +116,9 @@ def build(entries: list[dict[str, Any]], max_score: int | None = None) -> dict[s
             runs.append({"generated_at": cur["generated_at"], "score": cur["summary"]["score"],
                          "probe_version": cur["probe"].get("probe_version"), "findings": sorted(f["id"] for f in cur["summary"]["findings"]),
                          "change": step and {"regressions": step["regressions"], "fixed": step["fixed"],
-                                             "instrument_changed": step["instrument_changed"], "redaction_differs": step["redaction_differs"]}})
+                                             "instrument_changed": step["instrument_changed"],
+                                             "scorer_changed": step.get("scorer_changed", False),
+                                             "redaction_differs": step["redaction_differs"]}})
         scores = [r["score"] for r in runs]
         out[label] = {"runs": runs, "first": scores[0], "last": scores[-1], "highest": max(scores),
                       "worsened_since_first": any(r["change"] and r["change"]["regressions"] for r in runs),
@@ -138,6 +140,8 @@ def _describe(change: dict[str, Any] | None) -> str:
     parts += [f"gone {f['id']}" for f in change["fixed"]]
     if change["instrument_changed"]:
         parts.append("probe changed, so this step may be a new check")
+    if change.get("scorer_changed"):
+        parts.append("agentsec version changed, so a severity may have been rescored")
     if change["redaction_differs"]:
         parts.append("only one of these runs is redacted")
     return "; ".join(parts)
