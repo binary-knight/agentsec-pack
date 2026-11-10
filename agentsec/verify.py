@@ -44,6 +44,7 @@ only that the old tests' command exited 0 against the new code.
 """
 from __future__ import annotations
 
+from agentsec import __version__
 import ast
 import dataclasses
 import difflib
@@ -880,7 +881,7 @@ def verify(repo: str, base_ref: str, head_ref: str, test_cmd: str, *, timeout: i
     summary = {"verdict": verdict, "score": min(100, sum(f.weight for f in findings)), "finding_count": len(findings),
                "by_severity": {s: sum(1 for f in findings if f.severity == s) for s in SEVERITY_WEIGHT},
                "findings": [dataclasses.asdict(f) for f in findings]}
-    return {"tool": "agentsec-pack", "test": "verifier-integrity", "schema_version": 1, "generated_at": int(time.time()),
+    return {"tool": "agentsec-pack", "test": "verifier-integrity", "schema_version": 1, "agentsec_version": __version__, "generated_at": int(time.time()),
             "target": {"repo": repo, "base": base_sha, "head": head_sha, "test_cmd": test_cmd,
                        "image": image, "engine": engine if image else None, "flags": flags or [], "junit": junit},
             "changes": {"added": ch.added, "modified": ch.modified, "deleted": ch.deleted,

@@ -21,6 +21,7 @@ Exit codes: 0 ok, 1 error, 2 --max-score exceeded or a regression against --base
 """
 from __future__ import annotations
 
+from agentsec import __version__
 import argparse
 import json
 import os
@@ -149,7 +150,7 @@ def cmd_matrix(args: argparse.Namespace) -> int:
         print("no presets could run here", file=sys.stderr)
         return 1
     digest = next((r["target"].get("digest") for r in runs if r["target"].get("digest")), None)
-    env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius-matrix", "schema_version": 1,
+    env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius-matrix", "schema_version": 1, "agentsec_version": __version__,
            "image": args.image, "digest": digest, "probe_version": runs[0]["summary"] and runner._probe_version(),
            "generated_at": int(time.time()), "generated_at_iso": time.strftime("%Y-%m-%d", time.gmtime()),
            "runs": runs, "skipped": skipped}
@@ -248,7 +249,7 @@ def cmd_score(args: argparse.Namespace) -> int:
     if note:
         print(f"note: {note}", file=sys.stderr)
     summary = summarize(probe)
-    env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "label": args.label,
+    env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "agentsec_version": __version__, "label": args.label,
            "generated_at": int(time.time()),
            "target": {"kind": "captured", "label": args.label, "how": args.how,
                       "note": "Captured externally: the probe was run inside the target by the means described in `how`, not launched by agentsec."},
@@ -503,13 +504,14 @@ def cmd_assert(args: argparse.Namespace) -> int:
     if args.out:
         os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
         with open(args.out, "w") as f:
-            json.dump({"tool": "agentsec-pack", "test": "path-assertions", "schema_version": 1,
+            json.dump({"tool": "agentsec-pack", "test": "path-assertions", "schema_version": 1, "agentsec_version": __version__,
                        "generated_at": int(time.time()), "target": target, **outcome}, f, indent=2, sort_keys=True)
     return 2 if outcome["failed"] else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="agentsec", description="Adversarial tests for AI agent deployments.")
+    ap.add_argument("--version", action="version", version=f"agentsec-pack {__version__}, probe {runner._probe_version()}")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("presets", help="list named sandbox configurations")
@@ -622,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("current", help="the report JSON to check")
     d.set_defaults(func=cmd_diff)
 
-    sb = sub.add_parser("submit", help="prepare one measurement for a public dataset, shown to you first, for you to post")
+    sb = sub.add_parser("submit", help="(experimental) prepare one measurement for a public dataset, shown to you first, for you to post")
     sb.add_argument("report", help="the report JSON")
     sb.add_argument("--to", default=DATASET, metavar="OWNER/REPO", help=f"the public dataset repository to open the issue in (default: {DATASET})")
     sb.add_argument("--agent", required=True, help="the agent's name")
@@ -632,7 +634,7 @@ def main(argv: list[str] | None = None) -> int:
     sb.add_argument("--no-browser", action="store_true", help="print the address instead of opening it")
     sb.set_defaults(func=cmd_submit)
 
-    bm = sub.add_parser("benchmark", help="published figures from submitted measurements: a median, and only past a threshold of different accounts")
+    bm = sub.add_parser("benchmark", help="(experimental) published figures from submitted measurements: a median, and only past a threshold of different accounts")
     bm.add_argument("--issues", required=True, metavar="FILE", help="the output of gh issue list --json author,body,createdAt,labels")
     bm.add_argument("--reproduced", metavar="FILE", help="results reproduced by the maintainer or a known harness, shown apart: JSON Lines of record and source")
     bm.add_argument("--min-submitters", type=int, default=5, metavar="N", help="different accounts a configuration needs before it appears (default: 5, lowest: 3)")
@@ -647,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
     hi.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
     hi.set_defaults(func=cmd_history)
 
-    v = sub.add_parser("verify", help="did a change pass its tests, or did it change the tests? (exit 2 if not shown to pass)")
+    v = sub.add_parser("verify", help="(experimental) did a change pass its tests, or did it change the tests? (exit 2 if not shown to pass)")
     v.add_argument("--base", required=True, help="the commit before the change")
     v.add_argument("--head", required=True, help="the commit to check")
     v.add_argument("--test-cmd", required=True, help="the test command, run with sh -c from the root of each tree")

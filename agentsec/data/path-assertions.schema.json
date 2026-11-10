@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/binary-knight/agentsec-pack/blob/main/agentsec/data/path-assertions.schema.json",
+  "title": "agentsec assert result, schema_version 1",
+  "description": "Written by agentsec assert --out. Fields may be added without changing schema_version; removing, renaming or retyping one changes it.",
+  "type": "object",
+  "required": ["tool", "test", "schema_version", "generated_at", "target", "rows", "failed", "total"],
+  "properties": {
+    "tool": {"const": "agentsec-pack"},
+    "test": {"const": "path-assertions"},
+    "schema_version": {"const": 1},
+    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote the result. Absent from results written before 0.5.0."},
+    "generated_at": {"type": "integer", "description": "Unix time, seconds."},
+    "target": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {"kind": {"type": "string"}, "command": {"type": "string"}}
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path", "ok", "observed"],
+        "properties": {
+          "kind": {"enum": ["readable", "not-readable", "writable", "not-writable", "exists", "not-exists"]},
+          "path": {"type": "string"},
+          "ok": {"type": "boolean"},
+          "observed": {"type": "string", "description": "What the probe saw, such as absent or present, denied."}
+        }
+      }
+    },
+    "failed": {"type": "integer", "minimum": 0},
+    "total": {"type": "integer", "minimum": 0}
+  }
+}

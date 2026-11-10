@@ -9,13 +9,28 @@ description = "Measure what an AI agent's sandbox lets it reach: network, secret
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+]
 dependencies = []
 
 [project.scripts]
 agentsec = "agentsec.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "jsonschema>=4.18"]
 # Run in CI as the free stand-ins for the GitHub Advanced Security features
 # a private repo on this plan cannot enable. See SECURITY.md.
 security = ["detect-secrets>=1.5", "pip-audit>=2.7", "bandit>=1.7"]

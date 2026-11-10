@@ -22,6 +22,7 @@ Threat model, because a browser UI for a sandbox tool deserves one written down:
 """
 from __future__ import annotations
 
+from agentsec import __version__
 import json
 import re
 import secrets
@@ -91,7 +92,7 @@ class Console:
         if not label or not how:
             raise ValueError("a capture needs a label and a record of how it was run")
         probe, repaired = _parse_probe(raw)
-        env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1,
+        env = {"tool": "agentsec-pack", "test": "sandbox-blast-radius", "schema_version": 1, "agentsec_version": __version__,
                "label": label, "generated_at": int(time.time()),
                "target": {"kind": "captured", "label": label, "how": how,
                           "note": "Captured externally: the probe was run inside the target by the means "

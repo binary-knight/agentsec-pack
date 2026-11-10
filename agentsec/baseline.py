@@ -16,8 +16,10 @@ A finding that disappeared is reported as fixed, never as a failure, with a
 reminder to re-baseline so the gate keeps the ground that was gained.
 
 Changing the instrument is not the sandbox changing. When the two runs used
-different probe versions, a new finding may be a new check rather than a looser
-sandbox; the gate still fails, because it cannot tell which, and says so.
+different probe versions, or were scored by different agentsec versions, a new or
+more severe finding may come from the instrument rather than a looser sandbox.
+The gate still fails on that finding, because it cannot tell which, and says so.
+A version difference with nothing worse passes, with a note.
 """
 from __future__ import annotations
 
@@ -93,10 +95,14 @@ def compare(baseline: dict, current: dict) -> dict[str, Any]:
     redacted = [((e.get("probe") or {}).get("identity") or {}).get("hostname") == "<redacted>" for e in (baseline, current)]
     pv_old = (baseline.get("probe") or {}).get("probe_version")
     pv_new = (current.get("probe") or {}).get("probe_version")
+    # Reports written before agentsec_version existed carry none; that is not a change.
+    av_old, av_new = baseline.get("agentsec_version"), current.get("agentsec_version")
     return {"regressions": regressions, "fixed": fixed, "noted": noted,
             "score": {"baseline": baseline["summary"]["score"], "current": current["summary"]["score"]},
             "probe_versions": {"baseline": pv_old, "current": pv_new},
             "instrument_changed": pv_old != pv_new,
+            "agentsec_versions": {"baseline": av_old, "current": av_new},
+            "scorer_changed": bool(av_old and av_new and av_old != av_new),
             "redaction_differs": redacted[0] != redacted[1]}
 
 
@@ -121,8 +127,14 @@ def render(result: dict[str, Any], baseline_label: str = "baseline") -> str:
     if result["instrument_changed"]:
         pv = result["probe_versions"]
         lines.append(f"  note: baseline was taken with probe {pv['baseline']}, this run with {pv['current']}. "
-                     "A new finding may be a new check rather than a looser sandbox; the gate cannot tell which, "
-                     "so it still fails. Re-baseline deliberately once you have read the difference.")
+                     "A new finding may be a new check rather than a looser sandbox. The gate cannot tell which, "
+                     "so any new or more severe finding still fails it. Re-baseline deliberately once you have "
+                     "read the difference.")
+    if result.get("scorer_changed"):
+        av = result["agentsec_versions"]
+        lines.append(f"  note: baseline was scored by agentsec {av['baseline']}, this run by {av['current']}. "
+                     "A change in a finding's severity may come from the newer version rather than the sandbox. "
+                     "The gate still fails on it. Re-baseline deliberately once you have read the difference.")
     if result.get("redaction_differs"):
         lines.append("  note: one report is redacted and the other is not, so variable names cannot match. "
                      "Gate a run against a baseline taken with the same --redact setting.")

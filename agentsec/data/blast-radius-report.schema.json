@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/binary-knight/agentsec-pack/blob/main/agentsec/data/blast-radius-report.schema.json",
+  "title": "agentsec blast-radius report, schema_version 1",
+  "description": "Written by agentsec probe, blast-radius, score and ui. Fields may be added without changing schema_version; removing, renaming or retyping one changes it. The probe block belongs to the probe and is versioned by probe_version.",
+  "type": "object",
+  "required": ["tool", "test", "schema_version", "label", "generated_at", "target", "rc", "summary", "probe", "probe_stderr"],
+  "properties": {
+    "tool": {"const": "agentsec-pack"},
+    "test": {"const": "sandbox-blast-radius"},
+    "schema_version": {"const": 1},
+    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote and scored the report. Absent from reports written before 0.5.0."},
+    "label": {"type": ["string", "null"]},
+    "generated_at": {"type": "integer", "description": "Unix time, seconds."},
+    "target": {"$ref": "#/$defs/target"},
+    "rc": {"type": "integer", "description": "Exit code of the process that ran the probe."},
+    "summary": {"$ref": "#/$defs/summary"},
+    "probe": {
+      "type": "object",
+      "required": ["probe_version"],
+      "properties": {"probe_version": {"type": "string"}}
+    },
+    "probe_stderr": {"type": "string"}
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["local", "self", "container", "command", "captured"]},
+        "label": {"type": ["string", "null"]},
+        "how": {"type": ["string", "null"]},
+        "note": {"type": "string"},
+        "python": {"type": "string"},
+        "proxy_auth": {"type": "boolean"},
+        "engine": {"type": "string"},
+        "image": {"type": "string"},
+        "digest": {"type": ["string", "null"]},
+        "flags": {"type": "array", "items": {"type": "string"}},
+        "preset": {"type": "string"},
+        "preset_rationale": {"type": "string"},
+        "template": {"type": "string"},
+        "command": {"type": ["string", "array"]}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["score", "raw_score", "finding_count", "by_severity", "recommended_flags", "findings"],
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 100, "description": "raw_score capped at 100."},
+        "raw_score": {"type": "integer", "minimum": 0, "description": "Sum of finding weights: critical 25, high 15, medium 8, low 3, info 0."},
+        "finding_count": {"type": "integer", "minimum": 0},
+        "by_severity": {
+          "type": "object",
+          "required": ["critical", "high", "medium", "low", "info"],
+          "properties": {
+            "critical": {"type": "integer", "minimum": 0},
+            "high": {"type": "integer", "minimum": 0},
+            "medium": {"type": "integer", "minimum": 0},
+            "low": {"type": "integer", "minimum": 0},
+            "info": {"type": "integer", "minimum": 0}
+          }
+        },
+        "recommended_flags": {"type": "array", "items": {"type": "string"}},
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "title", "severity", "category", "evidence", "owasp", "remediation"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(NET|SEC|FS|PRIV|PROC|RES)-[0-9]{3}$"},
+        "title": {"type": "string"},
+        "severity": {"enum": ["critical", "high", "medium", "low", "info"]},
+        "category": {"enum": ["network", "secrets", "filesystem", "privilege", "process", "resources"]},
+        "evidence": {"type": "object"},
+        "owasp": {"type": "array", "items": {"type": "string"}},
+        "remediation": {"type": "string"}
+      }
+    }
+  }
+}
