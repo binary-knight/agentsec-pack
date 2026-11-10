@@ -171,7 +171,7 @@ Both `--baseline` and `agentsec diff` exit with code 2 and list each finding tha
 GitHub Actions runs the same gate checks in one workflow step by installing `agentsec` from the action's own checkout, so the version pinned in the workflow is the version that measures.
 
 ```yaml
-- uses: binary-knight/agentsec-pack@v0.4.0     # a release tag, which pins the agentsec version
+- uses: binary-knight/agentsec-pack@v0.4.0     # a release tag, which sets the version of agentsec
   with:
     image: myagent:${{ github.sha }}
     preset: docker-hardened                    # or leave out and pass `flags:` instead
