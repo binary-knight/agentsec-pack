@@ -1,4 +1,5 @@
 """The promises in docs/COMPATIBILITY.md, each as a test that fails if it breaks."""
+import ast
 import copy
 import json
 import re
@@ -98,10 +99,14 @@ def test_the_score_is_the_raw_score_capped_at_100():
 
 
 def _constructed():
-    """Each finding id the scorer can emit, with the severity argument as written."""
+    """Each finding id the scorer can emit, with its severity: the literal, or None where it is computed."""
     found = {}
-    for m in re.finditer(r'_f\(\s*"([A-Z]+-\d{3})",\s*(?:\(?\s*f?"(?:[^"\\]|\\.)*"\s*)+\)?,\s*([^,]+),', SCORING_SRC):
-        found.setdefault(m.group(1), set()).add(m.group(2).strip())
+    for node in ast.walk(ast.parse(SCORING_SRC)):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_f":
+            fid, sev = node.args[0], node.args[2]
+            assert isinstance(fid, ast.Constant) and isinstance(fid.value, str)
+            literal = isinstance(sev, ast.Constant) and isinstance(sev.value, str)
+            found.setdefault(fid.value, set()).add(sev.value if literal else None)
     return found
 
 
@@ -114,8 +119,9 @@ def test_every_finding_id_fits_the_schema():
 
 
 def test_only_the_documented_findings_take_their_severity_from_evidence():
-    variable = sorted(i for i, sev in _constructed().items()
-                      if len(sev) > 1 or not re.fullmatch(r'"(critical|high|medium|low|info)"', next(iter(sev))))
+    severities = _constructed()
+    assert all(s <= set(scoring.SEVERITY_WEIGHT) | {None} for s in severities.values())
+    variable = sorted(i for i, sev in severities.items() if len(sev) > 1 or None in sev)
     assert variable == ["FS-001", "PRIV-003"], "update docs/COMPATIBILITY.md if this list changes"
 
 
