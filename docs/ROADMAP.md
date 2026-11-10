@@ -57,9 +57,10 @@ The rules `agentsec benchmark` enforces:
 
 ## Done
 
-**Unreleased, on main**
-- Scoring under a user-space kernel: findings that describe what gVisor's kernel grants are reported at info, so Modal's scores count what the sandbox exposes beyond gVisor.
+**1.0.0, 2026-11-10**
 - A written compatibility policy, with a test for each promise, and JSON Schemas for reports.
+- Scoring under a user-space kernel: findings that describe what gVisor's kernel grants are reported at info, so Modal's scores count what the sandbox exposes beyond gVisor.
+- Antigravity CLI 1.5.2 measured with writes and proxy traffic tested for real, and Anthropic's sandbox runtime measured on macOS.
 
 **0.4.0, 2026-11-07**
 - Probe 0.7.0, which no longer reports an allowlist that filters at TLS as open internet, and flags gVisor.

@@ -4,19 +4,30 @@ What changed in each release of `agentsec-pack`, newest first. Probe versions
 are listed separately because a report records the probe version that took it,
 and two reports are only comparable when it matches or the difference is known.
 
-## Unreleased
+## 1.0.0 — 2026-11-10
 
-- Under a user-space kernel such as gVisor, findings that describe what that kernel grants the process (PRIV-001 to PRIV-005, FS-005, FS-006 and RES-001) are reported at info, with their usual severity kept in the evidence, because that kernel is the sandbox's boundary and not the host's. Findings about what the sandbox exposes beyond it keep their severity. The rule does not apply when something is mounted over `/proc` or `/proc/version`. This is an exception, made before 1.0, to the compatibility policy's rule that an existing finding's severity changes only in a new major version.
-- Modal's four reports were rescored from the same probe output and now read 46, 39, 39 and 31, where they read 100, 100, 100 and 97. A Modal baseline taken before this change has no `agentsec_version`, so `--baseline` shows the drop without a version note. Nothing fails, since a drop is not a regression.
-- The version on `main` is 0.5.0.dev0, so a report written from it says which scorer produced it.
-- `docs/COMPATIBILITY.md` states what stays the same from one version to the next: the commands, flags and exit codes, the report format, the scoring and the GitHub Action's inputs and outputs. `tests/test_compatibility.py` checks each of those. `verify`, `submit` and `benchmark` are marked experimental in their help text.
-- Reports now record `agentsec_version`, the version that wrote and scored them, beside the probe's `probe_version`. `--baseline` and `agentsec history` note when it differs, as they already did for the probe. JSON Schemas for the blast-radius report and the `assert` result ship in `agentsec/data/`.
-- `agentsec --version` prints the package and probe versions.
-- The README said a probe version difference fails `--baseline`. It fails only when a finding is new or more severe, which is what the gate has always done, and a version difference with nothing worse passes with a note. The README and the note now say so.
-- The README's GitHub Action example pins `@v0.4.0`, the latest release, instead of `@v0.2.0`.
-- The README opens with a 63-second explainer video: what the probe measures, the `python:3.12-slim` hardening scores, the Antigravity CLI 1.5.2 and `srt` 0.0.81 measurements, and the Harbor grader control task, with each figure taken from a report in `examples/`.
-- Antigravity CLI 1.5.2 measured, with writes and proxy traffic tested for real by `scripts/check_sandbox_boundaries.py`. Under `--sandbox`, `--dangerously-skip-permissions` now leaves the home directory, its shell startup files and the project writable and scores 100, and the 1.5.1 proxy still accepts tunnels to any hostname. With `proceed-in-sandbox` the score stays 31 and the working directory stays read-only, while files written to the build caches it leaves writable, including `~/.cargo/bin`, persist on the host. `measure_stubbed_agent.py` gains `--script` to run a check in place of the probe.
-- Anthropic's sandbox runtime, `srt` 0.0.81, measured on macOS in four configurations. With `allowWrite ["."]` it leaves Claude Code's project settings files writable, which its documentation describes, and naming them in `denyWrite` protects them.
+Probe **0.7.0**, unchanged since 0.4.0. The first release covered by `docs/COMPATIBILITY.md`: from here on, a change that breaks one of its promises waits for 2.0.
+
+**Compatibility**
+- `docs/COMPATIBILITY.md` states what stays the same from one version to the next: the commands, flags and exit codes, the report format, the scoring and the GitHub Action's inputs and outputs. `tests/test_compatibility.py` checks each of those. `verify`, `submit` and `benchmark` are marked experimental in their help text. (#51)
+- Reports now record `agentsec_version`, the version that wrote and scored them, beside the probe's `probe_version`. `--baseline` and `agentsec history` note when it differs, as they already did for the probe. JSON Schemas for the blast-radius report and the `assert` result ship in `agentsec/data/`. (#51)
+- `agentsec --version` prints the package and probe versions. (#51)
+- The README said a probe version difference fails `--baseline`. It fails only when a finding is new or more severe, which is what the gate has always done, and a version difference with nothing worse passes with a note. The README and the note now say so. (#51)
+
+**Scoring**
+- Under a user-space kernel such as gVisor, findings that describe what that kernel grants the process (PRIV-001 to PRIV-005, FS-005, FS-006 and RES-001) are reported at info, with their usual severity kept in the evidence, because that kernel is the sandbox's boundary and not the host's. Findings about what the sandbox exposes beyond it keep their severity. The rule does not apply when something is mounted over `/proc` or `/proc/version`. This is an exception, made before 1.0, to the compatibility policy's rule that an existing finding's severity changes only in a new major version. (#53)
+- Modal's four reports were rescored from the same probe output and now read 46, 39, 39 and 31, where they read 100, 100, 100 and 97. A Modal baseline taken before this change has no `agentsec_version`, so `--baseline` shows the drop without a version note. Nothing fails, since a drop is not a regression. The rescored reports name `0.5.0.dev0`, the development version that rescored them before this release. (#53)
+
+**Measured profiles**
+- Antigravity CLI 1.5.2 measured, with writes and proxy traffic tested for real by `scripts/check_sandbox_boundaries.py`. Under `--sandbox`, `--dangerously-skip-permissions` now leaves the home directory, its shell startup files and the project writable and scores 100, and the 1.5.1 proxy still accepts tunnels to any hostname. With `proceed-in-sandbox` the score stays 31 and the working directory stays read-only, while files written to the build caches it leaves writable, including `~/.cargo/bin`, persist on the host. `measure_stubbed_agent.py` gains `--script` to run a check in place of the probe. (#45)
+- Anthropic's sandbox runtime, `srt` 0.0.81, measured on macOS in four configurations. With `allowWrite ["."]` it leaves Claude Code's project settings files writable, which its documentation describes, and naming them in `denyWrite` protects them. (#46)
+
+**Packaging**
+- PyPI classifiers, with Development Status 5 - Production/Stable. The license is declared as the SPDX expression `MIT`, which replaces the deprecated table form and needs setuptools 77 or later to build. (#51)
+
+**Documentation**
+- The README opens with a 63-second explainer video: what the probe measures, the `python:3.12-slim` hardening scores, the Antigravity CLI 1.5.2 and `srt` 0.0.81 measurements, and the Harbor grader control task, with each figure taken from a report in `examples/`. (#48)
+- The README's GitHub Action example pins the latest release, `@v1.0.0`, instead of `@v0.2.0`. (#49, #50)
 
 ## 0.4.0 — 2026-11-07
 

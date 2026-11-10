@@ -9,7 +9,7 @@
     "tool": {"const": "agentsec-pack"},
     "test": {"const": "path-assertions"},
     "schema_version": {"const": 1},
-    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote the result. Absent from results written before 0.5.0."},
+    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote the result. Absent from results written before 1.0.0."},
     "generated_at": {"type": "integer", "description": "Unix time, seconds."},
     "target": {
       "type": "object",
