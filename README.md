@@ -1,5 +1,7 @@
 # agentsec-pack
 
+https://github.com/user-attachments/assets/6a83df69-a2a6-4b16-8984-465fac7d6cd9
+
 Installed with `pip install agentsec-pack`, the `agentsec` command measures what an AI agent could reach from inside its sandbox across the network, secrets, the host filesystem, privileges and the other processes on the machine. The sandbox sets the limit on damage because a prompt-injected or mistaken agent can do whatever its sandbox allows. A transcript shows what the agent did, and this tool measures what the sandbox would have let it do.
 
 A small standard-library Python probe inside the sandbox opens credential files, connects to hosts and sockets, writes zero-byte marker files, and reports secret names and paths without values. Refused connections count as contained, and a control test checks whether refusals apply to the entire system call or one path. A scorer turns results into findings with fixed weights and a score from 0 to 100, where 0 means the probe reached nothing. The `--max-score` flag fails a CI build above a budget, `--baseline` fails when anything got worse than an accepted report, and both exit with code 2.
