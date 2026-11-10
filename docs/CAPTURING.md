@@ -191,4 +191,5 @@ settings for both.
 
 `scripts/measure_modal.py` runs the probe in a `modal.Sandbox` under your Modal login, with
 the Python that has the `modal` package. Each sandbox is terminated when its probe finishes.
-Modal uses gVisor, so read PRIV-007 in the report before comparing the score with anything.
+Modal uses gVisor, and PRIV-007 in the report says so. Findings that describe what gVisor's kernel
+grants are reported at info, so the score counts what the sandbox exposes beyond gVisor.

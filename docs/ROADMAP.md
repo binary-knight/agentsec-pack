@@ -7,7 +7,7 @@ that is not the implementer's to make.
 The rule that governs every measurement item still applies: a number goes in
 only from a run that was actually made, and says how it was made.
 
-Last revised 2026-11-07.
+Last revised 2026-11-10.
 
 ## Next
 
@@ -33,8 +33,6 @@ Any result that contradicts a vendor's documentation is raised with the vendor b
 
 Still open: E2B, Daytona and Docker's own sandboxes. Each must say what it does not reproduce, and each recipe must come from a live run. *Needs the maintainer's accounts for E2B and Daytona, and a machine with Docker Desktop.*
 
-**Scoring under a user-space kernel.** Modal's 74 raw points for root, capabilities and `/proc` describe gVisor's kernel, and the score still counts them, so it does not compare with a score where those findings describe the host's. PRIV-007 flags this. Done when the score separates the two, or the docs state why it does not. Needs a way to show what a process can do past that kernel, not only that the kernel is there.
-
 **What an editor forwards.** A dev container with VS Code attached adds git credential and IPC sockets that the probe does not test. Done when the probe says whether a command can get a credential through them, from a run with a throwaway credential.
 
 ### 4. A community benchmark from opt-in submissions
@@ -58,6 +56,10 @@ The rules `agentsec benchmark` enforces:
 **Known limit.** Submissions are not checked against a re-run, and one person with five accounts can still cross the threshold. A community figure reports what accounts posted, which is why reproduced results are shown apart.
 
 ## Done
+
+**Unreleased, on main**
+- Scoring under a user-space kernel: findings that describe what gVisor's kernel grants are reported at info, so Modal's scores count what the sandbox exposes beyond gVisor.
+- A written compatibility policy, with a test for each promise, and JSON Schemas for reports.
 
 **0.4.0, 2026-11-07**
 - Probe 0.7.0, which no longer reports an allowlist that filters at TLS as open internet, and flags gVisor.
