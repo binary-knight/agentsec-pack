@@ -25,6 +25,9 @@ Probe **0.7.0**, unchanged since 0.4.0. The first release covered by `docs/COMPA
 **Packaging**
 - PyPI classifiers, with Development Status 5 - Production/Stable. The license is declared as the SPDX expression `MIT`, which replaces the deprecated table form and needs setuptools 77 or later to build. (#51)
 
+**GitHub Action**
+- The Action uploads its reports with `actions/upload-artifact` v7, which runs on Node 24. A self-hosted runner needs Actions Runner 2.327.1 or later. The release workflow moves to `upload-artifact` v7 and `download-artifact` v8. (#56, #57)
+
 **Documentation**
 - The README opens with a 63-second explainer video: what the probe measures, the `python:3.12-slim` hardening scores, the Antigravity CLI 1.5.2 and `srt` 0.0.81 measurements, and the Harbor grader control task, with each figure taken from a report in `examples/`. (#48)
 - The README's GitHub Action example pins the latest release, `@v1.0.0`, instead of `@v0.2.0`. (#49, #50)
