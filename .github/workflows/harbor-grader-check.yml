@@ -45,7 +45,7 @@ jobs:
       - run: bash scripts/check_harbor_grader.sh "$RUNNER_TEMP/grader" "control-${{ matrix.task }}"
         env:
           TASK_DIR: ${{ github.workspace }}/examples/harbor-control/${{ matrix.task }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: grader-control-${{ matrix.task }}
@@ -71,7 +71,7 @@ jobs:
       - name: Free disk for the task's image
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - run: bash scripts/check_harbor_grader.sh "$RUNNER_TEMP/grader" "${{ matrix.task }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: grader-${{ matrix.task }}

@@ -65,7 +65,7 @@ jobs:
               --how "claude ${CLAUDE_CODE_VERSION} -p --model ${MODEL} --allowedTools Bash --settings $(cat /tmp/s-$cfg.json), asked to run /usr/bin/python3 probe.py > out.json and nothing else, from a throwaway git repository holding empty project config for Codex, Claude Code and Antigravity. Launched with env -i plus ANTHROPIC_API_KEY and AGENTSEC_PROBE_PROXY_AUTH=1, on a GitHub-hosted macos-latest machine." || true
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: claude-code-macos-reports
           path: reports/
