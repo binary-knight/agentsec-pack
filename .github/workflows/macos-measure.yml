@@ -97,7 +97,7 @@ jobs:
           srt_run deny-write 'srt --settings with allowWrite ["."], denyWrite [".claude/settings.json", ".claude/settings.local.json"], no allowed domains' --settings /tmp/srt-deny-write.json -- "$PY" probe.py
           srt_run deny-read 'srt --settings with denyRead ["~/"], allowRead ["."], allowWrite ["."], no denyWrite, no allowed domains, using /usr/bin/python3' --settings /tmp/srt-deny-read.json -- "$SYS" probe.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-reports
           path: reports/

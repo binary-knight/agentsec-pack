@@ -62,7 +62,7 @@ jobs:
             run linux-no-sandbox "GEMINI_SANDBOX=false" --env GEMINI_SANDBOX=false
             run linux-docker "GEMINI_SANDBOX=docker" --env GEMINI_SANDBOX=docker --url-host host.docker.internal
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: gemini-${{ matrix.os }}
@@ -145,7 +145,7 @@ jobs:
           project="$RUNNER_TEMP/boundaries-proceed-write-file"
           check proceed-write-file "--sandbox with proceed-in-sandbox and an allow rule write_file(project)" --sandbox \
             --settings "{\"toolPermission\": \"proceed-in-sandbox\", \"permissions\": {\"allow\": [\"write_file($project)\"]}}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: antigravity-${{ matrix.os }}

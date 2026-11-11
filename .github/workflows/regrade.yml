@@ -64,7 +64,7 @@ jobs:
           HEAD_SHA: ${{ matrix.head }}
           LABEL: pr-${{ matrix.i }}
         run: bash agentsec-src/scripts/regrade_pr.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: regrade-${{ matrix.i }}
