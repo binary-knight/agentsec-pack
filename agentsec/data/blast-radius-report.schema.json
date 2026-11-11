@@ -9,7 +9,7 @@
     "tool": {"const": "agentsec-pack"},
     "test": {"const": "sandbox-blast-radius"},
     "schema_version": {"const": 1},
-    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote and scored the report. Absent from reports written before 0.5.0."},
+    "agentsec_version": {"type": "string", "description": "The agentsec-pack version that wrote and scored the report. Absent from reports written before 1.0.0."},
     "label": {"type": ["string", "null"]},
     "generated_at": {"type": "integer", "description": "Unix time, seconds."},
     "target": {"$ref": "#/$defs/target"},
